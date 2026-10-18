@@ -1,0 +1,38 @@
+# ---------------------------------------------------------------
+# DADOS: nunca versionar os dados brutos nem o material do case
+# (o repositório é público e os dados são confidenciais da Visagio)
+# ---------------------------------------------------------------
+data/
+dados/
+*.zip
+*.xlsx
+*.xls
+*.pdf
+*.parquet
+
+# Exceção futura: amostras pequenas e fake para Dev/IA podem ir em
+# docs/samples/ — descomente se precisar
+# !docs/samples/*.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+
+# Banco local
+*.db
+*.sqlite
+*.sqlite3
+
+# Node / frontend
+node_modules/
+dist/
+
+# Sistema / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

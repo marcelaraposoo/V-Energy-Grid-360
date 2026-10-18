@@ -51,7 +51,10 @@ landing_path = f"/Volumes/{catalog}/bronze/landing"
   sujos (decimal com vírgula, datas em formatos mistos, códigos com zeros à esquerda) e a
   inferência alteraria o conteúdo original — o case exige preservá-lo exatamente.
 - Nomes de colunas normalizados para snake_case sem acento (o Delta não aceita espaços).
-- Excel: uma tabela Bronze por aba.
+- JSON aninhado: estrutura preservada (arrays/structs) com `primitivesAsString`; abertura em tabelas só na Silver.
+- Excel (`inspecoes.xlsx`): lido com pandas (`dtype=str`); as 3 abas têm o mesmo layout e são
+  unidas em `bronze.inspecoes`, com a coluna `aba_origem`.
+- Toda execução registra contagens e checagem de integridade em `bronze.controle_ingestao`.
 
 ### Silver (padrão da aula `02_Bronze_to_Silver`)
 - Uma **célula markdown antes de cada tratamento** listando as decisões

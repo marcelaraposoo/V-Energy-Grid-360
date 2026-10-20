@@ -80,6 +80,7 @@ Contagens dos itens 3 a 6 em `limpo` (sem cópias e sem órfãs: 2.152.336 linha
 - **Linhas afetadas:** 1.717 em `limpo` (1.687 + 22 + 8). Aparece em todos os anos, ~35 a 38 por mês.
 - **Decisão (proposta):** `abs(consumo)` + flag `consumo_corrigido`.
 - **Atenção:** o critério do `.0` depende do texto original, então a classificação precisa vir antes do cast. Como validação, esperar zero divergência entre o critério do `.0` e o do medidor.
+- **Confirmado nas 30**: o consumo é negativo, termina em `.0` e `abs(consumo)` bate com a leitura recuperada (±1).
 
 ### 5. Consumo negativo por troca de medidor
 - **Problema:** em 6.299 linhas o medidor da UC muda em relação ao mês anterior, e a `leitura_anterior` é a última do medidor antigo enquanto a `leitura_atual` é a do medidor novo. A subtração dá negativo e o consumo registrado não tem sentido (ex.: UC100011 em 2025-12: anterior 195.613, atual 4.698, consumo −190.915).

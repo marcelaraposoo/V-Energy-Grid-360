@@ -122,3 +122,86 @@ Contagens dos itens 3 a 6 em `limpo` (sem cópias e sem órfãs: 2.152.336 linha
 - 513 linhas com `id_medidor` repetido (51.812 linhas para 51.299 ids distintos). Confirmar se são cópias exatas.
 - `data_instalacao` em formatos mistos (entre os medidores novos das trocas, 460 de 6.367 não estão em ISO). A ordem dia/mês desses formatos não foi conferida.
 - Um join com `medidores` sem deduplicar multiplica linhas.
+
+
+## Tabela `faturas`
+
+Fonte: `bronze.faturas` (`faturas.csv`, separador `;`). 2.184.623 linhas na Bronze, 2.184.621 depois de remover o cabeçalho repetido.
+Exploração: `exploracao_faturas.ipynb`. As decisões marcadas como **proposta** aguardam confirmação do grupo.
+
+### Resumo
+
+| # | Problema | Linhas | Decisão | Status |
+|---|---|---|---|---|
+| 1 | Linhas de cabeçalho repetido nos dados | 2 | Remover, antes da deduplicação | proposta |
+| 2 | Faturas órfãs (UC inexistente, ids fora do padrão) | 32.285 | Remover ou quarentena | proposta |
+| 3 | `valor_total` escrito como moeda (`R$ 9,9`) | 196.622 | Normalizar o texto antes do cast | proposta |
+| 4 | `data_emissao` em 4 formatos | 183.361 fora do ISO | Converter cada padrão com o seu formato | proposta |
+| 5 | `data_pagamento` ausente em 2 formas | 175.168 | `9999-12-31` vira nulo; flag `em_aberto` | proposta |
+
+As contagens dos itens 3 e 4 são da tabela bruta (incluem as órfãs). As demais são indicadas em cada item.
+
+---
+
+### 1. Linhas de cabeçalho repetido
+- **Problema:** 2 linhas em que o valor de cada coluna é o nome da própria coluna (`id_fatura = 'id_fatura'`, `data_emissao = 'data_emissao'` e assim por diante). Ambas vêm do `faturas.csv`.
+- **Onde mais ocorre:** `unidades_consumidoras` (1 linha). Não ocorre em `leituras`, `medidores`, `ocorrencias_rede` nem `geracao_distribuida`. `atendimentos` e `inspecoes` não foram testadas.
+- **Decisão (proposta):** remover na Silver (nulo estrutural: registro inutilizável), filtrando `id_fatura != 'id_fatura'`. Deve vir **antes** da deduplicação: se deduplicar primeiro, uma das duas linhas sobra.
+- **A verificar com quem fez a ingestão:** se o cabeçalho está repetido no arquivo de origem ou se é efeito da leitura da Bronze. Corrigir na Bronze evitaria o tratamento em cada Silver.
+
+### 2. Faturas órfãs
+- **Problema:** 32.285 faturas (1,5%) com as três condições ao mesmo tempo: `id_fatura` fora do padrão `FT` + 9 dígitos (prefixo `FTX`, ex.: `FTX0031810`), `id_uc` com 7 dígitos (ex.: `UC9305662`) e UC inexistente em `unidades_consumidoras`. As outras 2.152.336 faturas estão todas no padrão e com UC existente. Nenhuma fatura tem só uma das três condições.
+- **Duplicatas:** 21 pares `(id_uc, mes_referencia)` com mais de uma fatura, todos formados por duas órfãs (42 linhas). Entre as faturas válidas, nenhuma repete UC + mês.
+- **Peso em valor:** a soma de `valor_energia` das órfãs é R$ 7.644.280,57, contra R$ 499.862.082,73 das válidas (1,5% do total). O valor médio por fatura é parecido (R$ 236,78 nas órfãs e R$ 232,24 nas válidas).
+- **Decisão (proposta):** remover (ou guardar numa tabela de quarentena, se o grupo quiser auditar). Padrão análogo às leituras órfãs (`id_medidor` fora do padrão).
+- **Efeito na Gold:** a receita total fica ~1,5% menor sem as órfãs. Registrar no dicionário de dados.
+- **Não verificado:** se as órfãs de `faturas` e de `leituras` correspondem às mesmas UCs ou meses.
+
+### 3. `valor_total` escrito como moeda
+- **Problema:** `valor_energia` e `tributos` têm formato único (`9.9`, ponto decimal). `valor_total` tem três:
+
+| Formato | Exemplo | Linhas |
+|---|---|---|
+| `9.9` | `102.57` | 1.987.999 |
+| `R$ 9,9` | `R$ 100,64` | 188.571 |
+| `R$ 9.9,9` | `R$ 1.234,56` (ponto de milhar) | 8.051 |
+
+- **Risco:** um `cast` simples anularia 196.622 faturas (9,0%), e a receita ficaria subestimada em cerca de 9%.
+- **Decisão (proposta):** remover `R$` e o ponto de milhar, trocar a vírgula decimal por ponto e converter para `decimal(12,2)`.
+- **Validado:** nas 2.152.336 faturas válidas, todos os totais convertem e `valor_total = valor_energia + tributos` em 100% (diferença zero).
+
+### 4. `data_emissao` em quatro formatos
+- **Problema:** 
+
+| Padrão | Formato | Linhas |
+|---|---|---|
+| `9999-99-99` | `yyyy-MM-dd` | 2.001.260 |
+| `99/99/9999` | `dd/MM/yyyy` | 61.291 |
+| `99.99.9999` | `dd.MM.yyyy` | 61.252 |
+| `99-99-9999` | `MM-dd-yyyy` (**mês primeiro**) | 60.818 |
+
+- **Como foi confirmada a ordem:** o vencimento é sempre a emissão + 12 dias. Com os formatos acima, isso vale em 100% das linhas e nenhuma deixa de converter. Os formatos alternativos falham (por exemplo, `dd-MM-yyyy` não converte 38.615 linhas).
+- **Mesmo mapeamento de `leituras`:** hífen é mês primeiro, ponto e barra são dia primeiro.
+- **O `mes_referencia` não serve de gabarito:** mesmo no ISO, o mês da emissão só bate com a competência em 99,5% das linhas (provavelmente faturas emitidas no mês seguinte; não verificado).
+- **Decisão (proposta):** converter cada padrão com o seu formato e gravar como `date`.
+- `data_vencimento` (`yyyy-MM-dd`) e `mes_referencia` (`yyyy-MM`) têm formato único.
+
+### 5. `data_pagamento` ausente em duas formas
+- **Problema:** `data_pagamento` ausente aparece como nulo real (113.835) e como a data sentinela `9999-12-31` (61.333). Total: 175.168 faturas em aberto (8,0%).
+- **Confirmado:** todas as 113.835 com nulo real e todas as 61.333 com `9999-12-31` estão `EM ABERTO`. Todas as 2.009.453 `PAGA` têm data real. Distribuição regular: ~1.275 por mês com a sentinela, em todos os anos.
+- **Decisão (proposta):** converter `9999-12-31` em nulo real e derivar a flag `em_aberto`. Isso evita que contas como "dias entre vencimento e pagamento" usem o ano 9999.
+- **Mesmo padrão de:** `leitura_anterior` (4 formas de ausência) e `data_retirada` em `medidores` (`9999-12-31`).
+- **Efeito na tela do atendente:** a lista de "faturas em aberto" deve usar o `status`, e não a presença da data.
+
+---
+
+### Verificado e sem problema
+- Sem cópias exatas: 2.184.621 linhas e 2.184.621 `id_fatura` distintos.
+- `status`: só `PAGA` e `EM ABERTO`, sem variações de grafia. Em aberto e pago têm a mesma última competência (2026-06).
+- Datas: 0 emissões depois do vencimento e 0 pagamentos antes da emissão, depois de converter cada formato.
+- **Uma fatura por leitura:** depois de remover as órfãs das duas tabelas, `faturas` e `leituras` têm exatamente os mesmos 2.152.336 pares `(id_uc, mes_referencia)`: 0 faturas sem leitura e 0 leituras sem fatura.
+
+### Transversais (para as outras Silvers)
+- Cabeçalho repetido nos dados: conferir todas as tabelas, em especial `atendimentos` e `inspecoes`.
+- `9999-12-31` como data sentinela: aparece em `medidores` e `faturas`. Procurar em `ocorrencias_rede` (`data_encerramento`) e `atendimentos` (`data_fechamento`). Convenção proposta: vira nulo real.
+- Registros órfãos com ids fora do padrão (`MD` com 7 dígitos, `FTX`, `UC` com 7 dígitos): procurar nas demais tabelas que referenciam UC.

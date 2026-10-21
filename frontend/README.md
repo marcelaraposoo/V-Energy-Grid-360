@@ -17,13 +17,26 @@ Acesse http://localhost:5173 ou o endereço indicado no terminal.
 
 ## Estrutura
 
-- `src/main.tsx`: ponto de entrada do React, com StrictMode.
-- `src/App.tsx`: componente principal da aplicação.
-- `src/index.css`: estilos globais.
-- `src/App.css`: estilos do componente principal.
-- `vite.config.ts`: configuração do Vite e do plugin React.
-- `tsconfig*.json`: configurações TypeScript com modo estrito.
-- `.oxlintrc.json`: configuração do lint.
-
-Este setup contém somente a base do frontend. Telas de negócio e integração
-com a API serão implementadas nas respectivas tarefas.
+```text
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── layout/        # Layout compartilhado e navegação
+│   │   └── ui/            # Componentes reutilizáveis
+│   ├── features/         # Páginas por funcionalidade
+│   │   ├── assistente/
+│   │   ├── dashboard/
+│   │   ├── inspecoes/
+│   │   └── unidades/
+│   ├── pages/            # Página de erro 404
+│   ├── App.tsx           # Rotas da aplicação
+│   ├── App.css           # Estilos do layout e componentes
+│   ├── index.css         # Tokens e estilos globais
+│   └── main.tsx          # Entrada do React
+├── index.html
+├── package.json          # Dependências e scripts
+├── package-lock.json     # Versões das dependências
+├── vite.config.ts        # Configuração do Vite
+├── tsconfig*.json        # Configurações do TypeScript
+└── V-Energy-Grid-360-Ideacao-UX.md  # Guia de layout e estilo
+```

@@ -43,13 +43,12 @@ Este arquivo alimenta o dicionário de dados e a seção de suposições do READ
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
-| | | | | | |
+| U1 | todas | Linha de cabeçalho repetida como dado (`id_uc = 'id_uc'`), presente no arquivo de origem (linha 27.536 do CSV) | 1 | Remover antes de contar linhas, deduplicar e fazer joins | Nulo estrutural; mesma convenção de F1. A Bronze preserva a origem |
 
 ### A investigar
 
 | Coluna | Observação |
 |---|---|
-| id_uc | 1 linha de cabeçalho repetido (`id_uc = 'id_uc'`): remover na Silver antes de contar linhas e fazer joins |
 | uf | `PE` e `Pernambuco` |
 | logradouro | Espaços no fim do texto |
 | cpf_cnpj, nome_titular | Dados pessoais: mascarar na Gold e no portal (LGPD) |
@@ -219,9 +218,9 @@ Exploração: `exploracao_faturas.ipynb`.
 
 #### F1. Linhas de cabeçalho repetido
 - **Problema:** 2 linhas em que o valor de cada coluna é o nome da própria coluna (`id_fatura = 'id_fatura'`, `data_emissao = 'data_emissao'` e assim por diante). Ambas vêm do `faturas.csv`.
-- **Onde mais ocorre:** `unidades_consumidoras` (1 linha). Não ocorre em `leituras`, `medidores`, `ocorrencias_rede` nem `geracao_distribuida`. `atendimentos` e `inspecoes` não foram testadas.
+- **Onde mais ocorre:** `unidades_consumidoras` (1 linha, ver U1). Não ocorre em `leituras`, `medidores`, `ocorrencias_rede`, `geracao_distribuida`, `atendimentos` nem `inspecoes`.
 - **Decisão:** remover na Silver (nulo estrutural: registro inutilizável), filtrando `id_fatura != 'id_fatura'`. Deve vir **antes** da deduplicação: se deduplicar primeiro, uma das duas linhas sobra.
-- **Alternativas consideradas:** corrigir na Bronze, o que evitaria o tratamento em cada Silver. Depende de quem fez a ingestão verificar se o cabeçalho está repetido no arquivo de origem ou se é efeito da leitura.
+- **Alternativas consideradas:** corrigir na Bronze, o que evitaria o tratamento em cada Silver. **Descartada após verificação:** o cabeçalho repetido está no arquivo de origem (`faturas.csv`, linhas 1.005.328 e 1.749.118; `unidades_consumidoras.csv`, linha 27.536), não é efeito da leitura. As contagens do arquivo e da Bronze batem. Como a Bronze deve preservar a origem, a remoção fica na Silver. Verificado por Aimê em 21/10/2026.
 - **Impacto na Gold:** nenhum (2 linhas sem informação).
 
 #### F2. Faturas órfãs
@@ -294,9 +293,11 @@ Exploração: `exploracao_faturas.ipynb`.
 
 | Coluna | Observação |
 |---|---|
-| todas | Testar linha de cabeçalho repetido (encontrada em faturas e em unidades_consumidoras) |
 | data_fechamento | Procurar a data sentinela `9999-12-31` (convenção adotada em faturas e medidores: vira nulo) |
 | id_uc | Procurar órfãs com id fora do padrão (`UC` com 7 dígitos) |
+
+### Verificado e sem problema
+- Sem linha de cabeçalho repetida (`protocolo = 'protocolo'`: 0 linhas na Bronze).
 
 ## `inspecoes` (I)
 
@@ -310,13 +311,15 @@ Exploração: `exploracao_faturas.ipynb`.
 
 | Coluna | Observação |
 |---|---|
-| todas | Testar linha de cabeçalho repetido (encontrada em faturas e em unidades_consumidoras) |
 | data | Formatos misturados (`2025-08-01`, `14.08.2025`, `09-01-2025`) |
 | resultado | Mesmo valor escrito de formas diferentes (`CONFIRMADA`, `IRREGULARIDADE CONFIRMADA`, `irregularidade confirmada`) |
 | kwh_recuperado | Decimal com vírgula e com ponto na mesma coluna (`1313,70` e `838.10`) |
 | tipo_irregularidade | `"-"` usado no lugar de nulo |
 | inspetor | Espaços sobrando (`" INSP-006"`) |
 | id_uc | Procurar órfãs com id fora do padrão (`UC` com 7 dígitos) |
+
+### Verificado e sem problema
+- Sem linha de cabeçalho repetida (`id_inspecao = 'id_inspecao'`: 0 linhas na Bronze, nas 3 abas).
 
 ## Cruzamentos entre tabelas (X)
 
@@ -333,3 +336,4 @@ Exploração: `exploracao_faturas.ipynb`.
 | unidades_consumidoras / medidores | 45.445 medidores ativos para 46.461 UCs: verificar UCs sem medidor ativo e UCs com mais de um |
 | medidores / leituras | Depois de deduplicar `medidores` na Silver, confirmar que nenhum `id_medidor` usado em `leituras` deixou de existir (afeta a regra de órfãs de L2) |
 | faturas / leituras | Verificar se as órfãs das duas tabelas correspondem às mesmas UCs ou meses (pendência de F2) |
+

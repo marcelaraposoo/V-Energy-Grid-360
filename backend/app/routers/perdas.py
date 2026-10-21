@@ -23,6 +23,11 @@ def listar(status: str | None = None, repo=Depends(repo_dep)):
     return repo.listar_ordens(status)
 
 
+@router.get("/ordens/{ordem_id}", response_model=Ordem)
+def obter(ordem_id: int, repo=Depends(repo_dep)):
+    return perdas.obter(repo, ordem_id)
+
+
 @router.post("/ordens/{ordem_id}/iniciar", response_model=Ordem)
 def iniciar(ordem_id: int, repo=Depends(repo_dep)):
     return perdas.iniciar(repo, ordem_id)

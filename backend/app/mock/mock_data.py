@@ -3,6 +3,7 @@
 Premissas do mock (ajustar quando a Gold real chegar):
 - 48 competências (2022-10 a 2026-09), 400 UCs, 14 municípios, 2 alimentadores por município.
 - Ocorrência de rede aqui é AGREGADA (ucs_afetadas + duracao_h); no dado real cada registro é 1 UC.
+- Medidor sem 'última manutenção': na origem essa coluna é 100% vazia (docs/data_quality_log.md).
 - Reajuste tarifário em degraus + bandeiras aleatórias, para o efeito-preço aparecer na decomposição.
 """
 from __future__ import annotations
@@ -104,7 +105,6 @@ def build_mock_data() -> dict:
             "medidor_id": f"MD{i + 1:06d}",
             "tipo": rng.choice(["Digital", "Inteligente", "Eletromecânico"]),
             "data_instalacao": f"{rng.randint(2012, 2024)}-{rng.randint(1, 12):02d}-15",
-            "ultima_manutencao": f"{rng.randint(2022, 2026)}-{rng.randint(1, 9):02d}-20",
             "status": "ativo",
         }
         if rng.random() < 0.08:
@@ -197,7 +197,7 @@ def build_mock_data() -> dict:
         base = u["_base"]
         suspeitas.append({
             "uc_id": u["uc_id"],
-            "motivos": [rng.choice(["Consumo muito abaixo do padrão da classe no bairro", "Medidor sem manutenção há mais de 3 anos", "Inspeção anterior com irregularidade"])],
+            "motivos": [rng.choice(["Consumo muito abaixo do padrão da classe no bairro", "Medidor antigo (instalado há mais de 10 anos)", "Inspeção anterior com irregularidade"])],
             "probabilidade": round(rng.uniform(0.25, 0.6), 2),
             "energia_recuperavel_kwh_mes": round(base * rng.uniform(0.15, 0.4), 1),
         })

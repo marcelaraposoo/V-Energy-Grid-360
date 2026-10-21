@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends
 
 from app.routers.deps import filtros_dep, periodos_dep, repo_dep
@@ -19,10 +21,7 @@ def serie(f=Depends(filtros_dep), repo=Depends(repo_dep)):
 
 
 @router.get("/receita/variacao", response_model=VariacaoResponse)
-def variacao(agrupar_por: str = "municipio", periodos=Depends(periodos_dep), f=Depends(filtros_dep), repo=Depends(repo_dep)):
+def variacao(agrupar_por: Literal["municipio", "bairro", "classe"] = "municipio", periodos=Depends(periodos_dep), f=Depends(filtros_dep), repo=Depends(repo_dep)):
     """Drill-down: chame com agrupar_por=municipio, depois filtre municipio=X&agrupar_por=bairro, etc."""
-    if agrupar_por not in ("municipio", "bairro", "classe"):
-        from fastapi import HTTPException
-        raise HTTPException(422, "agrupar_por deve ser municipio, bairro ou classe")
     base, atual = periodos
     return receita.variacao(repo, base, atual, f, agrupar_por)

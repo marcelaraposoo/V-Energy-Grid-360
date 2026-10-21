@@ -34,6 +34,10 @@ def _ordem(repo, ordem_id: int) -> dict:
     return o
 
 
+def obter(repo, ordem_id: int) -> dict:
+    return _ordem(repo, ordem_id)
+
+
 def criar(repo, dados: OrdemCreate) -> dict:
     if not repo.uc(dados.uc_id):
         raise NaoEncontrado(f"Unidade consumidora {dados.uc_id} não encontrada")

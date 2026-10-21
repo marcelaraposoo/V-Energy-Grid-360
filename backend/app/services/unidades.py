@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.core.errors import NaoEncontrado
-from app.schemas import Periodo, Visao360
+from app.schemas import Visao360
 from app.services.continuidade import dec_fec
 
 LIMIAR_CONTA_ALTA_PCT = 15.0  # decisão do time: variação > 15% já é "consumo subiu"

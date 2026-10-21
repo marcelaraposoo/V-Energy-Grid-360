@@ -56,7 +56,7 @@ class MockRepository:
 
     def consumo_uc(self, uc_id):
         serie = self.d["consumo"].get(uc_id.upper(), [])
-        return [{"competencia": c, "consumo_kwh": v} for c, v in zip(self.d["competencias"], serie)]
+        return [{"competencia": c, "consumo_kwh": v} for c, v in zip(self.d["competencias"], serie, strict=True)]
 
     def faturas_uc(self, uc_id):
         return self.d["faturas_por_uc"].get(uc_id.upper(), [])

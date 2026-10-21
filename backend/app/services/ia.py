@@ -3,7 +3,7 @@ Requisitos do case: só SELECT (conexão read-only), dizer "não sei" quando nã
 expor o SQL executado (auditoria) e ignorar tentativas de prompt injection."""
 from __future__ import annotations
 
-from app.schemas import Filtros, Insight, Periodo, RespostaOut
+from app.schemas import Filtros, Insight, RespostaOut
 from app.services import continuidade, dashboard, receita
 
 
@@ -13,6 +13,11 @@ def perguntar(pergunta: str, sessao_id: str | None = None) -> RespostaOut:
         resposta="O agente de IA ainda não foi conectado ao backend. Esta é uma resposta de teste.",
         sql_executado=None, fontes=[],
     )
+
+
+def limpar_sessao(sessao_id: str) -> None:
+    """STUB. Quando existir agent/memory.py, apagar aqui o histórico da sessão."""
+    return None
 
 
 def insights(repo, tela: str) -> list[Insight]:

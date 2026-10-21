@@ -47,6 +47,13 @@ O agente nunca passa pelo repositório do portal: ele tem a sua própria conexã
 
 ## 2. Mapa de pastas
 
+> **Onde mora o agente (decisão pendente com a frente de IA).** O `AGENTS.md` da `main` reserva a pasta `ai-agent/`
+> na raiz do repositório para a frente de IA, e o case pede que o agente seja um módulo Python integrado ao FastAPI.
+> Duas formas de cumprir os dois: **(A)** código em `ai-agent/` (como pacote Python com nome sem hífen, ex.: `agente/`),
+> instalado e importado pelo backend (`pip install -e ../ai-agent`), que segue a convenção do repositório;
+> **(B)** `backend/app/agent/`, mais simples, mas fora da convenção. A árvore abaixo mostra a opção B só como exemplo;
+> os caminhos `agent/...` deste documento são **relativos à pasta do agente** e valem para qualquer das duas.
+
 ```
 backend/
 ├── app/
@@ -66,7 +73,7 @@ backend/
 │   ├── routers/                 [existe] endpoints /api/...
 │   │   ├── catalogos.py · dashboard.py · unidades.py · perdas.py · continuidade.py
 │   │   └── ia.py                         POST /ia/perguntar · GET /ia/insights
-│   └── agent/                   [proposto] tudo do agente de IA mora aqui
+│   └── agent/                   [proposto, opção B] tudo do agente de IA (na opção A, vira ai-agent/)
 │       ├── pipeline.py                   orquestra os 9 passos (seção 4)
 │       ├── guardrails/
 │       │   ├── entrada.py                barreira de entrada
@@ -84,11 +91,11 @@ backend/
 │       └── insights.py                   insights por tela (hoje em services/ia.py)
 ├── tests/                       [existe] pytest (+ tests/test_agent_*.py [proposto])
 └── docs/
-    ├── contrato-gold.md         [existe] o que o backend espera da Gold
+    ├── contrato-gold.md         [existe] o que o portal precisa da Gold (a fonte de verdade é docs/gold_contract.md)
     └── arquitetura-backend.md   este documento
 ```
 
-Por que `agent/` separado de `services/`: o serviço `services/ia.py` fica fino (recebe a pergunta, chama
+Por que o agente fica separado de `services/`: o serviço `services/ia.py` fica fino (recebe a pergunta, chama
 `agent.pipeline.executar(...)`, devolve `RespostaOut`). Assim o time de IA trabalha numa pasta própria, sem
 conflito com Dev, e o contrato com o front não muda.
 
@@ -96,17 +103,32 @@ conflito com Dev, e o contrato com o front não muda.
 
 ## 3. Rotas (`/api`)
 
-| Método | Rota | Dono | Tela / user story |
-|---|---|---|---|
-| GET | `/filtros` | Dev | selects de filtros |
-| GET | `/dashboard/kpis`, `/dashboard/serie` | Dev | visão do diretor |
-| GET | `/receita/variacao?agrupar_por=municipio\|bairro\|classe` | Dev | efeito preço x volume (drill-down) |
-| GET | `/unidades?q=`, `/unidades/{uc}/visao-360` | Dev | atendente |
-| GET | `/perdas/fila` | Dev | fila priorizada |
-| POST/GET | `/perdas/ordens`, `/{id}/iniciar`, `/{id}/resultado`, `/{id}/cancelar` | Dev | ordens de inspeção |
-| GET | `/continuidade/alimentadores`, `/alimentadores/{id}/serie` | Dev | DEC/FEC |
-| **POST** | **`/ia/perguntar`** | **IA** | chat flutuante |
-| **GET** | **`/ia/insights?tela=`** | **IA** | painel de insights fechável |
+| Método | Rota | Dono | Estado | Tela / user story |
+|---|---|---|---|---|
+| GET | `/health` | Dev | implementada | infraestrutura (API no ar e `data_source` ativo) |
+| GET | `/filtros` | Dev | implementada (mock) | selects de filtros |
+| GET | `/dashboard/kpis`, `/dashboard/serie` | Dev | implementada (mock) | visão do diretor |
+| GET | `/receita/variacao?agrupar_por=municipio\|bairro\|classe` | Dev | implementada (mock) | efeito preço x volume (drill-down) |
+| GET | `/unidades?q=`, `/unidades/{uc}/visao-360` | Dev | implementada (mock) | atendente |
+| GET | `/perdas/fila` | Dev | implementada (mock) | fila priorizada |
+| POST/GET | `/perdas/ordens`, `/perdas/ordens/{id}` | Dev | implementada (em memória) | criar, listar e consultar ordens |
+| POST | `/perdas/ordens/{id}/iniciar`, `/resultado`, `/cancelar` | Dev | implementada (em memória) | ciclo da ordem de inspeção |
+| GET | `/continuidade/alimentadores`, `/alimentadores/{id}/serie` | Dev | implementada (mock) | DEC/FEC |
+| **POST** | **`/ia/perguntar`** | **IA** | **stub** (`nao_implementado`) | chat flutuante |
+| **DELETE** | **`/ia/sessoes/{id}`** | **IA** | **stub** (204, não faz nada) | "nova conversa" no chat |
+| **GET** | **`/ia/insights?tela=`** | **IA** | **parcial** (ver abaixo) | painel de insights fechável |
+
+"Mock" = devolve dados fictícios até a Gold chegar. "Em memória" = as ordens somem quando o servidor reinicia.
+
+### Insights por tela (`tela` aceita: `dashboard`, `receita`, `unidades`, `perdas`, `continuidade`)
+
+| Tela | Estado | Observação |
+|---|---|---|
+| `receita` | implementado | destaque do efeito preço x volume e pior município em volume |
+| `continuidade` | implementado | alimentador com pior DEC no período |
+| `dashboard`, `unidades`, `perdas` | vazio (`[]`) | aguardam a lista de indicadores que o grupo vai definir |
+
+Valor de `tela` fora dessa lista retorna **422**. Os nomes das telas são uma proposta e devem bater com os do frontend.
 
 Contrato atual do chat (`schemas.py`):
 
@@ -168,7 +190,7 @@ flowchart TD
 
 1. **Entrada única:** `routers/ia.py` → `services/ia.py` → `agent.pipeline.executar(pergunta, sessao_id)`. Dev não mexe dentro de `agent/`; IA não mexe fora dele, exceto `schemas.py` (mudanças combinadas).
 2. **Banco para o agente:** hoje o backend roda em `DATA_SOURCE=mock` (dicionários em Python), **sem SQL**. Na fase de benchmark (seção 7) a IA não depende do backend: usa um SQLite próprio com as tabelas brutas. Na integração, o agente passa a ler o SQLite com a Gold.
-3. **Descrição do esquema:** `agent/schema_context.py` deve nascer de `docs/contrato-gold.md` e ser atualizado quando a Gold fechar.
+3. **Descrição do esquema:** `agent/schema_context.py` deve nascer de `docs/gold_contract.md` (contrato da frente de Dados) e ser atualizado quando a Gold fechar. O `docs/contrato-gold.md` do backend só lista o que o portal precisa receber.
 4. **Segredos:** chaves de API (Gemini, OpenAI/OpenRouter) só em `.env` (já ignorado no Git); documentar os nomes das variáveis em `.env.example`.
 5. **Insights:** `GET /ia/insights?tela=` já devolve insights calculados dos dados (fieis por construção); o LLM, se usado, só reescreve o texto.
 
@@ -180,7 +202,7 @@ flowchart TD
 - [ ] **"Janela de 3 sessões":** confirmar se são 3 sessões de conversa ou as últimas 3 interações da mesma sessão.
 - [ ] **Novos valores de `status`:** adicionar `bloqueado` (guardrails) e, se necessário, `limite_excedido` (quota) em `RespostaOut`.
 - [ ] **Tabelas Gold reais:** `schema_context.py` e a lista permitida do guardrail de SQL dependem do contrato da Gold (reunião de quinta).
-- [ ] **Quem hospeda o agente:** módulo Python dentro do FastAPI (como pede o case), sem serviço separado.
+- [ ] **Onde mora o agente:** `ai-agent/` (convenção do `AGENTS.md`) importado pelo backend, ou `backend/app/agent/`. Em ambos, é um módulo Python dentro do FastAPI (como pede o case), sem serviço separado.
 - [ ] **Resultado do benchmark:** definir o modelo principal e a ordem de fallback para `agent/llm/router.py`.
 
 ---

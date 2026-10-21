@@ -70,3 +70,53 @@ def test_continuidade_ranking_ordenado():
 def test_ia_stub_e_insights():
     assert client.post("/api/ia/perguntar", json={"pergunta": "teste de pergunta"}).json()["status"] == "nao_implementado"
     assert len(client.get("/api/ia/insights?tela=receita").json()) == 2
+
+
+def test_obter_ordem_por_id():
+    uc = client.get("/api/perdas/fila").json()[0]["uc_id"]
+    o = client.post("/api/perdas/ordens", json={"uc_id": uc}).json()
+    r = client.get(f"/api/perdas/ordens/{o['id']}")
+    assert r.status_code == 200 and r.json()["uc_id"] == uc
+    assert client.get("/api/perdas/ordens/999999").status_code == 404
+    client.post(f"/api/perdas/ordens/{o['id']}/cancelar")
+
+
+def test_periodo_invalido_retorna_422():
+    assert client.get("/api/dashboard/kpis?base_inicio=2024-05&base_fim=2023-01").status_code == 422
+    assert client.get("/api/continuidade/alimentadores?inicio=2026-01&fim=2025-01").status_code == 422
+
+
+def test_ia_insights_tela_invalida_e_tela_sem_insight():
+    assert client.get("/api/ia/insights?tela=xyz").status_code == 422
+    assert client.get("/api/ia/insights?tela=perdas").json() == []
+
+
+def test_ia_limpar_sessao():
+    assert client.delete("/api/ia/sessoes/abc").status_code == 204
+
+
+def test_filtros_desconhecidos_retornam_422():
+    assert client.get("/api/dashboard/kpis?municipio=Narnia").status_code == 422
+    assert client.get("/api/receita/variacao?classe=Z9").status_code == 422
+    assert client.get("/api/receita/variacao?municipio=Olinda&bairro=Boa Viagem").status_code == 422
+    assert client.get("/api/receita/variacao?municipio=Recife&bairro=Boa Viagem&classe=B1").status_code == 200
+
+
+def test_serie_alimentador_404_so_quando_nao_existe():
+    assert client.get("/api/continuidade/alimentadores/AL999/serie").status_code == 404
+    assert client.get("/api/continuidade/alimentadores/al001/serie").status_code == 200
+    assert client.get("/api/continuidade/alimentadores/AL001/serie?inicio=2026-01&fim=2025-01").status_code == 422
+    r = client.get("/api/continuidade/alimentadores/AL001/serie?inicio=2030-01&fim=2030-12")
+    assert r.status_code == 200 and r.json() == []
+
+
+def test_cors_aceita_localhost_e_127():
+    for origem in ("http://localhost:5173", "http://127.0.0.1:5173"):
+        r = client.options("/api/filtros", headers={"Origin": origem, "Access-Control-Request-Method": "GET"})
+        assert r.status_code == 200 and r.headers["access-control-allow-origin"] == origem
+
+
+def test_medidor_sem_ultima_manutencao():
+    uc = client.get("/api/unidades?limite=1").json()[0]["uc_id"]
+    medidor = client.get(f"/api/unidades/{uc}/visao-360").json()["medidor"]
+    assert "ultima_manutencao" not in medidor and "data_instalacao" in medidor

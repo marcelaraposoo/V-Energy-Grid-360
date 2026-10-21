@@ -1,11 +1,26 @@
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { AppShell } from './components/layout/AppShell'
+import { DashboardPage } from './features/dashboard/DashboardPage'
+import { UnidadesPage } from './features/unidades/UnidadesPage'
+import { OrdensPage } from './features/inspecoes/OrdensPage'
+import { AssistentePage } from './features/assistente/AssistentePage'
+import { NotFoundPage } from './pages/NotFoundPage'
 import './App.css'
 
 function App() {
   return (
-    <main className="app">
-      <h1>V-Energy Grid 360</h1>
-      <p>Plataforma integrada de gestão e análise de energia.</p>
-    </main>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="uc" element={<UnidadesPage />} />
+          <Route path="uc/:id" element={<UnidadesPage />} />
+          <Route path="inspecoes/ordens" element={<OrdensPage />} />
+          <Route path="assistente" element={<AssistentePage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 

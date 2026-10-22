@@ -49,27 +49,57 @@ Este arquivo alimenta o dicionário de dados e a seção de suposições do READ
 
 | Coluna | Observação |
 |---|---|
+| id_uc | **1.260 linhas repetidas:** 46.460 linhas (sem o cabeçalho) para 45.200 `id_uc` distintos. Confirmar se são cópias exatas. O total correto de UCs é 45.200, e não 46.461 (afeta KPIs e o denominador de DEC/FEC) |
+| status | 200 UCs `ATIVA` sem medidor ativo e sem nenhuma leitura (ver cruzamentos X) |
 | uf | `PE` e `Pernambuco` |
 | logradouro | Espaços no fim do texto |
 | cpf_cnpj, nome_titular | Dados pessoais: mascarar na Gold e no portal (LGPD) |
 
 ## `medidores` (M)
 
+Fonte: `bronze.medidores` (`medidores.csv`). 51.812 linhas na Bronze, 51.299 depois de remover as cópias.
+Exploração: `exploracao_medidores.ipynb`. Silver: `02_silver_medidores.ipynb`.
+**Decisões tomadas por Aimê**, responsável pela tabela, com a autonomia combinada com o grupo. Registro em 21/10/2026. Contagens de M1, M2, M4, M5 e M6 na tabela sem cópias (51.299 linhas).
+
 ### Resumo
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
-| M1 | data_ultima_manutencao | Coluna 100% vazia | 51.812 (100%) | Manter a coluna, sem uso em métricas | Não há informação na origem; para avaliar o medidor, usar a idade calculada a partir de `data_instalacao` |
-| M2 | data_retirada | Valor coringa `9999-12-31` em medidor ATIVO | 13.649 (26,3%) | Converter para `null` | Significa "não retirado": 100% dos casos têm status ATIVO; os 6.367 RETIRADOS têm data real e nenhum ATIVO tem data real |
+| M1 | data_ultima_manutencao | Coluna 100% vazia | 51.299 (100%) | Manter a coluna (tipo `date`), sem uso em métricas | Não há informação na origem; para avaliar o medidor, usar a idade calculada a partir de `data_instalacao` |
+| M2 | data_retirada | Valor coringa `9999-12-31` em medidor ATIVO | 13.500 (26,3%) | Converter para `null` | Significa "não retirado": 100% dos casos têm status ATIVO; os 6.299 RETIRADOS têm data real e nenhum ATIVO tem data real. (Na Bronze, com as cópias, eram 13.649) |
+| M3 | id_medidor | Cópias exatas de linhas | 513 (1,0%) | `dropDuplicates(["id_medidor"])`, antes de qualquer outro tratamento | 513 ids aparecem exatamente 2 vezes, com conteúdo idêntico em todas as colunas de origem |
+| M4 | data_instalacao | 4 formatos: ISO, `MM-dd-yyyy`, `dd.MM.yyyy` e `dd/MM/yyyy` | 3.694 (7,2%) fora do ISO | Converter cada padrão com o seu formato e gravar como `date` | Ordem confirmada por 3 testes independentes (detalhes abaixo); mesmo mapeamento de leituras e faturas |
+| M5 | tipo | 10 grafias para 3 tipos (maiúsculas, acento, hífen e `smart meter`) | 5.297 (10,3%) | Normalizar para `ELETRONICO`, `ELETROMECANICO` e `SMART` | Depois de normalizar, cada modelo tem um único tipo, o que confirma o mapeamento |
+| M6 | modelo | Espaços no início e/ou no fim | 3.078 (6,0%) | `trim` | São os mesmos 9 modelos; o espaço não tem significado |
 
-### A investigar
+### Detalhes
 
-| Coluna | Observação |
+#### M4. Ordem dia/mês de `data_instalacao`
+- **Formatos:** ISO `yyyy-MM-dd` (47.605), `99-99-9999` (1.250), `99/99/9999` (1.235) e `99.99.9999` (1.209).
+- **Teste 1, partes maiores que 12:** no hífen, 755 linhas têm a 2ª parte maior que 12 (só pode ser dia, então o hífen é mês primeiro). Na barra e no ponto, 723 e 726 linhas têm a 1ª parte maior que 12 (dia primeiro). Nenhum caso contradiz.
+- **Teste 2, data de ligação da UC:** nos medidores em ISO, a instalação é igual à ligação da UC em 87,6% (41.678 de 47.605). Nos não ISO, o formato proposto bate com a ligação em 1.106 de 1.250 (hífen), 1.066 de 1.209 (ponto) e 1.060 de 1.235 (barra), cerca de 87%, a mesma taxa do ISO. A ordem trocada bate em no máximo 45.
+- **Teste 3, troca de medidor:** nos medidores novos das trocas de `silver.leituras`, o mês de instalação é o mês da troca em **142 de 142** (hífen), **142 de 142** (ponto) e **173 de 173** (barra). A ordem trocada bate em no máximo 3.
+- **Conclusão:** hífen = mês primeiro; ponto e barra = dia primeiro. É o mesmo mapeamento de `leituras` (L6) e `faturas` (F4), provavelmente uma convenção do sistema de origem.
+
+#### M5. Mapeamento de `tipo`
+
+| Tipo na Silver | Grafias na Bronze (linhas, sem cópias) |
 |---|---|
-| id_medidor | 513 linhas com id repetido (51.812 linhas para 51.299 ids). Confirmar se são cópias exatas; um join sem deduplicar multiplica linhas |
-| data_instalacao | Formatos mistos (`99.99.9999`, `99/99/9999`, `99-99-9999`); a ordem dia/mês não foi conferida (em leituras e faturas o hífen é mês primeiro, mas aqui não há gabarito direto) |
-| tipo | Variação de grafia (`ELETROMECANICO` e `Eletromecanico`) |
-| modelo | Espaços sobrando (`"  EL-3000 "`) |
+| `ELETRONICO` | `ELETRONICO` (23.685), `Eletronico` (1.350), `eletrônico` (1.304) |
+| `ELETROMECANICO` | `ELETROMECANICO` (14.703), `ELETRO-MECANICO` (601), `Eletromecanico` (598), `eletromecânico` (591) |
+| `SMART` | `SMART` (7.614), `smart meter` (439), `Smart` (414) |
+
+- **Validação:** depois da normalização, cada modelo tem um único tipo: `CG-500`, `EM-1200` e `EM-1400` são eletromecânicos; `EL-2200`, `EL-3000` e `NX-700` são eletrônicos; `IQ-900`, `SM-4100` e `SM-4500` são smart. Isso vira uma checagem na Silver.
+- **Impacto na Gold:** totais por tipo: 26.339 eletrônicos, 16.493 eletromecânicos e 8.467 smart (todos os medidores, ativos e retirados).
+
+#### Verificado e sem problema
+- Todos os `id_medidor` no padrão `MD` + 6 dígitos e todos os `id_uc` no padrão `UC` + 6 dígitos.
+- Todos os `id_uc` existem em `unidades_consumidoras`: não há medidores órfãos.
+- `status`: só `ATIVO` (45.000) e `RETIRADO` (6.299), sem variações de grafia.
+- `status` coerente com `data_retirada`: todo RETIRADO tem data real e nenhum ATIVO tem.
+- Datas: nenhuma retirada antes da instalação e nenhuma data depois do fim da extração (2026-06).
+- Os 51.299 medidores aparecem em `silver.leituras`, e não há leitura depois do mês de retirada do medidor.
+- Nenhuma UC tem mais de um medidor ativo.
 
 ## `geracao_distribuida` (G)
 
@@ -333,7 +363,8 @@ Exploração: `exploracao_faturas.ipynb`.
 
 | Tabelas | Observação |
 |---|---|
-| unidades_consumidoras / medidores | 45.445 medidores ativos para 46.461 UCs: verificar UCs sem medidor ativo e UCs com mais de um |
-| medidores / leituras | Depois de deduplicar `medidores` na Silver, confirmar que nenhum `id_medidor` usado em `leituras` deixou de existir (afeta a regra de órfãs de L2) |
+| unidades_consumidoras / medidores / leituras | **200 UCs fantasmas:** status `ATIVA` no cadastro, sem medidor ativo e sem nenhuma leitura. As outras 45.000 UCs têm exatamente 1 medidor ativo. Decidir em grupo: manter com flag (ex.: `possui_medidor_ativo`) ou excluir das métricas. Possível erro de cadastro ou UC ligada sem medição (interesse para a fila de perdas) |
 | faturas / leituras | Verificar se as órfãs das duas tabelas correspondem às mesmas UCs ou meses (pendência de F2) |
 
+### Verificado e sem problema
+- **medidores / leituras:** depois de deduplicar `medidores`, todos os 51.299 ids continuam existindo e todos aparecem em `silver.leituras`. A regra de órfãs de L2 não muda.

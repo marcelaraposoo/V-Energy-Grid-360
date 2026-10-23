@@ -335,6 +335,10 @@ Exploração: `exploracao_faturas.ipynb`.
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
+| I1 | data, resultado | Formatos de data mistos e grafias diferentes para o resultado | a confirmar | Converter a data para `date` e padronizar o resultado | A Silver precisa de valores comparáveis para consulta e filtros |
+| I2 | kwh_recuperado | Decimal com vírgula e com ponto | a confirmar | Normalizar a vírgula decimal e converter para `decimal(12,2)` | Evita perda de valores na tipagem numérica |
+| I3 | tipo_irregularidade, inspetor | `-` usado como nulo e espaços sobrando | a confirmar | Converter `-` para nulo e aplicar `trim` | Corrige preenchimentos manuais sem inventar valores |
+| I4 | id_uc | Nulos ou UCs órfãs, se confirmados | a confirmar | Remover da Silver | A inspeção precisa se relacionar a uma UC válida |
 | | | | | | |
 
 ### A investigar

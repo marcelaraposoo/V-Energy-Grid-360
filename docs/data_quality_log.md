@@ -107,7 +107,10 @@ Exploração: `exploracao_medidores.ipynb`. Silver: `02_silver_medidores.ipynb`.
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
-| | | | | | |
+| A1 | identificador | Cópias por protocolo, se confirmadas | a confirmar | `dropDuplicates` pelo protocolo | A Silver precisa de uma linha por atendimento |
+| A2 | id_uc | Nulos ou UCs órfãs, se confirmados | a confirmar | Remover da Silver | Sem UC não é possível integrar a visão 360; a Bronze preserva a origem |
+| A3 | historico | Lista aninhada | a confirmar | Manter o atendimento no pai e abrir em `silver.tratativas_atendimento` | Permite uma linha por tratativa sem arrays na Silver |
+| A4 | datas e nota | Formatos e tipos inconsistentes | a confirmar | Converter datas e nota; preservar originais relevantes | Portal e consultas analíticas precisam de valores tipados e auditáveis |
 
 ### A investigar
 

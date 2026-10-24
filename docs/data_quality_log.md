@@ -39,21 +39,44 @@ Este arquivo alimenta o dicionário de dados e a seção de suposições do READ
 
 ## `unidades_consumidoras` (U)
 
+Fonte: `bronze.unidades_consumidoras` (`unidades_consumidoras.csv`). 46.461 linhas na Bronze; **45.000 UCs** na Silver.
+Exploração: `exploracao_unidades_consumidoras.ipynb`. Silver: `02_silver_unidades_consumidoras.ipynb`.
+**Decisões tomadas por Aimê**, responsável pela tabela, com a autonomia combinada com o grupo. Registro em 23/10/2026. Contagens de U1 a U3 na Bronze; de U4 em diante, nas 45.000 UCs finais (por isso podem ser menores que na exploração, que contava também as linhas repetidas e as UCs de teste).
+
 ### Resumo
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
 | U1 | todas | Linha de cabeçalho repetida como dado (`id_uc = 'id_uc'`), presente no arquivo de origem (linha 27.536 do CSV) | 1 | Remover antes de contar linhas, deduplicar e fazer joins | Nulo estrutural; mesma convenção de F1. A Bronze preserva a origem |
+| U2 | id_uc | Mesma UC repetida, com `nome_titular` e `cpf_cnpj` escritos de jeitos diferentes | 1.260 | Padronizar nome e documento e depois `dropDuplicates(["id_uc"])` | Depois da padronização, nenhum id tem versões diferentes: a deduplicação não perde informação |
+| U3 | id_uc | UCs de teste: `ATIVA`, mas sem medidor, sem leitura e sem fatura | 200 | Remover | São registros de teste do sistema de origem, não clientes. Sem elas, o total é 45.000, o número do case. Mantidas, inflariam a base de clientes e o denominador do DEC/FEC |
+| U4 | uf | `Pernambuco`, `P.E.` (1.666) e outras variações no lugar de `PE` | 6.750 | Padronizar para `PE`, ignorando pontos e espaços na comparação | Todas as UCs são de Pernambuco |
+| U5 | classe, municipio, status, textos | Grafias diferentes para o mesmo valor; espaços no início, no fim e duplicados | várias | Mapa para valores canônicos (5 classes; 14 municípios com o nome oficial) + `trim` | Valor fora do mapa vira nulo e faz a checagem falhar, avisando grafia nova |
+| U6 | bairro | Mojibake: UTF-8 lido como Windows-1252 (`JordÃ£o`, `BrasÃ­lia`) | 348 | Reverter a codificação; mapa manual para os valores em que um caractere invisível se perdeu (`Nossa Senhora do Ã` → `Nossa Senhora do Ó`) | Só `bairro` tem o problema. `Rio Âmbar` (32 linhas) está correto e não é alterado |
+| U7 | cep | Valores que não são CEP, em 7 formas | 1.193 | Converter para `null`; os válidos ficam com 8 dígitos, sem hífen | Inventar um CEP seria pior que deixar vazio; o endereço continua identificado por logradouro e bairro |
+| U8 | cpf_cnpj | Documento com e sem máscara | várias | Só dígitos + coluna `tipo_pessoa` (`PF` = 11 dígitos, `PJ` = 14) | Necessário para a deduplicação (U2) e para a máscara na Gold |
+| U9 | data_ligacao | Datas antes de 1950, quase todas em `01/01` (valor de preenchimento) | 90 | Substituir pela instalação do 1º medidor e marcar `data_ligacao_estimada = true` | Nas outras 44.910 UCs, a ligação é igual à instalação do 1º medidor. Alternativa considerada: nulo + flag |
+| U10 | cpf_cnpj, nome_titular | Dados pessoais | todas | Manter na Silver; mascarar na Gold, no portal e no agente | LGPD; a Silver é camada interna |
 
-### A investigar
+### Detalhes
 
-| Coluna | Observação |
-|---|---|
-| id_uc | **1.260 linhas repetidas:** 46.460 linhas (sem o cabeçalho) para 45.200 `id_uc` distintos. Confirmar se são cópias exatas. O total correto de UCs é 45.200, e não 46.461 (afeta KPIs e o denominador de DEC/FEC) |
-| status | 200 UCs `ATIVA` sem medidor ativo e sem nenhuma leitura (ver cruzamentos X) |
-| uf | `PE` e `Pernambuco` |
-| logradouro | Espaços no fim do texto |
-| cpf_cnpj, nome_titular | Dados pessoais: mascarar na Gold e no portal (LGPD) |
+#### U3. Por que as 200 UCs são de teste
+Status `ATIVA`, mas nenhum medidor em `medidores`, nenhuma leitura e nenhuma fatura, e os dados cadastrais indicam registros de teste. Com elas removidas, a base fica com 45.000 UCs (o número do case), e **cada UC tem exatamente 1 medidor ativo**. A lista está na Silver (seção 6) e as linhas continuam na Bronze.
+
+#### U9. Data de ligação estimada
+Exemplo: `UC105409`, ligada em `1916-01-01`, com o primeiro medidor instalado em `2021-07-25`. Das 90 datas antes de 1950, só 1 tem o mesmo dia e mês da instalação, o que mostra que não são datas reais com o ano errado. Como em todas as outras UCs a ligação é igual à instalação do 1º medidor, essa é a melhor estimativa. A flag permite excluir essas 90 de qualquer análise que precise da data exata.
+
+### Verificado e sem problema
+
+- `id_uc` sempre no padrão `UC` + 6 dígitos.
+- Classe × subgrupo segue o glossário: RESIDENCIAL = B1, RURAL = B2, COMERCIAL e PODER PUBLICO = B3, INDUSTRIAL = A4.
+- Todo alimentador segue `ALM-XXX-000`, e o código corresponde ao município da UC (14 códigos, 14 municípios).
+- Cada UC real tem exatamente 1 medidor ativo, e todo `id_uc` de `medidores` existe no cadastro.
+- `status` é sempre `ATIVA`.
+- Coordenadas numéricas e coerentes com o município: latitude de −8,46 a −7,70 e longitude de −35,14 a −34,78. As mais a leste (−34,78 e −34,79) são de Ilha de Itamaracá e da orla de Olinda, ou seja, são litoral, não erro.
+
+**Impacto na Gold:** o mesmo nome de bairro existe em municípios diferentes, então a chave de bairro é **município + bairro**.
+
 
 ## `medidores` (M)
 

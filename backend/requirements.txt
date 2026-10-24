@@ -4,3 +4,5 @@ pydantic>=2.7
 python-dotenv>=1.0
 pytest>=8.0
 httpx>=0.27
+filelock>=3.16
+pydantic-ai>=2.59,<3

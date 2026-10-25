@@ -106,3 +106,25 @@ class SQLGenerationResult(BaseModel):
             )
 
         return self
+
+# =========================================================
+# GUARDRAIL DE SQL — ETAPA 4.2
+# =========================================================
+class SQLGuardrailDecision(str, Enum):
+    ALLOW = "allow"
+    BLOCK = "block"
+
+
+class SQLGuardrailReason(str, Enum):
+    INVALID_SQL = "invalid_sql"
+    MULTIPLE_STATEMENTS = "multiple_statements"
+    FORBIDDEN_OPERATION = "forbidden_operation"
+    UNSUPPORTED_QUERY = "unsupported_query"
+    GUARDRAIL_INTERNAL_ERROR = "guardrail_internal_error"
+
+
+class SQLGuardrailResult(BaseModel):
+    decision: SQLGuardrailDecision
+    reason: SQLGuardrailReason | None = None
+    retryable: bool = False
+    original_sql: str

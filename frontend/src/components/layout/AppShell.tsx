@@ -9,7 +9,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom'
 import { UnitSearch } from '../ui/UnitSearch'
 import { getCurrentPage, navigation } from './navigation'
 
@@ -87,6 +87,7 @@ export function AppShell() {
   const mobileMenu = useRef<HTMLDialogElement>(null)
   const location = useLocation()
   const page = getCurrentPage(location.pathname)
+  const isUnidadesPage = useMatch('/uc/:id?') !== null
 
   useEffect(() => {
     document.title = `${page.title} | V-Energy Grid 360`
@@ -97,7 +98,9 @@ export function AppShell() {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        const search = document.getElementById('global-uc-search')
+        const search =
+          document.getElementById('page-uc-search') ??
+          document.getElementById('global-uc-search')
         if (search && search.getClientRects().length) {
           event.preventDefault()
           search.focus()
@@ -187,16 +190,20 @@ export function AppShell() {
             <strong aria-current="page">{page.title}</strong>
           </nav>
           <div className="topbar-actions">
-            <div className="global-search">
-              <UnitSearch compact />
-            </div>
-            <Link
-              to="/uc"
-              className="icon-button mobile-search"
-              aria-label="Buscar unidade consumidora"
-            >
-              <Search size={20} />
-            </Link>
+            {!isUnidadesPage && (
+              <>
+                <div className="global-search">
+                  <UnitSearch compact />
+                </div>
+                <Link
+                  to="/uc"
+                  className="icon-button mobile-search"
+                  aria-label="Buscar unidade consumidora"
+                >
+                  <Search size={20} />
+                </Link>
+              </>
+            )}
             <Link
               className="assistant-shortcut"
               to="/assistente"

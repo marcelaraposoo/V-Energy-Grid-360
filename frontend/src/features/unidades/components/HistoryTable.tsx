@@ -6,6 +6,8 @@ type HistoryTableProps = {
   columns: readonly string[]
   icon: LucideIcon
   description: string
+  children?: ReactNode
+  empty: boolean
 }
 
 export function HistoryTable({
@@ -13,6 +15,8 @@ export function HistoryTable({
   columns,
   icon,
   description,
+  children,
+  empty,
 }: HistoryTableProps) {
   return (
     <div className="ucv-history">
@@ -23,9 +27,7 @@ export function HistoryTable({
         tabIndex={0}
       >
         <table className="ucv-table">
-          <caption className="sr-only">
-            {title} — consulta disponível em breve.
-          </caption>
+          <caption className="sr-only">{title}</caption>
           <thead>
             <tr>
               {columns.map((column) => (
@@ -35,15 +37,18 @@ export function HistoryTable({
               ))}
             </tr>
           </thead>
-          <tbody />
+          <tbody>{children}</tbody>
         </table>
       </div>
-      <EmptyState
-        compact
-        icon={icon}
-        title="Histórico ainda não disponível"
-        description={description}
-      />
+      {empty && (
+        <EmptyState
+          compact
+          icon={icon}
+          title="Nenhum registro disponível"
+          description={description}
+        />
+      )}
     </div>
   )
 }
+import type { ReactNode } from 'react'

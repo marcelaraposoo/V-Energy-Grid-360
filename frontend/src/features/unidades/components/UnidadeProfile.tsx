@@ -1,16 +1,25 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
+  CircleAlert,
   CircleDashed,
   FileText,
   Gauge,
   Headphones,
-  Info,
+  LoaderCircle,
   ScanLine,
   Sun,
   Unplug,
   Zap,
 } from 'lucide-react'
-import { UnavailableFields } from './UnavailableFields'
+import { EmptyState } from '../../../components/ui/EmptyState'
+import { COMPARACAO_PADRAO, consultarVisao360 } from '../api'
+import {
+  formatarCompetencia,
+  formatarMoeda,
+  formatarNumero,
+} from '../formatters'
+import type { TipoComparacaoContaAlta, Visao360 } from '../types'
+import { UnidadeFields } from './UnidadeFields'
 import {
   AtendimentosSection,
   ConsumoSection,
@@ -51,20 +60,92 @@ const tabs = [
 
 export function UnidadeProfile({ id }: { id: string }) {
   const [activeIndex, setActiveIndex] = useState(0)
+  const [dados, setDados] = useState<Visao360 | null>(null)
+  const [comparacao, setComparacao] =
+    useState<TipoComparacaoContaAlta>(COMPARACAO_PADRAO)
+  const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState<string | null>(null)
+  const [tentativa, setTentativa] = useState(0)
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const tabPrefix = useId()
   const activeTab = tabs[activeIndex]
   const Section = activeTab.component
+  const tentarNovamente = () => {
+    setErro(null)
+    setCarregando(true)
+    setTentativa((atual) => atual + 1)
+  }
+  const alterarComparacao = (value: TipoComparacaoContaAlta) => {
+    setErro(null)
+    setCarregando(true)
+    setComparacao(value)
+  }
+
+  useEffect(() => {
+    const controller = new AbortController()
+    consultarVisao360(id, comparacao, controller.signal)
+      .then((resposta) => {
+        if (controller.signal.aborted) return
+        // O filtro atualiza somente o diagnóstico; o histórico mantém sua finalidade.
+        setDados((anteriores) =>
+          anteriores
+            ? {
+                ...anteriores,
+                diagnostico_conta_alta: resposta.diagnostico_conta_alta,
+              }
+            : resposta,
+        )
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        setErro(
+          error instanceof Error &&
+            !(error instanceof TypeError) &&
+            !(error instanceof SyntaxError)
+            ? error.message
+            : 'Não foi possível carregar os dados. Tente novamente.',
+        )
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCarregando(false)
+      })
+    return () => controller.abort()
+  }, [id, comparacao, tentativa])
+
+  if (!dados) {
+    return (
+      <section className="panel" aria-busy={carregando}>
+        <div role={erro ? 'alert' : 'status'}>
+          <EmptyState
+            icon={erro ? CircleAlert : LoaderCircle}
+            title={
+              erro
+                ? 'Consulta não concluída'
+                : 'Consultando unidade consumidora'
+            }
+            description={erro ?? `Carregando os dados de ${id}…`}
+          >
+            {erro && (
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={tentarNovamente}
+              >
+                Tentar novamente
+              </button>
+            )}
+          </EmptyState>
+        </div>
+      </section>
+    )
+  }
+
+  const cadastro = dados.cadastro
+  const ultimoConsumo = dados.consumo.at(-1)
+  const ultimaFatura = dados.faturas[0]
 
   return (
     <div className="ucv-profile">
-      <div className="ucv-availability" role="status">
-        <Info size={17} aria-hidden="true" />
-        <p>
-          Consulta disponível em breve. Os dados desta unidade ainda não foram
-          consultados.
-        </p>
-      </div>
       <section
         className="panel ucv-identity"
         aria-labelledby="ucv-identity-title"
@@ -74,22 +155,29 @@ export function UnidadeProfile({ id }: { id: string }) {
             <ScanLine size={28} strokeWidth={1.5} aria-hidden="true" />
           </span>
           <div>
-            <p>Identificador informado</p>
-            <h2 id="ucv-identity-title">{id}</h2>
+            <p>Unidade consumidora</p>
+            <h2 id="ucv-identity-title">{cadastro.uc_id}</h2>
           </div>
-          <span className="badge">
-            <CircleDashed size={13} aria-hidden="true" />
-            Aguardando consulta
-          </span>
+          <span className="badge">{cadastro.status}</span>
         </header>
-        <UnavailableFields
-          labels={[
-            'Titular',
-            'Classe de consumo',
-            'Situação da UC',
-            'Logradouro e número',
-            'Bairro',
-            'Município',
+        <UnidadeFields
+          fields={[
+            { label: 'Titular', value: cadastro.titular },
+            {
+              label: 'Classe de consumo',
+              value: `${cadastro.classe_descricao} (${cadastro.classe})`,
+            },
+            {
+              label: 'Logradouro e número',
+              value: cadastro.logradouro
+                ? [cadastro.logradouro, cadastro.numero]
+                    .filter(Boolean)
+                    .join(', ')
+                : null,
+            },
+            { label: 'Bairro', value: cadastro.bairro },
+            { label: 'Município', value: cadastro.municipio },
+            { label: 'Alimentador', value: cadastro.alimentador_id },
           ]}
         />
       </section>
@@ -97,26 +185,33 @@ export function UnidadeProfile({ id }: { id: string }) {
         {[
           {
             label: 'Consumo mais recente',
-            detail: 'Competência ainda não disponível',
+            detail: ultimoConsumo
+              ? `${formatarCompetencia(ultimoConsumo.competencia)} · kWh`
+              : 'Sem histórico de consumo',
             icon: Zap,
+            value: formatarNumero(ultimoConsumo?.consumo_kwh),
           },
           {
             label: 'Valor total da fatura',
-            detail: 'Valor em reais (R$)',
+            detail: ultimaFatura
+              ? `Competência ${formatarCompetencia(ultimaFatura.competencia)}`
+              : 'Sem fatura disponível',
             icon: FileText,
+            value: formatarMoeda(ultimaFatura?.valor_total),
           },
           {
             label: 'Faturas em aberto',
             detail: 'Pendências de pagamento',
             icon: CircleDashed,
+            value: formatarNumero(dados.faturas_em_aberto.length),
           },
-        ].map(({ label, detail, icon: Icon }) => (
+        ].map(({ label, detail, icon: Icon, value }) => (
           <section className="panel ucv-summary" key={label}>
             <div>
               <Icon size={17} aria-hidden="true" />
               <h3>{label}</h3>
             </div>
-            <p aria-label="Não disponível">—</p>
+            <p>{value}</p>
             <small>{detail}</small>
           </section>
         ))}
@@ -164,7 +259,14 @@ export function UnidadeProfile({ id }: { id: string }) {
         aria-labelledby={`${tabPrefix}-${activeTab.id}`}
         tabIndex={0}
       >
-        <Section />
+        <Section
+          dados={dados}
+          comparacao={comparacao}
+          onComparacaoChange={alterarComparacao}
+          carregando={carregando}
+          erro={erro}
+          onRetry={tentarNovamente}
+        />
       </div>
     </div>
   )

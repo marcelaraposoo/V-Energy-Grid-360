@@ -172,18 +172,41 @@ Exploração: `exploracao_geracao_distribuida.ipynb`. Silver: `02_silver_geracao
 
 ## `ocorrencias_rede` (O)
 
+Fonte: `bronze.ocorrencias_rede` (`ocorrencias_rede.csv`). 180.000 linhas na Bronze e na Silver (nenhuma removida).
+Exploração: `exploracao_ocorrencias_rede.ipynb`. Silver: `02_silver_ocorrencias_rede.ipynb`.
+**Decisões tomadas por Aimê**, responsável pela tabela, com a autonomia combinada com o grupo. Registro em 24/10/2026.
+
 ### Resumo
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
-| | | | | | |
+| O1 | causa | Ausente em 4 formas: nulo real (1.356), `-` (1.363), `N/A` (1.341) e `NULL` (1.340) | 5.400 (3,0%) | Converter para nulo real; a ocorrência é mantida | Mesma convenção de L3. A ocorrência tem UC, datas e duração, então continua no DEC/FEC. `NAO IDENTIFICADA` é uma causa registrada e **não** é tratada como ausência |
+| O2 | duracao_min | Texto ` min` junto do número (`28 min`) | 16.200 (9,0%) | Remover o sufixo e converter para inteiro | Um `cast` direto anularia 9% das durações e subestimaria o DEC. Validado: `fim − início = duração` em 100% das linhas |
+| O3 | data_abertura, data_encerramento | Datas como texto | 180.000 | Converter para `timestamp`, mantendo o horário; derivar `mes_referencia` (`yyyy-MM` da abertura) | Sempre ISO com horário; o horário é necessário para a duração e para a visão 360 |
 
-### A investigar
+### Detalhes
 
-| Coluna | Observação |
-|---|---|
-| data_encerramento | Procurar a data sentinela `9999-12-31` (convenção adotada em faturas e medidores: vira nulo) |
-| id_uc | Procurar órfãs com id fora do padrão (`UC` com 7 dígitos) |
+#### O2. Duração com sufixo e o gabarito das datas
+- **Formatos:** `99` (100.429), `999` (59.938), `9` (2.699), `9999` (734) e, com o sufixo, `99 min` (9.873), `999 min` (5.965), `9 min` (277) e `9999 min` (85).
+- **Gabarito:** nas 163.800 linhas com duração numérica, `data_encerramento − data_abertura` bate com `duracao_min` em **100%**. A checagem da Silver repete o teste nas 180.000 linhas, incluindo as corrigidas.
+- **Distribuição:** de 5 minutos a 48 horas (mediana de 72 min); 244 acima de 24 horas e nenhuma acima de 7 dias. Mantidas: são plausíveis em eventos climáticos.
+
+### Verificado e sem problema
+- Sem cabeçalho repetido, cópias, nulos fora de `causa` ou sentinela `9999-12-31`.
+- **Nenhuma interrupção registrada em dobro:** 0 pares de mesma UC com mesma abertura.
+- Todos os `id_uc` no padrão e existentes na Silver de UCs; nenhuma UC de teste.
+- **O alimentador da ocorrência é sempre o mesmo do cadastro da UC.**
+- Datas só em ISO com horário; nenhum fim antes do início; nenhuma ocorrência em aberto; tudo entre jul/2022 e jun/2026.
+- `tipo` com 5 valores e `causa` com 6 valores, sem variações de grafia.
+- 122 alimentadores, como o case informa (mais de 120).
+
+**Para o contrato da Gold e o diagnóstico:**
+- **Causas evitáveis por manutenção (proposta):** `VEGETACAO`, `FALHA DE EQUIPAMENTO` e `SOBRECARGA`. `CLIMATICA` e `TERCEIROS` não dependem da distribuidora; `NAO IDENTIFICADA` e as nulas ficam de fora.
+- **Causa climática** responde por 36% das horas interrompidas (116.919 h), com duração mediana de 101 min, contra 65 a 67 min nas demais.
+- **2025 teve 41% mais ocorrências** que 2023 e 2024 (57.068 contra ~40.300).
+- **DEC com denominador pequeno:** os piores DEC são de alimentadores com 20 a 47 UCs. A tela da Beatriz deve mostrar o DEC junto com o número de UCs e as horas totais.
+- **Suposição a registrar no README:** o tipo `OSCILACAO` (14.562) entra no DEC/FEC, porque o glossário do case diz que cada registro é uma UC interrompida.
+
 
 ---
 

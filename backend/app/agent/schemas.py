@@ -189,3 +189,61 @@ class SynthesisResult(BaseModel):
             )
 
         return self
+
+# =========================================================
+# GUARDRAIL DE SAÍDA — CAMADA 5
+# =========================================================
+
+
+class OutputGuardrailDecision(str, Enum):
+    ALLOW = "allow"
+    BLOCK = "block"
+
+
+class OutputGuardrailReason(str, Enum):
+    ANSWER_TOO_LONG = "answer_too_long"
+    UNSUPPORTED_NUMBER = "unsupported_number"
+    URL_IN_ANSWER = "url_in_answer"
+    SQL_IN_ANSWER = "sql_in_answer"
+    PROMPT_LEAK = "prompt_leak"
+    GUARDRAIL_INTERNAL_ERROR = "guardrail_internal_error"
+
+
+class OutputGuardrailResult(BaseModel):
+    decision: OutputGuardrailDecision
+    reason: OutputGuardrailReason | None = None
+    retryable: bool = False
+    original_answer: str
+    unsupported_values: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_result(self):
+        if self.decision == OutputGuardrailDecision.ALLOW:
+            if (
+                self.reason is not None
+                or self.retryable
+                or self.unsupported_values
+            ):
+                raise ValueError(
+                    "ALLOW não pode ter reason, retryable "
+                    "nem unsupported_values."
+                )
+
+            return self
+
+        if self.reason is None:
+            raise ValueError(
+                "reason é obrigatório quando a decisão é BLOCK."
+            )
+
+        if (
+            self.unsupported_values
+            and self.reason
+            != OutputGuardrailReason.UNSUPPORTED_NUMBER
+        ):
+            raise ValueError(
+                "unsupported_values só é válido com "
+                "UNSUPPORTED_NUMBER."
+            )
+
+        return self

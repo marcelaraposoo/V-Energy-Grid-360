@@ -126,17 +126,49 @@ Exploração: `exploracao_medidores.ipynb`. Silver: `02_silver_medidores.ipynb`.
 
 ## `geracao_distribuida` (G)
 
+Fonte: `bronze.geracao_distribuida` (`geracao_distribuida.csv`). 3.510 linhas na Bronze e na Silver (nenhuma removida).
+Exploração: `exploracao_geracao_distribuida.ipynb`. Silver: `02_silver_geracao_distribuida.ipynb`.
+**Decisões tomadas por Aimê**, responsável pela tabela, com a autonomia combinada com o grupo. Registro em 24/10/2026.
+
 ### Resumo
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
-| | | | | | |
+| G1 | potencia_kwp | Vírgula decimal (`5,87`) misturada com ponto | 316 (9,0%) | Trocar vírgula por ponto antes de converter | Um `cast` simples anularia esses valores |
+| G2 | potencia_kwp | Valores registrados em **watts** (de 1.000 a 8.995) | 35 (1,0%) | Dividir por 1.000 + flag `potencia_convertida_de_w`; original em `potencia_kwp_original` no notebook | A energia injetada por kWp das 35 só fica igual à das outras UCs (33,3 contra 33,8 kWh/kWp/mês) se a potência for dividida por 1.000 |
+| G3 | data_conexao | GD conectada antes da ligação da UC (de 55 a 473 dias antes) | 5 | Manter as datas + flag `conexao_antes_ligacao` | Não há gabarito para saber qual data está errada; trocar seria inventar dado |
+| G4 | todas | Tudo como texto na Bronze | 3.510 | `data_conexao` → `date`; potência → `decimal(10,3)`; energia → `decimal(12,2)` | Necessário para cálculos e filtros |
+| G5 | energia_injetada_kwh_media_mensal | Energia injetada acima de 60 kWh por kWp ao mês; 106 delas exatamente `potência × 110` | 109 (3,1%) | Manter o valor + flag `energia_injetada_atipica` | O valor parece calculado, não medido; não há como saber o real. A flag impede o uso como medida |
 
-### A investigar
+### Detalhes
 
-| Coluna | Observação |
-|---|---|
-| id_uc | Procurar órfãs com id fora do padrão (`UC` com 7 dígitos) |
+#### G2. Potência em watts
+- **Problema:** 35 potências (33 residenciais e 2 comerciais) estão entre 1.000 e 8.995 kWp. A mediana da tabela é 5,87 kWp, e uma residência com 9 mil kWp não existe (o limite da minigeração é 5.000 kW). Não há nenhum valor entre 75 e 1.000.
+- **Marca:** são exatamente os valores com 4 dígitos antes do separador (`9999.99`, `9999.9`, `9999,9`, `9999,99`).
+- **Como foi confirmado:** a energia injetada por kWp é de 33,8 kWh/mês (mediana) nas 3.475 UCs normais. Nas 35 suspeitas, dá 0,03; dividindo a potência por 1.000, dá 33,3. A energia injetada das suspeitas também é parecida com a das outras (mediana de 187 contra 199 kWh).
+- **Decisão:** dividir por 1.000 as potências a partir de 1.000. Depois da conversão, todas ficam entre 1,5 e 75 kWp.
+- **Alternativa considerada:** anular a potência. Descartada, porque o valor certo é recuperável com evidência forte.
+- **Checagem na Silver:** energia por kWp entre 10 e 60 kWh/mês (ou marcada como atípica, ver G5).
+
+#### G5. Energia injetada atípica
+- **Faixa típica:** de 11,6 a ~50 kWh por kWp ao mês (mediana 33,8; percentis 1% e 95%: 22,3 e 44,3). Nenhuma UC fica abaixo de 10.
+- **Problema:** 109 UCs passam de 60. **106 têm exatamente 110,0 kWh/kWp**: a energia foi calculada como `potência × 110`. 110 kWh/kWp por mês é a **geração** típica de um painel em Recife, e não a sobra injetada na rede. As outras 3 (114, 168 e 328) são UCs com potência convertida de watts (G2).
+- **Perfil:** **101 das 109 foram conectadas em 2026** (28% das 361 conexões do ano), contra 7 em 2024 e 1 em 2025. **As 5 UCs de G3 (conexão antes da ligação) estão todas neste grupo.** Modalidade e classe seguem a mesma proporção do resto da base.
+- **Hipóteses:** (a) estimativa teórica do sistema para conexões recentes, ainda sem histórico para calcular a média mensal real; (b) registros suspeitos, de interesse para a fila de perdas. A concentração em 2026 favorece (a); a coincidência com G3 e os 8 casos de 2024 e 2025 não se explicam por ela.
+- **Decisão:** manter o valor e marcar `energia_injetada_atipica = true`. Substituir por uma estimativa seria inventar dado.
+- **Impacto:** o diagnóstico da receita não usa esta coluna (a queda de volume vem das leituras). Na Gold, a energia injetada da `dim_uc` vai com a flag, e as 109 UCs podem entrar como sinal na fila de perdas.
+- **Checagem na Silver:** energia por kWp entre 10 e 60, **ou** flag marcada. Uma anomalia nova, sem flag, faz a checagem falhar.
+
+### Verificado e sem problema
+- Sem cabeçalho repetido, cópias, nulos ou códigos de ausência (`N/A`, `NULL`, `-1`, `-`, `9999-12-31`).
+- **1 registro por UC:** 3.510 linhas e 3.510 `id_uc` distintos.
+- Todos os `id_uc` no padrão e existentes na Silver de UCs; nenhuma das 200 UCs de teste tem GD.
+- `data_conexao` só em ISO, de jan/2024 a jun/2026.
+- `modalidade` com 3 valores limpos: `GERACAO NA PROPRIA UC` (3.042), `AUTOCONSUMO REMOTO` (321) e `GERACAO COMPARTILHADA` (147).
+- `energia_injetada_kwh_media_mensal` sempre com ponto decimal.
+
+**Impacto no diagnóstico (exploração, seções 11 e 12):** nenhuma UC tinha GD no primeiro ano; nos últimos 12 meses são 3.510 (7,8% da base), só residenciais e comerciais. As UCs com GD perderam 11,2 milhões de kWh faturados, mais que a queda total de 9,0 milhões (−3,95%): **sem a GD, o volume teria crescido 1,07%**. Depois da conexão, o consumo faturado de cada UC cai 69,6%.
+
 
 ## `ocorrencias_rede` (O)
 

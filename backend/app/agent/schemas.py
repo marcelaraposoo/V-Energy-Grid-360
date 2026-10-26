@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 # =========================================================
@@ -128,3 +129,63 @@ class SQLGuardrailResult(BaseModel):
     reason: SQLGuardrailReason | None = None
     retryable: bool = False
     original_sql: str
+
+# =========================================================
+# EXECUÇÃO SQL — ETAPA 4.3 (contrato provisório)
+# =========================================================
+class QueryExecutionResult(BaseModel):
+    """
+    Resultado da execução do SQL produzido pela camada 4.3.
+    Contrato provisório, mudar se a 4.3 definir outro formato.
+    """
+
+    columns: list[str]
+    rows: list[list[Any]]
+    row_count: int
+    truncated: bool = False
+
+    @model_validator(mode="after")
+    def validate_result(self):
+        if self.row_count < 0:
+            raise ValueError(
+                "row_count não pode ser negativo."
+            )
+
+        if len(self.rows) > self.row_count:
+            raise ValueError(
+                "rows não pode ter mais linhas que row_count."
+            )
+
+        for row in self.rows:
+            if len(row) != len(self.columns):
+                raise ValueError(
+                    "Toda linha deve ter o mesmo número "
+                    "de valores que columns."
+                )
+
+        return self
+
+
+# =========================================================
+# SÍNTESE DA RESPOSTA — ETAPA 4.4
+# =========================================================
+
+
+class SynthesisStatus(str, Enum):
+    ANSWERED = "answered"
+    NO_DATA = "no_data"
+
+
+class SynthesisResult(BaseModel):
+    status: SynthesisStatus
+    answer: str
+    assumptions: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_result(self):
+        if not self.answer or not self.answer.strip():
+            raise ValueError(
+                "answer é obrigatório."
+            )
+
+        return self

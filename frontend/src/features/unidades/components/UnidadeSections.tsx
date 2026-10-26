@@ -37,7 +37,7 @@ export function ConsumoSection({
       <div className="ucv-consumo-main">
         <Panel
           title="Histórico de consumo"
-          description="Últimos 12 meses disponíveis, comparados ao ano anterior"
+          description="Últimos 12 meses disponíveis"
           actions={<span className="badge">kWh</span>}
         >
           <ConsumoChart consumo={dados.consumo} />

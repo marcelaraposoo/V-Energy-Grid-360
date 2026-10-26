@@ -173,6 +173,22 @@
   gap: 20px;
   min-width: 0;
 }
+.ucv-chart-comparison {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 22px 14px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ucv-chart-comparison input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.ucv-chart-container {
+  position: relative;
+}
 .ucv-chart-scroll {
   overflow-x: auto;
   margin-inline: 16px;
@@ -195,11 +211,27 @@
 .ucv-chart-previous {
   fill: var(--text-muted);
 }
-.ucv-chart-values summary {
-  padding: 14px 22px;
-  color: var(--text-secondary);
+.ucv-chart-tooltip {
+  position: absolute;
+  width: 200px;
+  max-width: calc(100% - 24px);
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-elevated);
+  color: var(--text-primary);
   font-size: 12px;
-  cursor: pointer;
+  box-shadow: 0 4px 16px #0005;
+  pointer-events: none;
+}
+.ucv-chart-tooltip p + p {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+.ucv-chart-tooltip .ucv-chart-tooltip-current {
+  color: var(--accent);
 }
 .ucv-chart-legend {
   display: flex;

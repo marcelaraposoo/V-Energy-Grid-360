@@ -304,19 +304,6 @@
 .ucv-variation.ucv-variation--reducao {
   color: var(--success);
 }
-.ucv-conta-alta-guidance {
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
-}
-.ucv-conta-alta-guidance h3 {
-  font-size: 13px;
-}
-.ucv-conta-alta-guidance p {
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.8;
-  margin-top: 8px;
-}
 .ucv-table-scroll {
   position: relative;
   overflow-x: auto;

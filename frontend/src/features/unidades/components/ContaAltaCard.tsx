@@ -157,10 +157,6 @@ export function ContaAltaCard({
                 </section>
               )
             })}
-            <div className="ucv-conta-alta-guidance">
-              <h3>Uma explicação com contexto</h3>
-              <p>{diagnostico.mensagem}</p>
-            </div>
           </>
         )}
       </div>

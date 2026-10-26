@@ -1,7 +1,10 @@
-"""Gerador de dados MOCKADOS (determinístico) que imita o formato esperado da camada Gold.
+"""Gerador de dados MOCKADOS (determinístico).
 
-Premissas do mock (ajustar quando a Gold real chegar):
-- 48 competências (2022-10 a 2026-09), 400 UCs, 14 municípios, 2 alimentadores por município.
+Cadastro e consumo/faturas seguem dim_uc e fato_consumo_faturamento da Gold v2.
+Premissas da simulação:
+- 48 competências (2022-07 a 2026-06), 400 UCs, 14 municípios, 2 alimentadores por município.
+- Nomes mascarados, endereços e coordenadas fictícios. Toda UC possui um medidor ativo.
+- Tributos de 20% sobre valor_energia: regra fictícia, sem representar alíquotas reais.
 - Ocorrência de rede aqui é AGREGADA (ucs_afetadas + duracao_h); no dado real cada registro é 1 UC.
 - Medidor sem 'última manutenção': na origem essa coluna é 100% vazia (docs/data_quality_log.md).
 - Reajuste tarifário em degraus + bandeiras aleatórias, para o efeito-preço aparecer na decomposição.
@@ -10,9 +13,13 @@ from __future__ import annotations
 
 import math
 import random
+from datetime import date, timedelta
+from decimal import Decimal
 from functools import lru_cache
 
 SEED = 42
+DATA_REFERENCIA = date(2026, 6, 30)
+ALIQUOTA_TRIBUTOS_MOCK = Decimal("0.20")
 
 MUNICIPIOS = {
     "Recife": ["Boa Viagem", "Casa Amarela", "Várzea", "Ibura", "Santo Amaro"],
@@ -35,8 +42,11 @@ PESOS_MUN = [10, 6, 6, 4, 3, 2, 3, 2, 2, 2, 1, 1, 1, 1]
 CLASSES = {"B1": "Residencial", "B2": "Rural", "B3": "Comercial/Poder público", "A4": "Industrial"}
 CONSUMO_BASE = {"B1": 180, "B2": 220, "B3": 600, "A4": 8000}
 TARIFA_KWH = {"B1": 0.85, "B2": 0.60, "B3": 0.80, "A4": 0.45}
+CLASSES_GOLD = {"B1": ("RESIDENCIAL",), "B2": ("RURAL",), "B3": ("COMERCIAL", "PODER PUBLICO"), "A4": ("INDUSTRIAL",)}
+MODELOS_MEDIDOR = {"ELETRONICO": "EL-3000", "ELETROMECANICO": "EM-1000", "SMART": "SM-5000"}
 
 BANDEIRAS = {"verde": 0.0, "amarela": 0.019, "vermelha1": 0.044, "vermelha2": 0.079}
+NOMES_BANDEIRAS = {"verde": "Verde", "amarela": "Amarela", "vermelha1": "Vermelha P1", "vermelha2": "Vermelha P2"}
 NOMES = ["Ana", "Bruno", "Carla", "Diego", "Elisa", "Felipe", "Gabriela", "Hugo", "Iara", "João", "Karina", "Lucas", "Marina", "Nelson", "Olga", "Paulo"]
 SOBRENOMES = ["Silva", "Souza", "Oliveira", "Santos", "Lima", "Pereira", "Costa", "Barbosa", "Ferreira", "Melo", "Albuquerque", "Cavalcanti"]
 CAUSAS = ["Descarga atmosférica", "Árvore na rede", "Falha de equipamento", "Manutenção programada", "Sobrecarga", "Abalroamento de poste"]
@@ -44,7 +54,7 @@ ASSUNTOS = ["Conta alta", "Falta de luz", "Religação", "Segunda via", "Leitura
 
 
 def competencias() -> list[str]:
-    out, y, m = [], 2022, 10
+    out, y, m = [], 2022, 7
     for _ in range(48):
         out.append(f"{y}-{m:02d}")
         m += 1
@@ -88,6 +98,8 @@ def build_mock_data() -> dict:
         mun = rng.choices(muns, weights=PESOS_MUN)[0]
         classe = rng.choices(list(CLASSES), weights=[75, 5, 15, 5])[0]
         uc_id = f"UC{i + 1:06d}"
+        ano_ligacao = rng.randint(2005, 2022)
+        mes_ligacao = rng.randint(1, 6 if ano_ligacao == 2022 else 12)
         ucs.append({
             "uc_id": uc_id,
             "titular": f"{rng.choice(NOMES)} {rng.choice(SOBRENOMES)}",
@@ -96,15 +108,17 @@ def build_mock_data() -> dict:
             "municipio": mun,
             "bairro": rng.choice(MUNICIPIOS[mun]),
             "alimentador_id": rng.choice(alim_por_mun[mun]),
-            "status": rng.choices(["ativa", "suspensa"], weights=[96, 4])[0],
-            "data_ligacao": f"{rng.randint(2005, 2022)}-{rng.randint(1, 12):02d}-01",
+            "data_ligacao": f"{ano_ligacao}-{mes_ligacao:02d}-01",
             "_base": CONSUMO_BASE[classe] * rng.uniform(0.6, 1.5),
             "_tend": rng.gauss(-0.01, 0.03),
         })
         medidores[uc_id] = {
             "medidor_id": f"MD{i + 1:06d}",
-            "tipo": rng.choice(["Digital", "Inteligente", "Eletromecânico"]),
-            "data_instalacao": f"{rng.randint(2012, 2024)}-{rng.randint(1, 12):02d}-15",
+            "tipo": rng.choice(list(MODELOS_MEDIDOR)),
+            "data_instalacao": max(
+                ucs[-1]["data_ligacao"],
+                f"{rng.randint(2012, 2022)}-{rng.randint(1, 6):02d}-15",
+            ),
             "status": "ativo",
         }
         if rng.random() < 0.08:
@@ -126,26 +140,114 @@ def build_mock_data() -> dict:
                 v *= 0.6
             if u["uc_id"] in quedas and i >= quedas[u["uc_id"]]:
                 v *= 0.45
-            serie.append(round(max(v, 5), 1))
+            serie.append(round(max(v, 5)))
         consumo[u["uc_id"]] = serie
 
-    # faturas
-    faturas, faturas_por_uc = [], {}
-    for u in ucs:
+    # Contrato A1: uma linha por UC. Campos de simulação (_base e _tend) ficam fora da Gold.
+    dim_uc = []
+    for i, u in enumerate(ucs):
+        uc_id = u["uc_id"]
+        medidor = medidores[uc_id]
+        geracao = gd.get(uc_id)
+        classes = CLASSES_GOLD[u["classe"]]
+        classe = classes[i % len(classes)]
+        nomes = u["titular"].upper().split()
+        media_atual = sum(consumo[uc_id][-12:]) / 12
+        media_anterior = sum(consumo[uc_id][-24:-12]) / 12
+        tipo_pessoa = "PJ" if classe in ("COMERCIAL", "PODER PUBLICO", "INDUSTRIAL") else "PF"
+        dim_uc.append({
+            "id_uc": uc_id,
+            "nome_titular_mascarado": " ".join([nomes[0], *(f"{nome[0]}***" for nome in nomes[1:])]),
+            "documento_mascarado": f"***.{i + 1:03d}.{i + 100:03d}-**" if tipo_pessoa == "PF" else f"**.***.{i + 1:03d}/0001-**",
+            "tipo_pessoa": tipo_pessoa,
+            "logradouro": f"Rua de Teste {i + 1}",
+            "numero": str((i + 1) * 10),
+            "bairro": u["bairro"],
+            "municipio": u["municipio"],
+            "uf": "PE",
+            "cep": f"{50000000 + i:08d}",
+            "latitude": round(-8.0 - (i % 30) / 1000, 6),
+            "longitude": round(-34.9 - (i % 20) / 1000, 6),
+            "classe": classe,
+            "subgrupo_tarifario": u["classe"],
+            "alimentador": u["alimentador_id"],
+            "data_ligacao": u["data_ligacao"],
+            "data_ligacao_estimada": False,
+            "status": "ATIVA",
+            "id_medidor_ativo": medidor["medidor_id"],
+            "tipo_medidor_ativo": medidor["tipo"],
+            "modelo_medidor_ativo": MODELOS_MEDIDOR[medidor["tipo"]],
+            "data_instalacao_medidor": medidor["data_instalacao"],
+            "idade_medidor_anos": round((DATA_REFERENCIA - date.fromisoformat(medidor["data_instalacao"])).days / 365.25, 2),
+            "medidor_trocado_recentemente": False,
+            "possui_gd": geracao is not None,
+            "potencia_gd_kwp": geracao["potencia_kwp"] if geracao else None,
+            "data_conexao_gd": f"{geracao['data_conexao']}-01" if geracao else None,
+            "modalidade_gd": "GERACAO NA PROPRIA UC" if geracao else None,
+            "energia_injetada_media_kwh": round(CONSUMO_BASE[u["classe"]] * 0.4, 2) if geracao else None,
+            "energia_injetada_atipica": False,
+            "primeiro_mes_leitura": comps[0],
+            "ultimo_mes_leitura": comps[-1],
+            "consumo_medio_12m_kwh": round(media_atual, 2),
+            "consumo_medio_12m_anterior_kwh": round(media_anterior, 2),
+            "variacao_consumo_12m_pct": round((media_atual / media_anterior - 1) * 100, 2) if media_anterior else None,
+        })
+
+    # Contrato A2: uma leitura e uma fatura por UC e competência.
+    fato_consumo_faturamento = []
+    for u, cadastro in zip(ucs, dim_uc, strict=True):
         for i, comp in enumerate(comps):
             kwh = consumo[u["uc_id"]][i]
-            valor = round(kwh * (TARIFA_KWH[u["classe"]] * fator_tarifa[i] + BANDEIRAS[bandeira_comp[i]]), 2)
-            if i >= n - 2:
-                status = "aberta" if rng.random() < 0.45 else "paga"
+            tarifa = TARIFA_KWH[u["classe"]] * fator_tarifa[i] + BANDEIRAS[bandeira_comp[i]]
+            energia = Decimal(str(kwh * tarifa)).quantize(Decimal("0.01"))
+            tributos = (energia * ALIQUOTA_TRIBUTOS_MOCK).quantize(Decimal("0.01"))
+            vencimento = date.fromisoformat(_prox_mes_dia10(comp))
+            em_aberto = vencimento > DATA_REFERENCIA or rng.random() < 0.08
+            pagamento = None if em_aberto else min(vencimento + timedelta(days=rng.choice([0, 0, 0, 5, 20, 45, 100])), DATA_REFERENCIA)
+            atraso = max(0, ((pagamento or DATA_REFERENCIA) - vencimento).days)
+            if atraso == 0:
+                faixa_atraso = "EM DIA"
+            elif atraso <= 30:
+                faixa_atraso = "ATE 30 DIAS"
+            elif atraso <= 90:
+                faixa_atraso = "31 A 90 DIAS"
             else:
-                status = "atrasada" if rng.random() < 0.025 else "paga"
-            f = {
-                "uc_id": u["uc_id"], "competencia": comp, "municipio": u["municipio"], "bairro": u["bairro"],
-                "classe": u["classe"], "alimentador_id": u["alimentador_id"], "consumo_kwh": kwh,
-                "valor": valor, "bandeira": bandeira_comp[i], "vencimento": _prox_mes_dia10(comp), "status": status,
-            }
-            faturas.append(f)
-            faturas_por_uc.setdefault(u["uc_id"], []).append(f)
+                faixa_atraso = "MAIS DE 90 DIAS"
+            anterior = consumo[u["uc_id"]][i - 12] if i >= 12 else None
+            ano, mes = map(int, comp.split("-"))
+            fato_consumo_faturamento.append({
+                "id_uc": u["uc_id"],
+                "mes_referencia": comp,
+                "ano": ano,
+                "mes": mes,
+                "periodo_diagnostico": "PRIMEIRO_ANO" if i < 12 else "ULTIMOS_12M" if i >= n - 12 else "OUTRO",
+                "classe": cadastro["classe"],
+                "bairro": cadastro["bairro"],
+                "municipio": cadastro["municipio"],
+                "possui_gd_no_mes": cadastro["possui_gd"] and comp >= cadastro["data_conexao_gd"][:7],
+                "id_medidor": cadastro["id_medidor_ativo"],
+                "data_leitura": f"{comp}-20",
+                "tipo_leitura": "REAL",
+                "consumo_kwh": kwh,
+                "consumo_kwh_ano_anterior": anterior,
+                "variacao_consumo_ano_anterior_pct": round((kwh / anterior - 1) * 100, 2) if anterior else None,
+                "troca_medidor": False,
+                "consumo_corrigido": False,
+                "leitura_anterior_ausente": False,
+                "id_fatura": f"FAT-{u['uc_id']}-{ano}{mes:02d}",
+                "data_emissao": f"{comp}-25",
+                "data_vencimento": vencimento.isoformat(),
+                "data_pagamento": pagamento.isoformat() if pagamento else None,
+                "valor_energia": float(energia),
+                "tributos": float(tributos),
+                "valor_total": float(energia + tributos),
+                "bandeira_tarifaria": NOMES_BANDEIRAS[bandeira_comp[i]],
+                "status_fatura": "EM ABERTO" if em_aberto else "PAGA",
+                "em_aberto": em_aberto,
+                "dias_atraso": atraso,
+                "faixa_atraso": faixa_atraso,
+                "preco_medio_kwh": round(float(energia) / kwh, 6),
+            })
 
     # ocorrências de rede (agregadas)
     ocorrencias = []
@@ -203,7 +305,7 @@ def build_mock_data() -> dict:
         })
 
     return {
-        "competencias": comps, "alimentadores": alimentadores, "ucs": ucs, "medidores": medidores,
-        "gd": gd, "consumo": consumo, "faturas": faturas, "faturas_por_uc": faturas_por_uc,
+        "competencias": comps, "alimentadores": alimentadores,
+        "dim_uc": dim_uc, "fato_consumo_faturamento": fato_consumo_faturamento,
         "ocorrencias": ocorrencias, "atendimentos": atendimentos, "suspeitas": suspeitas,
     }

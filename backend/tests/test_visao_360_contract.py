@@ -21,8 +21,8 @@ def resposta(repo):
 
 def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
     """A tipagem não deve descartar os campos que o endpoint já devolvia."""
-    for uc in repo.d["ucs"]:
-        uc_id = uc["uc_id"]
+    for uc in repo.d["dim_uc"]:
+        uc_id = uc["id_uc"]
         resposta = visao_360(repo, uc_id).model_dump(mode="json")
         assert resposta["cadastro"] | repo.uc(uc_id) == resposta["cadastro"]
         assert resposta["medidor"] == repo.medidor_uc(uc_id)
@@ -40,18 +40,20 @@ def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
             assert atendimento | original == atendimento
 
 
-def test_mock_nao_inventa_campos_previstos_na_gold(resposta):
-    assert resposta["cadastro"]["logradouro"] is None
-    assert resposta["cadastro"]["numero"] is None
-    assert resposta["cadastro"]["possui_gd"] is None
+def test_mock_preenche_campos_previstos_na_gold(resposta):
+    assert resposta["cadastro"]["logradouro"]
+    assert resposta["cadastro"]["numero"]
+    assert isinstance(resposta["cadastro"]["possui_gd"], bool)
+    assert "***" in resposta["cadastro"]["titular"]
     assert resposta["interrupcoes"]["escopo"] == "alimentador"
     for fatura in resposta["faturas"]:
-        assert fatura["id_fatura"] is None
-        assert fatura["data_pagamento"] is None
-        assert fatura["valor_total"] is None
-        assert fatura["valor_energia"] is None
+        assert fatura["id_fatura"]
+        assert (fatura["data_pagamento"] is not None) == (fatura["status"] == "paga")
+        assert fatura["valor_total"] > fatura["valor_energia"] > 0
     for ponto in resposta["consumo"]:
-        assert ponto["valor_total_ano_anterior"] is None
+        assert ponto["valor_total"] is not None
+        assert ponto["valor_total_ano_anterior"] is not None
+        assert ponto["variacao_consumo_ano_anterior_pct"] is not None
 
 
 def test_contrato_aceita_historico_insuficiente_e_blocos_sem_registros(resposta):

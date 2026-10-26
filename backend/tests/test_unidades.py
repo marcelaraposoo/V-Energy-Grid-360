@@ -200,7 +200,9 @@ def test_faturamento_com_referencia_zero(repo, serie, faturas, monkeypatch):
     assert "referência igual a zero" in diagnostico.faturamento.mensagem
 
 
-def test_mock_sem_valor_total_informa_faturamento_indisponivel(repo):
+def test_faturas_sem_valor_total_informam_faturamento_indisponivel(repo, monkeypatch):
+    faturas = [{**fatura, "valor_total": None} for fatura in repo.faturas_uc("UC000001")]
+    monkeypatch.setattr(repo, "faturas_uc", lambda uc_id: faturas)
     diagnostico = visao_360(repo, "UC000001").diagnostico_conta_alta
 
     assert diagnostico.faturamento.valor_atual is None

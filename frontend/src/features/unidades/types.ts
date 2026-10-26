@@ -69,7 +69,7 @@ export interface FaturaUC {
   classe: string
   alimentador_id: string
   consumo_kwh: number
-  /** Campo legado do mock; não assumir equivalência com os valores abaixo. */
+  /** Alias de valor_energia mantido para os serviços de receita e dashboard. */
   valor: number
   bandeira: string
   vencimento: string
@@ -89,7 +89,7 @@ export interface MedidorUC {
 
 export interface GeracaoDistribuidaUC {
   potencia_kwp: number
-  /** Mock atual: YYYY-MM; Gold: YYYY-MM-DD. */
+  /** Data de conexão: YYYY-MM-DD. */
   data_conexao: string
   fonte: string | null
 }

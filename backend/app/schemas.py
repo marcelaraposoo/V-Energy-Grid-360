@@ -117,7 +117,7 @@ class FaturaUC(BaseModel):
     classe: str
     alimentador_id: str
     consumo_kwh: float
-    valor: float = Field(description="Valor legado do mock; não substitui valor_total ou valor_energia.")
+    valor: float = Field(description="Alias de valor_energia mantido para os serviços de receita e dashboard.")
     bandeira: str
     vencimento: date
     status: Literal["paga", "aberta", "atrasada"]
@@ -136,7 +136,7 @@ class MedidorUC(BaseModel):
 
 class GeracaoDistribuidaUC(BaseModel):
     potencia_kwp: float
-    data_conexao: str = Field(description="Mock atual: YYYY-MM; adaptador Gold deverá fornecer YYYY-MM-DD.")
+    data_conexao: str = Field(description="Data de conexão no formato YYYY-MM-DD.")
     fonte: str | None = None
 
 

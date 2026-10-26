@@ -62,12 +62,15 @@ def test_contrato_aceita_historico_insuficiente_e_blocos_sem_registros(resposta)
         medidor=None,
         geracao_distribuida=None,
         atendimentos=[],
-        diagnostico_conta_alta={
-            "consumo_subiu": None,
-            "variacao_pct": None,
-            "mensagem": "Histórico insuficiente para comparar.",
-        },
     )
+    for metrica in ("consumo", "faturamento"):
+        resposta["diagnostico_conta_alta"][metrica] = {
+            "valor_atual": None,
+            "valor_referencia": None,
+            "variacao_pct": None,
+            "classificacao": None,
+            "mensagem": "Dados indisponíveis para comparar.",
+        }
     resposta["interrupcoes"].update(
         escopo="uc", recentes=[], ultimos_12_meses=0, dec_horas=None, fec_vezes=None,
     )

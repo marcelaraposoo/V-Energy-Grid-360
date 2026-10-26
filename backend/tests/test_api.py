@@ -39,6 +39,18 @@ def test_visao_360():
     assert client.get("/api/unidades/UC999999/visao-360").status_code == 404
 
 
+@pytest.mark.parametrize("modo", ["mes_anterior", "ano_anterior", "trimestre_ano_anterior"])
+def test_visao_360_seleciona_comparacao(modo):
+    r = client.get(f"/api/unidades/UC000001/visao-360?comparacao={modo}")
+    assert r.status_code == 200
+    assert r.json()["diagnostico_conta_alta"]["comparacao"] == modo
+
+
+def test_visao_360_rejeita_comparacao_desconhecida():
+    r = client.get("/api/unidades/UC000001/visao-360?comparacao=invalida")
+    assert r.status_code == 422
+
+
 def test_fila_ordenada_e_fluxo_de_ordem():
     fila = client.get("/api/perdas/fila").json()
     scores = [i["prioridade_score"] for i in fila]

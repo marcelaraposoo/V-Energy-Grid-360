@@ -30,9 +30,34 @@ export interface ConsumoMensalUC {
   valor_total_ano_anterior: number | null
 }
 
-export interface DiagnosticoContaAltaUC {
-  consumo_subiu: boolean | null
+export type TipoComparacaoContaAlta =
+  | 'mes_anterior'
+  | 'ano_anterior'
+  | 'trimestre_ano_anterior'
+
+export type ClassificacaoVariacao =
+  | 'pequena'
+  | 'moderada'
+  | 'significativa'
+  | 'reducao'
+
+export interface ComparacaoMetricaUC {
+  valor_atual: number | null
+  valor_referencia: number | null
   variacao_pct: number | null
+  classificacao: ClassificacaoVariacao | null
+  mensagem: string
+}
+
+export interface DiagnosticoContaAltaUC {
+  /** Query param comparacao; padrão: trimestre_ano_anterior. */
+  comparacao: TipoComparacaoContaAlta
+  competencias_atuais: string[]
+  competencias_referencia: string[]
+  /** Valores em kWh. */
+  consumo: ComparacaoMetricaUC
+  /** Valores em R$, calculados a partir de valor_total. */
+  faturamento: ComparacaoMetricaUC
   mensagem: string
 }
 

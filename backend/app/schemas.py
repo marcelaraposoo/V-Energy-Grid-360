@@ -87,9 +87,25 @@ class ConsumoMensalUC(BaseModel):
     valor_total_ano_anterior: float | None = None
 
 
-class DiagnosticoContaAltaUC(BaseModel):
-    consumo_subiu: bool | None
+TipoComparacaoContaAlta = Literal["mes_anterior", "ano_anterior", "trimestre_ano_anterior"]
+COMPARACAO_CONTA_ALTA_PADRAO: TipoComparacaoContaAlta = "trimestre_ano_anterior"
+ClassificacaoVariacao = Literal["pequena", "moderada", "significativa", "reducao"]
+
+
+class ComparacaoMetricaUC(BaseModel):
+    valor_atual: float | None
+    valor_referencia: float | None
     variacao_pct: float | None
+    classificacao: ClassificacaoVariacao | None
+    mensagem: str
+
+
+class DiagnosticoContaAltaUC(BaseModel):
+    comparacao: TipoComparacaoContaAlta
+    competencias_atuais: list[Competencia]
+    competencias_referencia: list[Competencia]
+    consumo: ComparacaoMetricaUC
+    faturamento: ComparacaoMetricaUC
     mensagem: str
 
 

@@ -36,7 +36,7 @@ def test_visao_360():
     uc = client.get("/api/unidades?limite=1").json()[0]["uc_id"]
     j = client.get(f"/api/unidades/{uc}/visao-360").json()
     assert len(j["consumo"]) == 12 and "mensagem" in j["diagnostico_conta_alta"]
-    assert client.get("/api/unidades/UC99999/visao-360").status_code == 404
+    assert client.get("/api/unidades/UC999999/visao-360").status_code == 404
 
 
 def test_fila_ordenada_e_fluxo_de_ordem():

@@ -87,7 +87,7 @@ def build_mock_data() -> dict:
     for i in range(400):
         mun = rng.choices(muns, weights=PESOS_MUN)[0]
         classe = rng.choices(list(CLASSES), weights=[75, 5, 15, 5])[0]
-        uc_id = f"UC{i + 1:05d}"
+        uc_id = f"UC{i + 1:06d}"
         ucs.append({
             "uc_id": uc_id,
             "titular": f"{rng.choice(NOMES)} {rng.choice(SOBRENOMES)}",

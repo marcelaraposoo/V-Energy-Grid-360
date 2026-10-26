@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
@@ -24,6 +25,9 @@ from app.agent.schemas import (
     ProviderName,
 )
 from app.core.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 def _build_model() -> GoogleModel:
@@ -84,6 +88,13 @@ def classify_gemini_error(
         if error.status_code >= 500:
             return ProviderErrorType.PROVIDER_UNAVAILABLE
 
+    # ModelAPIError é a classe-base para falhas de API do provider.
+    # Se o PydanticAI não conseguiu classificar a falha em uma
+    # categoria mais específica, ainda permitimos o fallback para
+    # o próximo provider/modelo.
+    if isinstance(error, ModelAPIError):
+        return ProviderErrorType.PROVIDER_UNAVAILABLE
+
     return ProviderErrorType.UNKNOWN
 
 
@@ -121,7 +132,9 @@ async def run_gemini(
             },
             model_settings={
                 "max_retries": 0,
-                "request_timeout": settings.provider_timeout_seconds,
+                "request_timeout": (
+                    settings.provider_timeout_seconds
+                ),
             },
         )
 
@@ -158,6 +171,22 @@ async def run_gemini(
             perf_counter() - start
         ) * 1000
 
+        error_type = classify_gemini_error(
+            error
+        )
+
+        if error_type == ProviderErrorType.UNKNOWN:
+            logger.exception(
+                "Erro Gemini não classificado. "
+                "exception_type=%s cause_type=%s",
+                type(error).__name__,
+                (
+                    type(error.__cause__).__name__
+                    if error.__cause__
+                    else None
+                ),
+            )
+
         provider_attempt = ProviderAttempt(
             provider=ProviderName.GEMINI,
             model=settings.gemini_model,
@@ -165,9 +194,7 @@ async def run_gemini(
             started_at=started_at,
             success=False,
             latency_ms=latency_ms,
-            error_type=classify_gemini_error(
-                error
-            ),
+            error_type=error_type,
         )
 
         return None, provider_attempt

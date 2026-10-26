@@ -62,10 +62,9 @@ class Settings:
         )
     )
 
-    openrouter_models: tuple[str, ...] = (
-        "nvidia/nemotron-3-super-120b-a12b:free",
-        "nvidia/nemotron-3-ultra-550b-a55b:free",
+    openrouter_models = (
         "google/gemma-4-31b-it:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
     )
 
     provider_timeout_seconds: float = 20.0

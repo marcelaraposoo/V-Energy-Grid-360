@@ -20,9 +20,8 @@ def anyio_backend():
 def fake_settings():
     return SimpleNamespace(
         openrouter_models=(
-            "nemotron-super",
-            "nemotron-ultra",
             "gemma-4",
+            "nemotron-ultra",
         )
     )
 
@@ -205,9 +204,10 @@ async def test_gemini_rate_limit_falls_back_to_openrouter(
         == ProviderName.OPENROUTER
     )
 
+    # Primeiro fallback agora é Gemma.
     assert (
         attempts[1].model
-        == "nemotron-super"
+        == "gemma-4"
     )
 
 
@@ -278,7 +278,13 @@ async def test_gemini_quota_exhausted_uses_openrouter(
 
     assert output == "fallback ok"
     assert error is None
+
     assert len(attempts) == 2
+
+    assert (
+        attempts[1].model
+        == "gemma-4"
+    )
 
 
 @pytest.mark.anyio
@@ -345,6 +351,7 @@ async def test_nonrecoverable_gemini_error_stops_flow(
     )
 
     assert len(attempts) == 1
+
     assert openrouter_calls == []
 
 
@@ -389,7 +396,7 @@ async def test_openrouter_moves_to_next_model_after_rate_limit(
             model_name
         )
 
-        if model_name == "nemotron-super":
+        if model_name == "gemma-4":
             return (
                 None,
                 make_attempt(
@@ -439,7 +446,7 @@ async def test_openrouter_moves_to_next_model_after_rate_limit(
     assert error is None
 
     assert called_models == [
-        "nemotron-super",
+        "gemma-4",
         "nemotron-ultra",
     ]
 
@@ -531,8 +538,11 @@ async def test_openrouter_quota_exhausted_stops_immediately(
         == ProviderErrorType.QUOTA_EXHAUSTED
     )
 
+    # Se a conta inteira do OpenRouter
+    # esgotou a cota, não adianta tentar
+    # outro modelo do mesmo provider.
     assert called_models == [
-        "nemotron-super",
+        "gemma-4",
     ]
 
     assert len(attempts) == 2
@@ -619,9 +629,13 @@ async def test_openrouter_bad_request_stops_fallback(
         == ProviderErrorType.BAD_REQUEST
     )
 
+    # BAD_REQUEST indica problema da requisição,
+    # não indisponibilidade específica do modelo.
     assert called_models == [
-        "nemotron-super",
+        "gemma-4",
     ]
+
+    assert len(attempts) == 2
 
 
 @pytest.mark.anyio
@@ -698,9 +712,12 @@ async def test_invalid_output_uses_next_model(
     assert output == "resultado válido"
     assert error is None
 
+    # Primeiro fallback deve ser Gemma.
     assert called_models == [
-        "nemotron-super",
+        "gemma-4",
     ]
+
+    assert len(attempts) == 2
 
 
 @pytest.mark.anyio
@@ -784,13 +801,14 @@ async def test_all_providers_fail_with_recoverable_errors(
         == ProviderErrorType.PROVIDER_UNAVAILABLE
     )
 
+    # Pool atual:
+    # Gemini → Gemma → Nemotron Ultra
     assert called_models == [
-        "nemotron-super",
-        "nemotron-ultra",
         "gemma-4",
+        "nemotron-ultra",
     ]
 
-    assert len(attempts) == 4
+    assert len(attempts) == 3
 
     assert [
         attempt.attempt
@@ -799,6 +817,4 @@ async def test_all_providers_fail_with_recoverable_errors(
         1,
         2,
         3,
-        4,
     ]
-    

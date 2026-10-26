@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -128,13 +128,13 @@ class OcorrenciaRedeUC(BaseModel):
     ocorrencia_id: str
     alimentador_id: str
     municipio: str
-    data: date
+    data: datetime
     competencia: Competencia = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     ucs_afetadas: int
     duracao_h: float
-    causa: str
+    causa: str | None
     uc_id: str | None = None
-    data_fim: date | None = None
+    data_fim: datetime | None = None
 
 
 class InterrupcoesUC(BaseModel):

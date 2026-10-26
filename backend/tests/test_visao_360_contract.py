@@ -90,3 +90,17 @@ def test_contrato_nao_expoe_campos_internos_do_repositorio(resposta):
     resposta["cadastro"]["_base"] = 123
     resposta["faturas"][0]["campo_interno"] = "não expor"
     assert Visao360.model_validate(resposta).model_dump(mode="json") == original
+
+
+@pytest.mark.parametrize("causa", ["FALHA DE EQUIPAMENTO", None])
+def test_contrato_preserva_horarios_das_interrupcoes(resposta, causa):
+    ocorrencia = resposta["interrupcoes"]["recentes"][0]
+    ocorrencia.update(
+        data="2026-06-10T22:35:12",
+        data_fim="2026-06-11T00:00:00",
+        causa=causa,
+    )
+
+    contrato = Visao360.model_validate(resposta)
+
+    assert contrato.model_dump(mode="json")["interrupcoes"]["recentes"][0] == ocorrencia

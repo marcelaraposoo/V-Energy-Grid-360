@@ -73,12 +73,14 @@ export interface OcorrenciaRedeUC {
   ocorrencia_id: string
   alimentador_id: string
   municipio: string
+  /** Data e hora de início em ISO 8601. */
   data: string
   competencia: string
   ucs_afetadas: number
   duracao_h: number
-  causa: string
+  causa: string | null
   uc_id: string | null
+  /** Data e hora de encerramento em ISO 8601, quando disponível. */
   data_fim: string | null
 }
 

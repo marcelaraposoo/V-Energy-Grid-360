@@ -156,7 +156,7 @@ class TratativaAtendimentoUC(BaseModel):
 
 class AtendimentoUC(BaseModel):
     protocolo: str
-    data: date
+    data: datetime
     canal: str
     assunto: str
     status: str

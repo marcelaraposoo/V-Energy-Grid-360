@@ -102,6 +102,7 @@ export interface TratativaAtendimentoUC {
 
 export interface AtendimentoUC {
   protocolo: string
+  /** Data e hora de abertura em ISO 8601. */
   data: string
   canal: string
   assunto: string

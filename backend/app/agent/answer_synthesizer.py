@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 from app.agent.prompts.synthesis.loader import (
@@ -22,6 +23,22 @@ NO_DATA_MESSAGE = (
     "classe de consumo."
 )
 
+_PROMPT_TAG_PATTERN = re.compile(
+    r"<(\s*/?\s*(?:user_question|executed_sql|query_result)\b)",
+    flags=re.IGNORECASE,
+)
+
+
+def _neutralize_prompt_tags(text: str) -> str:
+    """
+    Impede que a pergunta ou o SQL abram ou fechem as tags
+    estruturais do prompt (ex.: '</user_question>').
+
+    Só as tags do prompt são alteradas. Comparações SQL como
+    'a < 5' continuam intactas.
+    """
+
+    return _PROMPT_TAG_PATTERN.sub(r"&lt;\1", text)
 
 def _to_safe_json(value: Any) -> str:
     """
@@ -70,10 +87,10 @@ def build_synthesis_prompt(
 
     return (
         "<user_question>\n"
-        f"{question}\n"
+        f"{_neutralize_prompt_tags(question)}\n"
         "</user_question>\n\n"
         "<executed_sql>\n"
-        f"{sql}\n"
+        f"{_neutralize_prompt_tags(sql)}\n"
         "</executed_sql>\n\n"
         "<query_result>\n"
         f"{_to_safe_json(payload)}\n"

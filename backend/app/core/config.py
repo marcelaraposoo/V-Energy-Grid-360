@@ -5,7 +5,17 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+load_dotenv(BACKEND_DIR / ".env")
+
+
+def _caminho_no_backend(valor: str) -> str:
+    """Caminho relativo vale a partir da pasta backend (e não de onde o uvicorn foi iniciado),
+    para não nascer um segundo banco vazio ao rodar de outra pasta."""
+    if valor == ":memory:" or Path(valor).is_absolute():
+        return valor
+    return str(BACKEND_DIR / valor)
 
 
 CORS_PADRAO = (
@@ -31,6 +41,16 @@ class Settings:
         default_factory=lambda: os.getenv(
             "SQLITE_PATH",
             "data/gold.db",
+        )
+    )
+
+    # Banco do portal (ordens de inspeção): separado do gold.db para a exportação da Gold não apagá-lo
+    portal_db_path: str = field(
+        default_factory=lambda: _caminho_no_backend(
+            os.getenv(
+                "PORTAL_DB_PATH",
+                "data/portal.db",
+            )
         )
     )
 

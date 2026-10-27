@@ -43,7 +43,7 @@ Filtros comuns: `municipio`, `bairro`, `classe`; períodos: `base_inicio/base_fi
 Padrão: base = primeiros 12 meses, atual = últimos 12 (como na pergunta do diretor).
 
 ## Premissas
-- Mock: 400 UCs, 48 competências (2022-10 a 2026-09); ordens de inspeção ficam em memória (reiniciam com o servidor).
+- Mock: 400 UCs, 48 competências (2022-10 a 2026-09); ordens de inspeção ficam no SQLite do portal (`data/portal.db`, criado sozinho) e sobrevivem a reinícios. Para zerar, pare o servidor e apague o arquivo. O caminho muda com `PORTAL_DB_PATH` no `.env`.
 - Efeito-preço inclui reajuste + bandeira + mix de classes.
 - DEC/FEC simplificados conforme o enunciado.
 - UC com ordem ativa sai da fila de suspeitas; score de prioridade = probabilidade × kWh/mês recuperável.

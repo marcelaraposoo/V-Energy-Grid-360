@@ -111,14 +111,14 @@ conflito com Dev, e o contrato com o front não muda.
 | GET | `/receita/variacao?agrupar_por=municipio\|bairro\|classe` | Dev | implementada (mock) | efeito preço x volume (drill-down) |
 | GET | `/unidades?q=`, `/unidades/{uc}/visao-360` | Dev | implementada (mock) | atendente |
 | GET | `/perdas/fila?q=&pagina=&tamanho=` | Dev | implementada (mock) | fila priorizada, com busca e paginação (total no cabeçalho `X-Total-Count`) |
-| POST/GET | `/perdas/ordens`, `/perdas/ordens/{id}` | Dev | implementada (em memória) | criar, listar e consultar ordens |
-| POST | `/perdas/ordens/{id}/iniciar`, `/resultado`, `/cancelar` | Dev | implementada (em memória) | ciclo da ordem de inspeção |
+| POST/GET | `/perdas/ordens`, `/perdas/ordens/{id}` | Dev | implementada (SQLite do portal) | criar, listar e consultar ordens |
+| POST | `/perdas/ordens/{id}/iniciar`, `/resultado`, `/cancelar` | Dev | implementada (SQLite do portal) | ciclo da ordem de inspeção |
 | GET | `/continuidade/alimentadores`, `/alimentadores/{id}/serie` | Dev | implementada (mock) | DEC/FEC |
 | **POST** | **`/ia/perguntar`** | **IA** | **stub** (`nao_implementado`) | chat flutuante |
 | **DELETE** | **`/ia/sessoes/{id}`** | **IA** | **stub** (204, não faz nada) | "nova conversa" no chat |
 | **GET** | **`/ia/insights?tela=`** | **IA** | **parcial** (ver abaixo) | painel de insights fechável |
 
-"Mock" = devolve dados fictícios até a Gold chegar. "Em memória" = as ordens somem quando o servidor reinicia.
+"Mock" = devolve dados fictícios até a Gold chegar. "SQLite do portal" = as ordens ficam em `data/portal.db` (separado do `gold.db`) e sobrevivem a reinícios; o código está em `repositories/ordens_store.py`. Há no máximo uma ordem ativa (PENDENTE ou EM_CAMPO) por UC, garantido por um índice único parcial.
 
 ### Insights por tela (`tela` aceita: `dashboard`, `receita`, `unidades`, `perdas`, `continuidade`)
 

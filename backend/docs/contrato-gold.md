@@ -55,4 +55,4 @@ Baseado em `docs/data_quality_log.md` (itens ainda em investigação podem mudar
 5. Como será o mascaramento de `titular` e de documento?
 6. Qual o nome e o local do arquivo SQLite gerado pelo `04_export_banco_local` (o backend espera `data/gold.db`)?
 
-`ordens_inspecao` é do portal (não da Gold): será criada no SQLite do backend.
+`ordens_inspecao` é do portal (não da Gold): fica em `data/portal.db`, criada sozinha no startup. É um arquivo separado do `gold.db`, para a exportação da Gold não sobrescrevê-la.

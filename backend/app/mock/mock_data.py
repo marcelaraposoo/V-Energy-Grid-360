@@ -44,6 +44,7 @@ CONSUMO_BASE = {"B1": 180, "B2": 220, "B3": 600, "A4": 8000}
 TARIFA_KWH = {"B1": 0.85, "B2": 0.60, "B3": 0.80, "A4": 0.45}
 CLASSES_GOLD = {"B1": ("RESIDENCIAL",), "B2": ("RURAL",), "B3": ("COMERCIAL", "PODER PUBLICO"), "A4": ("INDUSTRIAL",)}
 MODELOS_MEDIDOR = {"ELETRONICO": "EL-3000", "ELETROMECANICO": "EM-1000", "SMART": "SM-5000"}
+MODALIDADES_GD = ("GERACAO NA PROPRIA UC", "AUTOCONSUMO REMOTO", "GERACAO COMPARTILHADA")
 
 BANDEIRAS = {"verde": 0.0, "amarela": 0.019, "vermelha1": 0.044, "vermelha2": 0.079}
 NOMES_BANDEIRAS = {"verde": "Verde", "amarela": "Amarela", "vermelha1": "Vermelha P1", "vermelha2": "Vermelha P2"}
@@ -125,7 +126,7 @@ def build_mock_data() -> dict:
             gd[uc_id] = {
                 "potencia_kwp": round(rng.uniform(3, 10), 1),
                 "data_conexao": comps[rng.randint(8, 30)],
-                "fonte": "Solar fotovoltaica",
+                "modalidade": MODALIDADES_GD[len(gd) % len(MODALIDADES_GD)],
             }
 
     # consumo mensal
@@ -183,7 +184,7 @@ def build_mock_data() -> dict:
             "possui_gd": geracao is not None,
             "potencia_gd_kwp": geracao["potencia_kwp"] if geracao else None,
             "data_conexao_gd": f"{geracao['data_conexao']}-01" if geracao else None,
-            "modalidade_gd": "GERACAO NA PROPRIA UC" if geracao else None,
+            "modalidade_gd": geracao["modalidade"] if geracao else None,
             "energia_injetada_media_kwh": round(CONSUMO_BASE[u["classe"]] * 0.4, 2) if geracao else None,
             "energia_injetada_atipica": False,
             "primeiro_mes_leitura": comps[0],

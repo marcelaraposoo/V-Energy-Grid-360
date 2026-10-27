@@ -113,7 +113,7 @@ class MockRepository:
             return None
         return {
             "potencia_kwp": uc["potencia_gd_kwp"], "data_conexao": uc["data_conexao_gd"],
-            "fonte": "Solar fotovoltaica",
+            "modalidade": uc["modalidade_gd"],
         }
 
     def atendimentos_uc(self, uc_id):

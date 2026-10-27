@@ -137,7 +137,7 @@ class MedidorUC(BaseModel):
 class GeracaoDistribuidaUC(BaseModel):
     potencia_kwp: float
     data_conexao: str = Field(description="Data de conexão no formato YYYY-MM-DD.")
-    fonte: str | None = None
+    modalidade: str | None = Field(default=None, description="Modalidade de geração distribuída (dim_uc.modalidade_gd).")
 
 
 class OcorrenciaRedeUC(BaseModel):

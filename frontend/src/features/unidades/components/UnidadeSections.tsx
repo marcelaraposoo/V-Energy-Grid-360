@@ -166,7 +166,6 @@ export function GeracaoSection({ dados }: SectionProps) {
       {geracao ? (
         <UnidadeFields
           fields={[
-            { label: 'Possui geração solar?', value: 'Sim' },
             {
               label: 'Potência instalada (kWp)',
               value: formatarNumero(geracao.potencia_kwp),
@@ -175,7 +174,7 @@ export function GeracaoSection({ dados }: SectionProps) {
               label: 'Data de conexão',
               value: formatarData(geracao.data_conexao),
             },
-            { label: 'Fonte', value: geracao.fonte },
+            { label: 'Modalidade', value: geracao.modalidade },
           ]}
         />
       ) : (

@@ -27,6 +27,9 @@ def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
         assert resposta["cadastro"] | repo.uc(uc_id) == resposta["cadastro"]
         assert resposta["medidor"] == repo.medidor_uc(uc_id)
         assert resposta["geracao_distribuida"] == repo.gd_uc(uc_id)
+        if uc["possui_gd"]:
+            assert resposta["geracao_distribuida"]["modalidade"] == uc["modalidade_gd"]
+            assert "fonte" not in resposta["geracao_distribuida"]
 
         por_competencia = {f["competencia"]: f for f in repo.faturas_uc(uc_id)}
         for fatura in resposta["faturas"] + resposta["faturas_em_aberto"]:

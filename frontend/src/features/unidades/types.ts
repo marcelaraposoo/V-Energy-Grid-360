@@ -91,7 +91,8 @@ export interface GeracaoDistribuidaUC {
   potencia_kwp: number
   /** Data de conexão: YYYY-MM-DD. */
   data_conexao: string
-  fonte: string | null
+  /** Modalidade de geração distribuída, conforme dim_uc.modalidade_gd. */
+  modalidade: string | null
 }
 
 export interface OcorrenciaRedeUC {

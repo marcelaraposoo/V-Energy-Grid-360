@@ -25,8 +25,10 @@ def test_dim_uc_segue_contrato_gold(dados):
         consumo_medio_12m_kwh consumo_medio_12m_anterior_kwh variacao_consumo_12m_pct
     """.split())
     classes = {"RESIDENCIAL": "B1", "RURAL": "B2", "COMERCIAL": "B3", "PODER PUBLICO": "B3", "INDUSTRIAL": "A4"}
+    modalidades = {"GERACAO NA PROPRIA UC", "AUTOCONSUMO REMOTO", "GERACAO COMPARTILHADA"}
     assert len(dados["dim_uc"]) == 400
     assert len({uc["id_uc"] for uc in dados["dim_uc"]}) == 400
+    assert {uc["modalidade_gd"] for uc in dados["dim_uc"] if uc["possui_gd"]} == modalidades
     for uc in dados["dim_uc"]:
         assert set(uc) == campos
         assert re.fullmatch(r"UC\d{6}", uc["id_uc"])
@@ -45,9 +47,11 @@ def test_dim_uc_segue_contrato_gold(dados):
         if uc["possui_gd"]:
             assert date.fromisoformat(uc["data_conexao_gd"]) <= DATA_REFERENCIA
             assert uc["potencia_gd_kwp"] > 0
+            assert uc["modalidade_gd"] in modalidades
         else:
             assert uc["data_conexao_gd"] is None
             assert uc["potencia_gd_kwp"] is None
+            assert uc["modalidade_gd"] is None
 
 
 def test_fato_consumo_faturamento_segue_contrato_gold(dados):

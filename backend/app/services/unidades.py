@@ -7,9 +7,11 @@ from app.schemas import (
     ClassificacaoVariacao,
     ComparacaoMetricaUC,
     DiagnosticoContaAltaUC,
+    PERIODO_INTERRUPCOES_PADRAO,
+    PeriodoInterrupcoes,
     Visao360,
 )
-from app.services.continuidade import dec_fec
+from app.services.continuidade import resumo_periodo
 
 LIMITE_VARIACAO_PEQUENA_PCT = 5.0
 LIMITE_VARIACAO_MODERADA_PCT = 15.0
@@ -110,6 +112,7 @@ def _diagnostico_conta_alta(
 
 def visao_360(
     repo, uc_id: str, competencia_atual: str | None = None, competencia_referencia: str | None = None,
+    periodo_interrupcoes: PeriodoInterrupcoes = PERIODO_INTERRUPCOES_PADRAO,
 ) -> Visao360:
     uc = repo.uc(uc_id)
     if not uc:
@@ -125,14 +128,27 @@ def visao_360(
     faturas = sorted(repo.faturas_uc(uc_id), key=lambda f: f["competencia"], reverse=True)
     c = sorted(repo.competencias())
     diag = _diagnostico_conta_alta(serie, faturas, competencia_atual, competencia_referencia)
-    oc = repo.ocorrencias(c[max(0, len(c) - 12)], c[-1], alimentador_id=uc["alimentador_id"]) if c else []
-    alim = next(a for a in repo.alimentadores() if a["id"] == uc["alimentador_id"])
-    dec, fec = dec_fec(oc, alim["ucs_total"])
+    inicio = None
+    if c:
+        if periodo_interrupcoes == "todos":
+            inicio = c[0]
+        else:
+            meses = 6 if periodo_interrupcoes == "6_meses" else 12
+            ano, mes = map(int, c[-1].split("-"))
+            ano, mes = divmod(ano * 12 + mes - meses, 12)
+            inicio = max(c[0], f"{ano:04d}-{mes + 1:02d}")
+    oc = repo.ocorrencias(inicio, c[-1], uc_id=uc["uc_id"]) if c else []
+    mensais = repo.indicadores_continuidade(inicio, c[-1], alimentador_id=uc["alimentador_id"]) if c else []
+    continuidade = resumo_periodo(mensais)
     return Visao360(
         cadastro=uc, consumo=consumo, diagnostico_conta_alta=diag, faturas=faturas[:12],
         faturas_em_aberto=[f for f in faturas if f["status"] in ("aberta", "atrasada")],
         medidor=repo.medidor_uc(uc_id), geracao_distribuida=repo.gd_uc(uc_id),
-        interrupcoes={"alimentador_id": uc["alimentador_id"], "ultimos_12_meses": len(oc), "dec_horas": dec,
-                      "fec_vezes": fec, "recentes": sorted(oc, key=lambda o: o["data"], reverse=True)[:5]},
+        interrupcoes={"alimentador_id": uc["alimentador_id"], "periodo": periodo_interrupcoes,
+                      "qtd_ocorrencias": len(oc), "duracao_total_min": sum(o["duracao_min"] for o in oc),
+                      "dec_horas": continuidade["dec_horas"], "fec_vezes": continuidade["fec_vezes"],
+                      "periodo_inicio": inicio, "periodo_fim": c[-1] if c else None,
+                      "escopo": "uc",
+                      "historico": sorted(oc, key=lambda o: o["data"], reverse=True)},
         atendimentos=sorted(repo.atendimentos_uc(uc_id), key=lambda a: a["data"], reverse=True),
     )

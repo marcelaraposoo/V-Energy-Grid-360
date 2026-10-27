@@ -1,11 +1,12 @@
 """Gerador de dados MOCKADOS (determinístico).
 
-Cadastro e consumo/faturas seguem dim_uc e fato_consumo_faturamento da Gold v2.
+Cadastro, consumo/faturas e interrupções seguem dim_uc, fato_consumo_faturamento
+e fato_interrupcao da Gold consolidada (v4, arquivo gold_contrato_v3.md).
 Premissas da simulação:
 - 48 competências (2022-07 a 2026-06), 400 UCs, 14 municípios, 2 alimentadores por município.
 - Nomes mascarados, endereços e coordenadas fictícios. Toda UC possui um medidor ativo.
 - Tributos de 20% sobre valor_energia: regra fictícia, sem representar alíquotas reais.
-- Ocorrência de rede aqui é AGREGADA (ucs_afetadas + duracao_h); no dado real cada registro é 1 UC.
+- Cada interrupção representa uma UC, com horários fictícios e duração em minutos.
 - Medidor sem 'última manutenção': na origem essa coluna é 100% vazia (docs/data_quality_log.md).
 - Reajuste tarifário em degraus + bandeiras aleatórias, para o efeito-preço aparecer na decomposição.
 """
@@ -13,7 +14,8 @@ from __future__ import annotations
 
 import math
 import random
-from datetime import date, timedelta
+from collections import defaultdict
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from functools import lru_cache
 
@@ -50,7 +52,8 @@ BANDEIRAS = {"verde": 0.0, "amarela": 0.019, "vermelha1": 0.044, "vermelha2": 0.
 NOMES_BANDEIRAS = {"verde": "Verde", "amarela": "Amarela", "vermelha1": "Vermelha P1", "vermelha2": "Vermelha P2"}
 NOMES = ["Ana", "Bruno", "Carla", "Diego", "Elisa", "Felipe", "Gabriela", "Hugo", "Iara", "João", "Karina", "Lucas", "Marina", "Nelson", "Olga", "Paulo"]
 SOBRENOMES = ["Silva", "Souza", "Oliveira", "Santos", "Lima", "Pereira", "Costa", "Barbosa", "Ferreira", "Melo", "Albuquerque", "Cavalcanti"]
-CAUSAS = ["Descarga atmosférica", "Árvore na rede", "Falha de equipamento", "Manutenção programada", "Sobrecarga", "Abalroamento de poste"]
+CAUSAS = ["CLIMATICA", "SOBRECARGA", "NAO IDENTIFICADA", "VEGETACAO", "TERCEIROS", "FALHA DE EQUIPAMENTO", None]
+TIPOS_OCORRENCIA = ["FALTA DE ENERGIA", "DANO EM EQUIPAMENTO", "OSCILACAO", "SOBRECARGA", "FIO PARTIDO"]
 ASSUNTOS = ["Conta alta", "Falta de luz", "Religação", "Segunda via", "Leitura incorreta", "Troca de medidor"]
 
 
@@ -72,6 +75,53 @@ def _prox_mes_dia10(comp: str) -> str:
     return f"{y}-{m:02d}-10"
 
 
+def build_dec_fec_alimentador_mensal(dim_uc, fato_interrupcao, alimentadores, comps):
+    """Contrato A8: grade completa e denominador de UCs ligadas até cada mês.
+
+    OSCILACAO permanece incluída, conforme a proposta documentada no contrato.
+    """
+    ucs_por_alim = defaultdict(list)
+    por_alim_mes = defaultdict(list)
+    por_mes = defaultdict(list)
+    for uc in dim_uc:
+        ucs_por_alim[uc["alimentador"]].append(uc)
+    for o in fato_interrupcao:
+        por_alim_mes[o["alimentador"], o["mes_referencia"]].append(o)
+    linhas = []
+    for alimentador in alimentadores:
+        historico = []
+        for comp in comps:
+            registros = por_alim_mes[alimentador["id"], comp]
+            qtd_ucs = sum(u["data_ligacao"][:7] <= comp for u in ucs_por_alim[alimentador["id"]])
+            horas = sum(o["duracao_min"] for o in registros) / 60
+            evitaveis = [o for o in registros if o["causa_evitavel"]]
+            minutos_por_causa = defaultdict(int)
+            for o in registros:
+                if o["causa"] is not None:
+                    minutos_por_causa[o["causa"]] += o["duracao_min"]
+            # Em empate, ordenar pelo nome mantém o resultado determinístico.
+            causa = min(minutos_por_causa, key=lambda c: (-minutos_por_causa[c], c)) if minutos_por_causa else None
+            linha = {
+                "alimentador": alimentador["id"], "municipio": alimentador["municipio"],
+                "mes_referencia": comp, "qtd_ucs_alimentador_mes": qtd_ucs,
+                "qtd_interrupcoes": len(registros), "horas_interrompidas": horas,
+                "qtd_interrupcoes_evitaveis": len(evitaveis),
+                "horas_causas_evitaveis": sum(o["duracao_min"] for o in evitaveis) / 60,
+                "dec_horas": horas / qtd_ucs if qtd_ucs else 0.0,
+                "fec": len(registros) / qtd_ucs if qtd_ucs else 0.0,
+                "causa_principal": causa,
+            }
+            historico.append(linha)
+            linha["dec_12m_horas"] = sum(r["dec_horas"] for r in historico[-12:])
+            linha["fec_12m"] = sum(r["fec"] for r in historico[-12:])
+            por_mes[comp].append(linha)
+            linhas.append(linha)
+    for registros in por_mes.values():
+        for posicao, linha in enumerate(sorted(registros, key=lambda r: (-r["dec_horas"], r["alimentador"])), 1):
+            linha["ranking_dec_mes"] = posicao
+    return linhas
+
+
 @lru_cache(maxsize=1)
 def build_mock_data() -> dict:
     rng = random.Random(SEED)
@@ -82,7 +132,7 @@ def build_mock_data() -> dict:
     alimentadores = []
     for mun in MUNICIPIOS:
         for _ in range(2):
-            alimentadores.append({"id": f"AL{len(alimentadores) + 1:03d}", "municipio": mun, "ucs_total": 350})
+            alimentadores.append({"id": f"AL{len(alimentadores) + 1:03d}", "municipio": mun})
     alim_por_mun: dict[str, list[str]] = {}
     for a in alimentadores:
         alim_por_mun.setdefault(a["municipio"], []).append(a["id"])
@@ -250,20 +300,37 @@ def build_mock_data() -> dict:
                 "preco_medio_kwh": round(float(energia) / kwh, 6),
             })
 
-    # ocorrências de rede (agregadas)
-    ocorrencias = []
+    # Contrato A7: uma ocorrência de interrupção em uma UC.
+    ucs_por_alimentador = {}
+    for uc in dim_uc:
+        ucs_por_alimentador.setdefault(uc["alimentador"], []).append(uc)
+    fato_interrupcao = []
     for a in alimentadores:
+        candidatas = ucs_por_alimentador.get(a["id"], [])
+        if not candidatas:
+            continue
         pesos = [20, 40, 30, 10] if a["id"] in piores else [60, 30, 8, 2]
         for comp in comps:
+            ano, mes = map(int, comp.split("-"))
             for _ in range(rng.choices([0, 1, 2, 3], weights=pesos)[0]):
-                ocorrencias.append({
-                    "ocorrencia_id": f"OC{len(ocorrencias) + 1:06d}",
-                    "alimentador_id": a["id"], "municipio": a["municipio"],
-                    "data": f"{comp}-{rng.randint(1, 28):02d}", "competencia": comp,
-                    "ucs_afetadas": rng.randint(40, 350),
-                    "duracao_h": round(rng.lognormvariate(0.9 if a["id"] in piores else 0.4, 0.6), 2),
-                    "causa": rng.choice(CAUSAS),
+                uc = rng.choice(candidatas)
+                inicio = datetime(ano, mes, rng.randint(1, 28), rng.randrange(24), rng.randrange(60))
+                duracao_min = max(1, round(rng.lognormvariate(0.9 if a["id"] in piores else 0.4, 0.6) * 60))
+                fim = inicio + timedelta(minutes=duracao_min)
+                causa = rng.choice(CAUSAS)
+                fato_interrupcao.append({
+                    "id_ocorrencia": f"OC{len(fato_interrupcao) + 1:06d}",
+                    "id_uc": uc["id_uc"], "alimentador": uc["alimentador"],
+                    "municipio": uc["municipio"], "bairro": uc["bairro"], "classe": uc["classe"],
+                    "tipo": rng.choice(TIPOS_OCORRENCIA), "causa": causa,
+                    "causa_evitavel": causa in ("VEGETACAO", "FALHA DE EQUIPAMENTO", "SOBRECARGA"),
+                    "data_hora_inicio": inicio.isoformat(), "data_hora_fim": fim.isoformat(),
+                    "mes_referencia": comp, "duracao_min": duracao_min,
                 })
+
+    for a in alimentadores:
+        a["ucs_total"] = sum(u["data_ligacao"] <= DATA_REFERENCIA.isoformat() for u in ucs_por_alimentador.get(a["id"], []))
+    dec_fec_mensal = build_dec_fec_alimentador_mensal(dim_uc, fato_interrupcao, alimentadores, comps)
 
     # atendimentos
     atendimentos: dict[str, list[dict]] = {}
@@ -308,5 +375,6 @@ def build_mock_data() -> dict:
     return {
         "competencias": comps, "alimentadores": alimentadores,
         "dim_uc": dim_uc, "fato_consumo_faturamento": fato_consumo_faturamento,
-        "ocorrencias": ocorrencias, "atendimentos": atendimentos, "suspeitas": suspeitas,
+        "fato_interrupcao": fato_interrupcao, "atendimentos": atendimentos, "suspeitas": suspeitas,
+        "dec_fec_alimentador_mensal": dec_fec_mensal,
     }

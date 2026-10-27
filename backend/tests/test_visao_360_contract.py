@@ -15,8 +15,8 @@ def repo():
 
 @pytest.fixture
 def resposta(repo):
-    uc = repo.buscar_ucs(None, None, None, 1)[0]
-    return visao_360(repo, uc["uc_id"]).model_dump(mode="json")
+    ocorrencia = next(o for o in repo.d["fato_interrupcao"] if o["mes_referencia"] >= "2025-07")
+    return visao_360(repo, ocorrencia["id_uc"]).model_dump(mode="json")
 
 
 def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
@@ -34,6 +34,11 @@ def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
         assert diagnostico["competencias_disponiveis"] == sorted({s["competencia"] for s in repo.consumo_uc(uc_id)})
         assert diagnostico["competencia_atual"] == "2026-06"
         assert diagnostico["competencia_referencia"] == "2026-05"
+        interrupcoes = resposta["interrupcoes"]
+        originais = repo.ocorrencias("2025-07", "2026-06", uc_id=uc_id)
+        assert interrupcoes["escopo"] == "uc"
+        assert interrupcoes["qtd_ocorrencias"] == len(originais)
+        assert interrupcoes["historico"] == sorted(originais, key=lambda o: o["data"], reverse=True)
 
         por_competencia = {f["competencia"]: f for f in repo.faturas_uc(uc_id)}
         for fatura in resposta["faturas"] + resposta["faturas_em_aberto"]:
@@ -52,7 +57,7 @@ def test_mock_preenche_campos_previstos_na_gold(resposta):
     assert resposta["cadastro"]["numero"]
     assert isinstance(resposta["cadastro"]["possui_gd"], bool)
     assert "***" in resposta["cadastro"]["titular"]
-    assert resposta["interrupcoes"]["escopo"] == "alimentador"
+    assert resposta["interrupcoes"]["escopo"] == "uc"
     for fatura in resposta["faturas"]:
         assert fatura["id_fatura"]
         assert (fatura["data_pagamento"] is not None) == (fatura["status"] == "paga")
@@ -84,7 +89,8 @@ def test_contrato_aceita_historico_insuficiente_e_blocos_sem_registros(resposta)
             "mensagem": "Dados indisponíveis para comparar.",
         }
     resposta["interrupcoes"].update(
-        escopo="uc", recentes=[], ultimos_12_meses=0, dec_horas=None, fec_vezes=None,
+        escopo="uc", historico=[], qtd_ocorrencias=0, duracao_total_min=0, dec_horas=None, fec_vezes=None,
+        periodo_inicio=None, periodo_fim=None,
     )
     contrato = Visao360.model_validate(resposta)
     assert contrato.model_dump(mode="json") == resposta
@@ -110,16 +116,27 @@ def test_contrato_nao_expoe_campos_internos_do_repositorio(resposta):
 
 @pytest.mark.parametrize("causa", ["FALHA DE EQUIPAMENTO", None])
 def test_contrato_preserva_horarios_das_interrupcoes(resposta, causa):
-    ocorrencia = resposta["interrupcoes"]["recentes"][0]
+    ocorrencia = resposta["interrupcoes"]["historico"][0]
     ocorrencia.update(
         data="2026-06-10T22:35:12",
-        data_fim="2026-06-11T00:00:00",
+        data_fim="2026-06-11T00:00:12",
+        duracao_min=85,
         causa=causa,
     )
 
     contrato = Visao360.model_validate(resposta)
 
-    assert contrato.model_dump(mode="json")["interrupcoes"]["recentes"][0] == ocorrencia
+    assert contrato.model_dump(mode="json")["interrupcoes"]["historico"][0] == ocorrencia
+
+
+@pytest.mark.parametrize(("campo", "valor"), [
+    ("uc_id", None), ("data_fim", None), ("duracao_min", -1),
+    ("tipo", "TIPO INVALIDO"), ("causa", "CAUSA INVALIDA"),
+])
+def test_contrato_rejeita_interrupcao_sem_uc_ou_encerramento_e_valores_invalidos(resposta, campo, valor):
+    resposta["interrupcoes"]["historico"][0][campo] = valor
+    with pytest.raises(ValidationError):
+        Visao360.model_validate(resposta)
 
 
 @pytest.mark.parametrize("data_abertura", [

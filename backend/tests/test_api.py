@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.repositories import get_repo
 
 client = TestClient(app)
 
@@ -46,6 +47,46 @@ def test_visao_360_comparacao_padrao():
     assert diagnostico["competencia_atual"] == "2026-06"
     assert diagnostico["competencia_referencia"] == "2026-05"
     assert len(diagnostico["competencias_disponiveis"]) == 48
+
+
+def test_visao_360_interrupcoes_da_propria_uc():
+    repo = get_repo()
+    original = next(o for o in repo.d["fato_interrupcao"] if o["mes_referencia"] >= "2025-07")
+    r = client.get(f"/api/unidades/{original['id_uc']}/visao-360")
+    assert r.status_code == 200
+    interrupcoes = r.json()["interrupcoes"]
+    assert interrupcoes["escopo"] == "uc"
+    assert interrupcoes["qtd_ocorrencias"] > 0
+    por_id = {o["id_ocorrencia"]: o for o in repo.d["fato_interrupcao"]}
+    for o in interrupcoes["historico"]:
+        fato = por_id[o["ocorrencia_id"]]
+        assert o["uc_id"] == original["id_uc"]
+        assert o["data"] == fato["data_hora_inicio"]
+        assert o["data_fim"] == fato["data_hora_fim"]
+        assert o["duracao_min"] == fato["duracao_min"]
+        assert o["causa"] == fato["causa"]
+        assert o["tipo"] == fato["tipo"]
+        assert o["causa_evitavel"] == fato["causa_evitavel"]
+        assert "duracao_h" not in o and "ucs_afetadas" not in o
+
+
+@pytest.mark.parametrize(("periodo", "inicio"), [
+    ("6_meses", "2026-01"), ("12_meses", "2025-07"), ("todos", "2022-07"),
+])
+def test_visao_360_filtra_periodo_de_interrupcoes(periodo, inicio):
+    r = client.get("/api/unidades/UC000121/visao-360", params={"periodo_interrupcoes": periodo})
+    assert r.status_code == 200
+    dados = r.json()["interrupcoes"]
+    assert dados["periodo"] == periodo
+    assert dados["periodo_inicio"] == inicio
+    assert dados["periodo_fim"] == "2026-06"
+    assert dados["qtd_ocorrencias"] == len(dados["historico"])
+    assert dados["duracao_total_min"] == sum(o["duracao_min"] for o in dados["historico"])
+    assert all(inicio <= o["competencia"] <= "2026-06" for o in dados["historico"])
+
+
+def test_visao_360_rejeita_periodo_de_interrupcoes_invalido():
+    assert client.get("/api/unidades/UC000121/visao-360?periodo_interrupcoes=3_meses").status_code == 422
 
 
 def test_visao_360_seleciona_meses():

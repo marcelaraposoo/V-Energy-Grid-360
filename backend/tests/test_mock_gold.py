@@ -1,5 +1,5 @@
 import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -90,6 +90,35 @@ def test_fato_consumo_faturamento_segue_contrato_gold(dados):
             assert date.fromisoformat(f["data_emissao"]) <= pagamento <= DATA_REFERENCIA
         esperado = "PRIMEIRO_ANO" if f["mes_referencia"] <= "2023-06" else "ULTIMOS_12M" if f["mes_referencia"] >= "2025-07" else "OUTRO"
         assert f["periodo_diagnostico"] == esperado
+
+
+def test_fato_interrupcao_segue_contrato_gold(dados):
+    campos = set("""
+        id_ocorrencia id_uc alimentador municipio bairro classe tipo causa causa_evitavel
+        data_hora_inicio data_hora_fim mes_referencia duracao_min
+    """.split())
+    por_uc = {uc["id_uc"]: uc for uc in dados["dim_uc"]}
+    fatos = dados["fato_interrupcao"]
+    assert fatos
+    assert len({o["id_ocorrencia"] for o in fatos}) == len(fatos)
+    assert any(o["causa"] is None for o in fatos)
+    assert any(datetime.fromisoformat(o["data_hora_inicio"]).hour != 0 for o in fatos)
+    for o in fatos:
+        assert set(o) == campos
+        uc = por_uc[o["id_uc"]]
+        assert (o["alimentador"], o["municipio"], o["bairro"], o["classe"]) == (
+            uc["alimentador"], uc["municipio"], uc["bairro"], uc["classe"],
+        )
+        assert o["tipo"] in ("FALTA DE ENERGIA", "DANO EM EQUIPAMENTO", "OSCILACAO", "SOBRECARGA", "FIO PARTIDO")
+        assert o["causa"] in ("CLIMATICA", "SOBRECARGA", "NAO IDENTIFICADA", "VEGETACAO", "TERCEIROS", "FALHA DE EQUIPAMENTO", None)
+        assert o["causa_evitavel"] == (o["causa"] in ("VEGETACAO", "FALHA DE EQUIPAMENTO", "SOBRECARGA"))
+        inicio = datetime.fromisoformat(o["data_hora_inicio"])
+        fim = datetime.fromisoformat(o["data_hora_fim"])
+        assert uc["data_ligacao"] <= inicio.date().isoformat()
+        assert "2022-07" <= o["mes_referencia"] == inicio.strftime("%Y-%m") <= "2026-06"
+        assert inicio < fim and fim.date() <= DATA_REFERENCIA
+        assert type(o["duracao_min"]) is int
+        assert o["duracao_min"] == (fim - inicio).total_seconds() / 60
 
 
 def test_comparacoes_e_medias_usam_a_mesma_uc_e_competencia(dados):

@@ -120,13 +120,34 @@ class MockRepository:
         return self.d["atendimentos"].get(uc_id.upper(), [])
 
     # rede
-    def ocorrencias(self, inicio, fim, alimentador_id=None, municipio=None):
+    @staticmethod
+    def _ocorrencia(o):
+        return {
+            "ocorrencia_id": o["id_ocorrencia"], "uc_id": o["id_uc"],
+            "alimentador_id": o["alimentador"], "municipio": o["municipio"],
+            "bairro": o["bairro"], "classe": o["classe"], "tipo": o["tipo"],
+            "data": o["data_hora_inicio"], "data_fim": o["data_hora_fim"],
+            "competencia": o["mes_referencia"], "causa": o["causa"],
+            "duracao_min": o["duracao_min"],
+            "causa_evitavel": o["causa_evitavel"],
+        }
+
+    def ocorrencias(self, inicio, fim, alimentador_id=None, municipio=None, uc_id=None):
         return [
-            o for o in self.d["ocorrencias"]
-            if inicio <= o["competencia"] <= fim
-            and (alimentador_id is None or o["alimentador_id"] == alimentador_id)
+            self._ocorrencia(o) for o in self.d["fato_interrupcao"]
+            if inicio <= o["mes_referencia"] <= fim
+            and (alimentador_id is None or o["alimentador"] == alimentador_id)
             and (municipio is None or o["municipio"] == municipio)
+            and (uc_id is None or o["id_uc"] == uc_id.upper())
         ]
+
+    def indicadores_continuidade(self, inicio, fim, alimentador_id=None, municipio=None):
+        return sorted([
+            r for r in self.d["dec_fec_alimentador_mensal"]
+            if inicio <= r["mes_referencia"] <= fim
+            and (alimentador_id is None or r["alimentador"] == alimentador_id)
+            and (municipio is None or r["municipio"] == municipio)
+        ], key=lambda r: (r["mes_referencia"], r["alimentador"]))
 
     # perdas
     def suspeitas(self):

@@ -138,28 +138,42 @@ class GeracaoDistribuidaUC(BaseModel):
     modalidade: str | None = Field(default=None, description="Modalidade de geração distribuída (dim_uc.modalidade_gd).")
 
 
+TipoInterrupcao = Literal["FALTA DE ENERGIA", "DANO EM EQUIPAMENTO", "OSCILACAO", "SOBRECARGA", "FIO PARTIDO"]
+CausaInterrupcao = Literal["CLIMATICA", "SOBRECARGA", "NAO IDENTIFICADA", "VEGETACAO", "TERCEIROS", "FALHA DE EQUIPAMENTO"]
+
+
 class OcorrenciaRedeUC(BaseModel):
     ocorrencia_id: str
     alimentador_id: str
     municipio: str
+    bairro: str
+    classe: str
+    tipo: TipoInterrupcao
     data: datetime
     competencia: Competencia = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
-    ucs_afetadas: int
-    duracao_h: float
-    causa: str | None
-    uc_id: str | None = None
-    data_fim: datetime | None = None
+    duracao_min: int = Field(ge=0)
+    causa: CausaInterrupcao | None
+    causa_evitavel: bool
+    uc_id: str
+    data_fim: datetime
+
+
+PeriodoInterrupcoes = Literal["6_meses", "12_meses", "todos"]
+PERIODO_INTERRUPCOES_PADRAO: PeriodoInterrupcoes = "12_meses"
 
 
 class InterrupcoesUC(BaseModel):
     alimentador_id: str
-    ultimos_12_meses: int
-    dec_horas: float | None
-    fec_vezes: float | None
-    recentes: list[OcorrenciaRedeUC]
-    escopo: Literal["alimentador", "uc"] = Field(
-        default="alimentador",
-        description="O serviço atual consulta o alimentador; não são interrupções individuais da UC.",
+    periodo: PeriodoInterrupcoes
+    qtd_ocorrencias: int = Field(ge=0)
+    duracao_total_min: int = Field(ge=0, description="Duração total das interrupções da própria UC no período.")
+    dec_horas: float | None = Field(description="DEC do alimentador, como contexto da UC.")
+    fec_vezes: float | None = Field(description="FEC do alimentador, como contexto da UC.")
+    periodo_inicio: Competencia | None
+    periodo_fim: Competencia | None
+    historico: list[OcorrenciaRedeUC]
+    escopo: Literal["uc"] = Field(
+        description="Escopo da contagem, duração total e histórico: a própria UC.",
     )
 
 
@@ -239,6 +253,9 @@ class AlimentadorDecFec(BaseModel):
     dec_horas: float
     fec_vezes: float
     n_ocorrencias: int
+    horas_interrompidas: float
+    qtd_ucs_alimentador_mes: int | None
+    competencia_base_ucs: Competencia | None
     posicao_pior: int
 
 

@@ -8,7 +8,7 @@ import {
   formatarMoeda,
   formatarNumero,
 } from '../formatters'
-import type { TipoComparacaoContaAlta, Visao360 } from '../types'
+import type { SelecaoContaAlta, Visao360 } from '../types'
 import { ConsumoChart } from './ConsumoChart'
 import { ContaAltaCard } from './ContaAltaCard'
 import { HistoryTable } from './HistoryTable'
@@ -16,8 +16,8 @@ import { UnidadeFields } from './UnidadeFields'
 
 type SectionProps = { dados: Visao360 }
 type ConsumoSectionProps = SectionProps & {
-  comparacao: TipoComparacaoContaAlta
-  onComparacaoChange: (value: TipoComparacaoContaAlta) => void
+  comparacao: SelecaoContaAlta
+  onComparacaoChange: (value: SelecaoContaAlta) => void
   carregando: boolean
   erro: string | null
   onRetry: () => void

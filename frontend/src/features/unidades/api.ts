@@ -1,16 +1,17 @@
-import type { TipoComparacaoContaAlta, Visao360 } from './types'
-
-export const COMPARACAO_PADRAO: TipoComparacaoContaAlta =
-  'trimestre_ano_anterior'
+import type { SelecaoContaAlta, Visao360 } from './types'
 
 const apiUrl = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
 export async function consultarVisao360(
   id: string,
-  comparacao: TipoComparacaoContaAlta,
+  comparacao: SelecaoContaAlta | null,
   signal: AbortSignal,
 ): Promise<Visao360> {
-  const query = new URLSearchParams({ comparacao })
+  const query = new URLSearchParams()
+  if (comparacao?.competencia_atual)
+    query.set('competencia_atual', comparacao.competencia_atual)
+  if (comparacao?.competencia_referencia)
+    query.set('competencia_referencia', comparacao.competencia_referencia)
   const resposta = await fetch(
     `${apiUrl}/api/unidades/${encodeURIComponent(id)}/visao-360?${query}`,
     { signal },

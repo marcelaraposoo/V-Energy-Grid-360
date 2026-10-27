@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.routers.deps import repo_dep
-from app.schemas import COMPARACAO_CONTA_ALTA_PADRAO, TipoComparacaoContaAlta, Visao360
+from app.routers.deps import COMP, repo_dep
+from app.schemas import Visao360
 from app.services import unidades
 
 router = APIRouter(prefix="/api/unidades", tags=["unidades consumidoras"])
@@ -16,7 +16,11 @@ def buscar(q: str | None = None, municipio: str | None = None, classe: str | Non
 @router.get("/{uc_id}/visao-360", response_model=Visao360)
 def visao_360(
     uc_id: str,
-    comparacao: TipoComparacaoContaAlta = Query(COMPARACAO_CONTA_ALTA_PADRAO),
+    competencia_atual: str | None = Query(None, pattern=COMP),
+    competencia_referencia: str | None = Query(None, pattern=COMP),
     repo=Depends(repo_dep),
 ):
-    return unidades.visao_360(repo, uc_id, comparacao)
+    try:
+        return unidades.visao_360(repo, uc_id, competencia_atual, competencia_referencia)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

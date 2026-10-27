@@ -113,11 +113,12 @@ def test_comparacoes_e_medias_usam_a_mesma_uc_e_competencia(dados):
                 assert f["variacao_consumo_ano_anterior_pct"] is None
 
 
-@pytest.mark.parametrize("modo", ["mes_anterior", "ano_anterior", "trimestre_ano_anterior"])
-def test_mock_preenche_diagnostico_de_consumo_e_faturamento(modo):
-    diagnostico = visao_360(MockRepository(), "UC000001", modo).diagnostico_conta_alta
+def test_mock_preenche_diagnostico_de_consumo_e_faturamento():
+    diagnostico = visao_360(MockRepository(), "UC000001").diagnostico_conta_alta
 
-    assert diagnostico.competencias_atuais[-1] == "2026-06"
+    assert diagnostico.competencia_atual == "2026-06"
+    assert diagnostico.competencia_referencia == "2026-05"
+    assert len(diagnostico.competencias_disponiveis) == 48
     for metrica in (diagnostico.consumo, diagnostico.faturamento):
         assert metrica.valor_atual > 0
         assert metrica.valor_referencia > 0

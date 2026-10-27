@@ -4,23 +4,15 @@ from decimal import Decimal
 
 from app.core.errors import NaoEncontrado
 from app.schemas import (
-    COMPARACAO_CONTA_ALTA_PADRAO,
     ClassificacaoVariacao,
     ComparacaoMetricaUC,
     DiagnosticoContaAltaUC,
-    TipoComparacaoContaAlta,
     Visao360,
 )
 from app.services.continuidade import dec_fec
 
 LIMITE_VARIACAO_PEQUENA_PCT = 5.0
 LIMITE_VARIACAO_MODERADA_PCT = 15.0
-
-
-def _mes_anterior(competencia: str, meses: int) -> str:
-    ano, mes = map(int, competencia.split("-"))
-    ano, mes = divmod(ano * 12 + mes - 1 - meses, 12)
-    return f"{ano:04d}-{mes + 1:02d}"
 
 
 def _total_periodo(valores: dict, competencias: list[str]) -> Decimal | None:
@@ -37,7 +29,9 @@ def _comparar_metrica(
     variacao = None
     classificacao: ClassificacaoVariacao | None = None
     if not atuais:
-        mensagem = f"{nome}: não há competências disponíveis na base."
+        mensagem = f"{nome}: não há competências disponíveis no histórico desta UC."
+    elif not referencia:
+        mensagem = f"{nome}: não há competência anterior com histórico para comparação."
     elif total_atual is None or total_referencia is None:
         ausentes = [c for c in referencia + atuais if valores.get(c) is None]
         mensagem = f"{nome}: dados indisponíveis nas competências {', '.join(ausentes)}."
@@ -70,20 +64,22 @@ def _comparar_metrica(
 
 
 def _diagnostico_conta_alta(
-    competencias: list[str], serie: list[dict], faturas: list[dict],
-    comparacao: TipoComparacaoContaAlta,
+    serie: list[dict], faturas: list[dict],
+    competencia_atual: str | None, competencia_referencia: str | None,
 ) -> DiagnosticoContaAltaUC:
-    atuais = []
-    referencia = []
-    if competencias:
-        ultima = competencias[-1]
-        if comparacao == "mes_anterior":
-            atuais, referencia = [ultima], [_mes_anterior(ultima, 1)]
-        elif comparacao == "ano_anterior":
-            atuais, referencia = [ultima], [_mes_anterior(ultima, 12)]
-        else:
-            atuais = [_mes_anterior(ultima, meses) for meses in (2, 1, 0)]
-            referencia = [_mes_anterior(c, 12) for c in atuais]
+    competencias = sorted({s["competencia"] for s in serie} | {f["competencia"] for f in faturas})
+    for competencia in (competencia_atual, competencia_referencia):
+        if competencia is not None and competencia not in competencias:
+            raise ValueError(f"Competência {competencia} sem histórico para esta UC.")
+    if competencia_atual is None and competencias:
+        competencia_atual = competencias[-1]
+    if competencia_referencia is None and competencia_atual is not None:
+        anteriores = [c for c in competencias if c < competencia_atual]
+        competencia_referencia = anteriores[-1] if anteriores else None
+    if competencia_referencia is not None and competencia_referencia >= competencia_atual:
+        raise ValueError("O mês de referência deve ser anterior ao mês analisado.")
+    atuais = [competencia_atual] if competencia_atual else []
+    referencia = [competencia_referencia] if competencia_referencia else []
 
     consumo = _comparar_metrica(
         "Consumo", {s["competencia"]: s["consumo_kwh"] for s in serie}, atuais, referencia,
@@ -106,13 +102,14 @@ def _diagnostico_conta_alta(
     else:
         mensagem += " O aumento da cobrança foi acompanhado de aumento do consumo na mesma proporção."
     return DiagnosticoContaAltaUC(
-        comparacao=comparacao, competencias_atuais=atuais, competencias_referencia=referencia,
+        competencias_disponiveis=competencias,
+        competencia_atual=competencia_atual, competencia_referencia=competencia_referencia,
         consumo=consumo, faturamento=faturamento, mensagem=mensagem,
     )
 
 
 def visao_360(
-    repo, uc_id: str, comparacao: TipoComparacaoContaAlta = COMPARACAO_CONTA_ALTA_PADRAO,
+    repo, uc_id: str, competencia_atual: str | None = None, competencia_referencia: str | None = None,
 ) -> Visao360:
     uc = repo.uc(uc_id)
     if not uc:
@@ -127,7 +124,7 @@ def visao_360(
 
     faturas = sorted(repo.faturas_uc(uc_id), key=lambda f: f["competencia"], reverse=True)
     c = sorted(repo.competencias())
-    diag = _diagnostico_conta_alta(c, serie, faturas, comparacao)
+    diag = _diagnostico_conta_alta(serie, faturas, competencia_atual, competencia_referencia)
     oc = repo.ocorrencias(c[max(0, len(c) - 12)], c[-1], alimentador_id=uc["alimentador_id"]) if c else []
     alim = next(a for a in repo.alimentadores() if a["id"] == uc["alimentador_id"])
     dec, fec = dec_fec(oc, alim["ucs_total"])

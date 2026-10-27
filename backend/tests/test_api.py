@@ -39,15 +39,40 @@ def test_visao_360():
     assert client.get("/api/unidades/UC999999/visao-360").status_code == 404
 
 
-@pytest.mark.parametrize("modo", ["mes_anterior", "ano_anterior", "trimestre_ano_anterior"])
-def test_visao_360_seleciona_comparacao(modo):
-    r = client.get(f"/api/unidades/UC000001/visao-360?comparacao={modo}")
+def test_visao_360_comparacao_padrao():
+    r = client.get("/api/unidades/UC000001/visao-360")
     assert r.status_code == 200
-    assert r.json()["diagnostico_conta_alta"]["comparacao"] == modo
+    diagnostico = r.json()["diagnostico_conta_alta"]
+    assert diagnostico["competencia_atual"] == "2026-06"
+    assert diagnostico["competencia_referencia"] == "2026-05"
+    assert len(diagnostico["competencias_disponiveis"]) == 48
 
 
-def test_visao_360_rejeita_comparacao_desconhecida():
-    r = client.get("/api/unidades/UC000001/visao-360?comparacao=invalida")
+def test_visao_360_seleciona_meses():
+    r = client.get("/api/unidades/UC000001/visao-360", params={
+        "competencia_atual": "2024-06", "competencia_referencia": "2022-07",
+    })
+    assert r.status_code == 200
+    diagnostico = r.json()["diagnostico_conta_alta"]
+    assert diagnostico["competencia_atual"] == "2024-06"
+    assert diagnostico["competencia_referencia"] == "2022-07"
+    assert diagnostico["consumo"]["variacao_pct"] is not None
+
+
+@pytest.mark.parametrize("atual", ["2026-05", "2026-06", None])
+def test_visao_360_rejeita_referencia_igual_ou_posterior(atual):
+    params = {"competencia_referencia": "2026-06"}
+    if atual:
+        params["competencia_atual"] = atual
+    r = client.get("/api/unidades/UC000001/visao-360", params=params)
+    assert r.status_code == 422
+    assert "referência deve ser anterior" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("campo", ["competencia_atual", "competencia_referencia"])
+@pytest.mark.parametrize("valor", ["2026-13", "06/2026", "", "2020-01"])
+def test_visao_360_rejeita_competencia_invalida_ou_sem_historico(campo, valor):
+    r = client.get("/api/unidades/UC000001/visao-360", params={campo: valor})
     assert r.status_code == 422
 
 

@@ -87,8 +87,6 @@ class ConsumoMensalUC(BaseModel):
     valor_total_ano_anterior: float | None = None
 
 
-TipoComparacaoContaAlta = Literal["mes_anterior", "ano_anterior", "trimestre_ano_anterior"]
-COMPARACAO_CONTA_ALTA_PADRAO: TipoComparacaoContaAlta = "trimestre_ano_anterior"
 ClassificacaoVariacao = Literal["pequena", "moderada", "significativa", "reducao"]
 
 
@@ -101,9 +99,9 @@ class ComparacaoMetricaUC(BaseModel):
 
 
 class DiagnosticoContaAltaUC(BaseModel):
-    comparacao: TipoComparacaoContaAlta
-    competencias_atuais: list[Competencia]
-    competencias_referencia: list[Competencia]
+    competencias_disponiveis: list[Competencia]
+    competencia_atual: Competencia | None
+    competencia_referencia: Competencia | None
     consumo: ComparacaoMetricaUC
     faturamento: ComparacaoMetricaUC
     mensagem: str

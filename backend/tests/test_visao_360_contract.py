@@ -30,6 +30,10 @@ def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
         if uc["possui_gd"]:
             assert resposta["geracao_distribuida"]["modalidade"] == uc["modalidade_gd"]
             assert "fonte" not in resposta["geracao_distribuida"]
+        diagnostico = resposta["diagnostico_conta_alta"]
+        assert diagnostico["competencias_disponiveis"] == sorted({s["competencia"] for s in repo.consumo_uc(uc_id)})
+        assert diagnostico["competencia_atual"] == "2026-06"
+        assert diagnostico["competencia_referencia"] == "2026-05"
 
         por_competencia = {f["competencia"]: f for f in repo.faturas_uc(uc_id)}
         for fatura in resposta["faturas"] + resposta["faturas_em_aberto"]:
@@ -67,6 +71,9 @@ def test_contrato_aceita_historico_insuficiente_e_blocos_sem_registros(resposta)
         medidor=None,
         geracao_distribuida=None,
         atendimentos=[],
+    )
+    resposta["diagnostico_conta_alta"].update(
+        competencias_disponiveis=[], competencia_atual=None, competencia_referencia=None,
     )
     for metrica in ("consumo", "faturamento"):
         resposta["diagnostico_conta_alta"][metrica] = {

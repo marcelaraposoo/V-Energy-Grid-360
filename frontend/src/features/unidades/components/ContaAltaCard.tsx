@@ -1,6 +1,5 @@
 import { CircleHelp } from 'lucide-react'
 import {
-  formatarCompetencia,
   formatarMoeda,
   formatarNumero,
   formatarPercentual,
@@ -8,18 +7,10 @@ import {
 import type {
   ClassificacaoVariacao,
   DiagnosticoContaAltaUC,
-  TipoComparacaoContaAlta,
+  SelecaoContaAlta,
 } from '../types'
 import { UnidadeFields } from './UnidadeFields'
-
-const opcoes: { value: TipoComparacaoContaAlta; label: string }[] = [
-  { value: 'mes_anterior', label: 'Mês atual × mês anterior' },
-  { value: 'ano_anterior', label: 'Mês atual × mesmo mês do ano anterior' },
-  {
-    value: 'trimestre_ano_anterior',
-    label: 'Últimos 3 meses × mesmo período do ano anterior',
-  },
-]
+import { SeletorCompetencia } from './SeletorCompetencia'
 
 const classificacoes: Record<ClassificacaoVariacao, string> = {
   pequena: 'Variação pequena',
@@ -30,8 +21,8 @@ const classificacoes: Record<ClassificacaoVariacao, string> = {
 
 type ContaAltaCardProps = {
   diagnostico: DiagnosticoContaAltaUC
-  comparacao: TipoComparacaoContaAlta
-  onComparacaoChange: (value: TipoComparacaoContaAlta) => void
+  comparacao: SelecaoContaAlta
+  onComparacaoChange: (value: SelecaoContaAlta) => void
   carregando: boolean
   erro: string | null
   onRetry: () => void
@@ -45,6 +36,11 @@ export function ContaAltaCard({
   erro,
   onRetry,
 }: ContaAltaCardProps) {
+  const competencias = diagnostico.competencias_disponiveis
+  const referencias = competencias.filter(
+    (c) =>
+      comparacao.competencia_atual !== null && c < comparacao.competencia_atual,
+  )
   return (
     <section
       className="panel ucv-conta-alta"
@@ -55,26 +51,38 @@ export function ContaAltaCard({
         <h2 id="ucv-conta-alta-title">A conta veio alta?</h2>
       </header>
       <p>
-        Compare a energia utilizada com o valor cobrado. O mês atual corresponde
-        à última competência disponível na base.
+        Compare a energia utilizada com o valor cobrado nos meses com histórico
+        desta unidade.
       </p>
-      <label className="ucv-comparison-label" htmlFor="ucv-comparison">
-        Tipo de comparação
-      </label>
-      <select
-        id="ucv-comparison"
-        className="ucv-comparison-select"
-        value={comparacao}
-        onChange={(event) =>
-          onComparacaoChange(event.target.value as TipoComparacaoContaAlta)
+      <SeletorCompetencia
+        label="Mês analisado"
+        valor={comparacao.competencia_atual}
+        competencias={competencias}
+        vazio="Sem histórico disponível"
+        onChange={(competencia) => {
+          const anteriores = competencias.filter((c) => c < competencia)
+          onComparacaoChange({
+            competencia_atual: competencia,
+            competencia_referencia:
+              comparacao.competencia_referencia &&
+              comparacao.competencia_referencia < competencia
+                ? comparacao.competencia_referencia
+                : (anteriores.at(-1) ?? null),
+          })
+        }}
+      />
+      <SeletorCompetencia
+        label="Mês de referência"
+        valor={comparacao.competencia_referencia}
+        competencias={referencias}
+        vazio="Sem mês anterior disponível"
+        onChange={(competencia) =>
+          onComparacaoChange({
+            ...comparacao,
+            competencia_referencia: competencia,
+          })
         }
-      >
-        {opcoes.map(({ value, label }) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
+      />
       <div
         aria-busy={carregando}
         aria-live="polite"
@@ -95,24 +103,6 @@ export function ContaAltaCard({
           </div>
         ) : (
           <>
-            <UnidadeFields
-              fields={[
-                {
-                  label: 'Competências atuais',
-                  value:
-                    diagnostico.competencias_atuais
-                      .map(formatarCompetencia)
-                      .join(' · ') || 'Não disponíveis',
-                },
-                {
-                  label: 'Competências de referência',
-                  value:
-                    diagnostico.competencias_referencia
-                      .map(formatarCompetencia)
-                      .join(' · ') || 'Não disponíveis',
-                },
-              ]}
-            />
             {(
               [
                 {
@@ -145,6 +135,11 @@ export function ContaAltaCard({
                       ? classificacoes[metrica.classificacao]
                       : 'Comparação indisponível'}
                   </span>
+                  {metrica.variacao_pct === null && (
+                    <p className="ucv-diagnostic-unavailable">
+                      {metrica.mensagem}
+                    </p>
+                  )}
                   <UnidadeFields
                     fields={[
                       {

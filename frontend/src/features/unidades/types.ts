@@ -30,11 +30,6 @@ export interface ConsumoMensalUC {
   valor_total_ano_anterior: number | null
 }
 
-export type TipoComparacaoContaAlta =
-  | 'mes_anterior'
-  | 'ano_anterior'
-  | 'trimestre_ano_anterior'
-
 export type ClassificacaoVariacao =
   | 'pequena'
   | 'moderada'
@@ -50,16 +45,23 @@ export interface ComparacaoMetricaUC {
 }
 
 export interface DiagnosticoContaAltaUC {
-  /** Query param comparacao; padrão: trimestre_ano_anterior. */
-  comparacao: TipoComparacaoContaAlta
-  competencias_atuais: string[]
-  competencias_referencia: string[]
+  /** Todo o histórico da UC, em ordem crescente, inclusive antes dos últimos 12 meses. */
+  competencias_disponiveis: string[]
+  /** Padrão: última competência disponível da UC. */
+  competencia_atual: string | null
+  /** Deve ser anterior ao mês analisado; padrão: competência anterior disponível. */
+  competencia_referencia: string | null
   /** Valores em kWh. */
   consumo: ComparacaoMetricaUC
   /** Valores em R$, calculados a partir de valor_total. */
   faturamento: ComparacaoMetricaUC
   mensagem: string
 }
+
+export type SelecaoContaAlta = Pick<
+  DiagnosticoContaAltaUC,
+  'competencia_atual' | 'competencia_referencia'
+>
 
 export interface FaturaUC {
   uc_id: string

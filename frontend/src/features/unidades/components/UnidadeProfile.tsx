@@ -12,13 +12,13 @@ import {
   Zap,
 } from 'lucide-react'
 import { EmptyState } from '../../../components/ui/EmptyState'
-import { COMPARACAO_PADRAO, consultarVisao360 } from '../api'
+import { consultarVisao360 } from '../api'
 import {
   formatarCompetencia,
   formatarMoeda,
   formatarNumero,
 } from '../formatters'
-import type { TipoComparacaoContaAlta, Visao360 } from '../types'
+import type { SelecaoContaAlta, Visao360 } from '../types'
 import { UnidadeFields } from './UnidadeFields'
 import {
   AtendimentosSection,
@@ -61,8 +61,7 @@ const tabs = [
 export function UnidadeProfile({ id }: { id: string }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [dados, setDados] = useState<Visao360 | null>(null)
-  const [comparacao, setComparacao] =
-    useState<TipoComparacaoContaAlta>(COMPARACAO_PADRAO)
+  const [comparacao, setComparacao] = useState<SelecaoContaAlta | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [tentativa, setTentativa] = useState(0)
@@ -75,7 +74,7 @@ export function UnidadeProfile({ id }: { id: string }) {
     setCarregando(true)
     setTentativa((atual) => atual + 1)
   }
-  const alterarComparacao = (value: TipoComparacaoContaAlta) => {
+  const alterarComparacao = (value: SelecaoContaAlta) => {
     setErro(null)
     setCarregando(true)
     setComparacao(value)
@@ -143,6 +142,10 @@ export function UnidadeProfile({ id }: { id: string }) {
   const cadastro = dados.cadastro
   const ultimoConsumo = dados.consumo.at(-1)
   const ultimaFatura = dados.faturas[0]
+  const selecao = comparacao ?? {
+    competencia_atual: dados.diagnostico_conta_alta.competencia_atual,
+    competencia_referencia: dados.diagnostico_conta_alta.competencia_referencia,
+  }
 
   return (
     <div className="ucv-profile">
@@ -261,7 +264,7 @@ export function UnidadeProfile({ id }: { id: string }) {
       >
         <Section
           dados={dados}
-          comparacao={comparacao}
+          comparacao={selecao}
           onComparacaoChange={alterarComparacao}
           carregando={carregando}
           erro={erro}

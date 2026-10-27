@@ -126,32 +126,87 @@ Exploração: `exploracao_medidores.ipynb`. Silver: `02_silver_medidores.ipynb`.
 
 ## `geracao_distribuida` (G)
 
+Fonte: `bronze.geracao_distribuida` (`geracao_distribuida.csv`). 3.510 linhas na Bronze e na Silver (nenhuma removida).
+Exploração: `exploracao_geracao_distribuida.ipynb`. Silver: `02_silver_geracao_distribuida.ipynb`.
+**Decisões tomadas por Aimê**, responsável pela tabela, com a autonomia combinada com o grupo. Registro em 24/10/2026.
+
 ### Resumo
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
-| | | | | | |
+| G1 | potencia_kwp | Vírgula decimal (`5,87`) misturada com ponto | 316 (9,0%) | Trocar vírgula por ponto antes de converter | Um `cast` simples anularia esses valores |
+| G2 | potencia_kwp | Valores registrados em **watts** (de 1.000 a 8.995) | 35 (1,0%) | Dividir por 1.000 + flag `potencia_convertida_de_w`; original em `potencia_kwp_original` no notebook | A energia injetada por kWp das 35 só fica igual à das outras UCs (33,3 contra 33,8 kWh/kWp/mês) se a potência for dividida por 1.000 |
+| G3 | data_conexao | GD conectada antes da ligação da UC (de 55 a 473 dias antes) | 5 | Manter as datas + flag `conexao_antes_ligacao` | Não há gabarito para saber qual data está errada; trocar seria inventar dado |
+| G4 | todas | Tudo como texto na Bronze | 3.510 | `data_conexao` → `date`; potência → `decimal(10,3)`; energia → `decimal(12,2)` | Necessário para cálculos e filtros |
+| G5 | energia_injetada_kwh_media_mensal | Energia injetada acima de 60 kWh por kWp ao mês; 106 delas exatamente `potência × 110` | 109 (3,1%) | Manter o valor + flag `energia_injetada_atipica` | O valor parece calculado, não medido; não há como saber o real. A flag impede o uso como medida |
 
-### A investigar
+### Detalhes
 
-| Coluna | Observação |
-|---|---|
-| id_uc | Procurar órfãs com id fora do padrão (`UC` com 7 dígitos) |
+#### G2. Potência em watts
+- **Problema:** 35 potências (33 residenciais e 2 comerciais) estão entre 1.000 e 8.995 kWp. A mediana da tabela é 5,87 kWp, e uma residência com 9 mil kWp não existe (o limite da minigeração é 5.000 kW). Não há nenhum valor entre 75 e 1.000.
+- **Marca:** são exatamente os valores com 4 dígitos antes do separador (`9999.99`, `9999.9`, `9999,9`, `9999,99`).
+- **Como foi confirmado:** a energia injetada por kWp é de 33,8 kWh/mês (mediana) nas 3.475 UCs normais. Nas 35 suspeitas, dá 0,03; dividindo a potência por 1.000, dá 33,3. A energia injetada das suspeitas também é parecida com a das outras (mediana de 187 contra 199 kWh).
+- **Decisão:** dividir por 1.000 as potências a partir de 1.000. Depois da conversão, todas ficam entre 1,5 e 75 kWp.
+- **Alternativa considerada:** anular a potência. Descartada, porque o valor certo é recuperável com evidência forte.
+- **Checagem na Silver:** energia por kWp entre 10 e 60 kWh/mês (ou marcada como atípica, ver G5).
+
+#### G5. Energia injetada atípica
+- **Faixa típica:** de 11,6 a ~50 kWh por kWp ao mês (mediana 33,8; percentis 1% e 95%: 22,3 e 44,3). Nenhuma UC fica abaixo de 10.
+- **Problema:** 109 UCs passam de 60. **106 têm exatamente 110,0 kWh/kWp**: a energia foi calculada como `potência × 110`. 110 kWh/kWp por mês é a **geração** típica de um painel em Recife, e não a sobra injetada na rede. As outras 3 (114, 168 e 328) são UCs com potência convertida de watts (G2).
+- **Perfil:** **101 das 109 foram conectadas em 2026** (28% das 361 conexões do ano), contra 7 em 2024 e 1 em 2025. **As 5 UCs de G3 (conexão antes da ligação) estão todas neste grupo.** Modalidade e classe seguem a mesma proporção do resto da base.
+- **Hipóteses:** (a) estimativa teórica do sistema para conexões recentes, ainda sem histórico para calcular a média mensal real; (b) registros suspeitos, de interesse para a fila de perdas. A concentração em 2026 favorece (a); a coincidência com G3 e os 8 casos de 2024 e 2025 não se explicam por ela.
+- **Decisão:** manter o valor e marcar `energia_injetada_atipica = true`. Substituir por uma estimativa seria inventar dado.
+- **Impacto:** o diagnóstico da receita não usa esta coluna (a queda de volume vem das leituras). Na Gold, a energia injetada da `dim_uc` vai com a flag, e as 109 UCs podem entrar como sinal na fila de perdas.
+- **Checagem na Silver:** energia por kWp entre 10 e 60, **ou** flag marcada. Uma anomalia nova, sem flag, faz a checagem falhar.
+
+### Verificado e sem problema
+- Sem cabeçalho repetido, cópias, nulos ou códigos de ausência (`N/A`, `NULL`, `-1`, `-`, `9999-12-31`).
+- **1 registro por UC:** 3.510 linhas e 3.510 `id_uc` distintos.
+- Todos os `id_uc` no padrão e existentes na Silver de UCs; nenhuma das 200 UCs de teste tem GD.
+- `data_conexao` só em ISO, de jan/2024 a jun/2026.
+- `modalidade` com 3 valores limpos: `GERACAO NA PROPRIA UC` (3.042), `AUTOCONSUMO REMOTO` (321) e `GERACAO COMPARTILHADA` (147).
+- `energia_injetada_kwh_media_mensal` sempre com ponto decimal.
+
+**Impacto no diagnóstico (exploração, seções 11 e 12):** nenhuma UC tinha GD no primeiro ano; nos últimos 12 meses são 3.510 (7,8% da base), só residenciais e comerciais. As UCs com GD perderam 11,2 milhões de kWh faturados, mais que a queda total de 9,0 milhões (−3,95%): **sem a GD, o volume teria crescido 1,07%**. Depois da conexão, o consumo faturado de cada UC cai 69,6%.
+
 
 ## `ocorrencias_rede` (O)
 
+Fonte: `bronze.ocorrencias_rede` (`ocorrencias_rede.csv`). 180.000 linhas na Bronze e na Silver (nenhuma removida).
+Exploração: `exploracao_ocorrencias_rede.ipynb`. Silver: `02_silver_ocorrencias_rede.ipynb`.
+**Decisões tomadas por Aimê**, responsável pela tabela, com a autonomia combinada com o grupo. Registro em 24/10/2026.
+
 ### Resumo
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
-| | | | | | |
+| O1 | causa | Ausente em 4 formas: nulo real (1.356), `-` (1.363), `N/A` (1.341) e `NULL` (1.340) | 5.400 (3,0%) | Converter para nulo real; a ocorrência é mantida | Mesma convenção de L3. A ocorrência tem UC, datas e duração, então continua no DEC/FEC. `NAO IDENTIFICADA` é uma causa registrada e **não** é tratada como ausência |
+| O2 | duracao_min | Texto ` min` junto do número (`28 min`) | 16.200 (9,0%) | Remover o sufixo e converter para inteiro | Um `cast` direto anularia 9% das durações e subestimaria o DEC. Validado: `fim − início = duração` em 100% das linhas |
+| O3 | data_abertura, data_encerramento | Datas como texto | 180.000 | Converter para `timestamp`, mantendo o horário; derivar `mes_referencia` (`yyyy-MM` da abertura) | Sempre ISO com horário; o horário é necessário para a duração e para a visão 360 |
 
-### A investigar
+### Detalhes
 
-| Coluna | Observação |
-|---|---|
-| data_encerramento | Procurar a data sentinela `9999-12-31` (convenção adotada em faturas e medidores: vira nulo) |
-| id_uc | Procurar órfãs com id fora do padrão (`UC` com 7 dígitos) |
+#### O2. Duração com sufixo e o gabarito das datas
+- **Formatos:** `99` (100.429), `999` (59.938), `9` (2.699), `9999` (734) e, com o sufixo, `99 min` (9.873), `999 min` (5.965), `9 min` (277) e `9999 min` (85).
+- **Gabarito:** nas 163.800 linhas com duração numérica, `data_encerramento − data_abertura` bate com `duracao_min` em **100%**. A checagem da Silver repete o teste nas 180.000 linhas, incluindo as corrigidas.
+- **Distribuição:** de 5 minutos a 48 horas (mediana de 72 min); 244 acima de 24 horas e nenhuma acima de 7 dias. Mantidas: são plausíveis em eventos climáticos.
+
+### Verificado e sem problema
+- Sem cabeçalho repetido, cópias, nulos fora de `causa` ou sentinela `9999-12-31`.
+- **Nenhuma interrupção registrada em dobro:** 0 pares de mesma UC com mesma abertura.
+- Todos os `id_uc` no padrão e existentes na Silver de UCs; nenhuma UC de teste.
+- **O alimentador da ocorrência é sempre o mesmo do cadastro da UC.**
+- Datas só em ISO com horário; nenhum fim antes do início; nenhuma ocorrência em aberto; tudo entre jul/2022 e jun/2026.
+- `tipo` com 5 valores e `causa` com 6 valores, sem variações de grafia.
+- 122 alimentadores, como o case informa (mais de 120).
+
+**Para o contrato da Gold e o diagnóstico:**
+- **Causas evitáveis por manutenção (proposta):** `VEGETACAO`, `FALHA DE EQUIPAMENTO` e `SOBRECARGA`. `CLIMATICA` e `TERCEIROS` não dependem da distribuidora; `NAO IDENTIFICADA` e as nulas ficam de fora.
+- **Causa climática** responde por 36% das horas interrompidas (116.919 h), com duração mediana de 101 min, contra 65 a 67 min nas demais.
+- **2025 teve 41% mais ocorrências** que 2023 e 2024 (57.068 contra ~40.300).
+- **DEC com denominador pequeno:** os piores DEC são de alimentadores com 20 a 47 UCs. A tela da Beatriz deve mostrar o DEC junto com o número de UCs e as horas totais.
+- **Suposição a registrar no README:** o tipo `OSCILACAO` (14.562) entra no DEC/FEC, porque o glossário do case diz que cada registro é uma UC interrompida.
+
 
 ---
 
@@ -332,26 +387,83 @@ Exploração: `exploracao_faturas.ipynb`.
 
 ---
 
-# Bloco C — Atendimento e Inspeções (Maria)
+# Bloco C — Atendimento (Marcela) e Inspeções (Aimê)
 
 ## `atendimentos` (A)
+
+Fonte: `bronze.atendimentos` (`atendimentos.json`). 318.871 chamados e 636.857 tratativas na Bronze **e na Silver** (nenhum registro removido).
+Exploração: `exploracao_atendimentos.ipynb`. Silver: `02_silver_atendimentos.ipynb` (grava `silver.atendimentos` e `silver.tratativas_atendimento`).
+**Decisões tomadas por Marcela**, responsável pela tabela (assumida depois da desistência da responsável original), com a autonomia combinada com o grupo para as tabelas de cada integrante. Registro em 26/10/2026.
+
+**É a tabela mais limpa do projeto:** sem cópias, órfãs, cabeçalho repetido, datas misturadas, sentinelas nem códigos de ausência. Os itens abaixo são decisões de modelagem e de interpretação. Cabeçalho repetido, cópias e UC inexistente (0 casos) **não têm tratamento** na Silver: ficam só como checagens, que falham e impedem a gravação se aparecerem numa carga futura.
 
 ### Resumo
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
-| | | | | | |
+| A1 | nota_satisfacao | Nula: chamado não avaliado | 9.566 (3,0%) | Manter nula; converter para `decimal(3,1)` | Nulo de negócio (todos os chamados estão fechados). Preencher inventaria uma avaliação |
+| A2 | nota_satisfacao | Acúmulo no teto: 6.160 notas em 5,0 contra 4.363 em 4,9 | 6.160 | Não alterar; documentar como hipótese | Compatível com notas acima de 5 cortadas em 5,0, mas sem evidência para corrigir |
+| A3 | historico | Lista aninhada de tratativas dentro do chamado | 318.871 chamados / 636.857 tratativas | Abrir em `silver.tratativas_atendimento` (chave `(protocolo, sequencia)`); `qtd_tratativas` no chamado | Gold, portal e agente de SQL não leem listas. `sequencia` = posição + 1 e datas em ordem em 100% |
+| A4 | data_abertura, data_fechamento, historico.data | Datas em texto: chamado com espaço (`yyyy-MM-dd HH:mm:ss`), tratativa com `T` | 318.871 / 636.857 | `try_to_timestamp` com o formato de cada coluna; guardar como `timestamp` | Formato único, sem ambiguidade dia/mês. Gabarito do histórico: abertura <= primeira tratativa e fechamento = última tratativa em 100% |
+| A5 | historico.acao | A última ação **não indica o status** do chamado | 318.871 | Não derivar status de `ultima_acao`; o estado vem de `aberto` | Todos os chamados estão fechados, mas a última ação se divide entre as cinco ações |
+| A6 | data_abertura | **Pico de julho de 2025:** 18.061 chamados (2,8× o normal de ~6.400) | ~11.660 acima do normal | Manter tudo; documentar como evento de rede | Dado consistente (protocolos contíguos, em todos os assuntos, canais e dias) e coerente com o evento climático na rede no mesmo mês |
+| A7 | data_fechamento | Nulo significaria chamado aberto; `9999` seria sentinela | 0 hoje | Flag `aberto` (constante falsa hoje); sentinela `9999` vira nulo | Convenção do grupo; protege cargas futuras |
 
-### A investigar
+### Detalhes
 
-| Coluna | Observação |
-|---|---|
-| data_fechamento | Procurar a data sentinela `9999-12-31` (convenção adotada em faturas e medidores: vira nulo) |
-| id_uc | Procurar órfãs com id fora do padrão (`UC` com 7 dígitos) |
+#### A1. Nota de satisfação nula
+- **Problema:** 9.566 chamados (3,0%) sem nota. Todos são de chamados fechados, então o nulo significa "o cliente não avaliou". A proporção é a mesma em julho de 2025 (3,13%) e nos demais meses (2,99%).
+- **Decisão:** manter nulo e converter o texto para `decimal(3,1)` com `try_cast`. A faixa observada vai de 1,3 a 5,0, com média 4,043 e 309.305 notas preenchidas.
+- **Alternativas consideradas:** preencher com a média (inventaria avaliação) ou com zero (puxaria a média para baixo).
+- **Casas decimais:** a nota tem no máximo 1 casa decimal na origem (conferido na execução da Silver), então o cast não arredonda nada. A checagem da Silver exige isso.
+- **Impacto na Gold:** `nota_satisfacao_media` é a média das notas **preenchidas**. A escala "a confirmar" do contrato é de 1 a 5.
+
+#### A2. Acúmulo de notas em 5,0
+- **Observação:** a curva das notas desce de 4,1 a 4,9 (4.363 chamados em 4,9), mas há 6.160 em 5,0. Compatível com notas acima de 5 cortadas no teto (**hipótese**).
+- **Decisão:** manter como veio. Sem a origem do sistema, qualquer correção seria inventar dado.
+- **Impacto na Gold:** registrar a hipótese no dicionário de dados, junto da definição de `nota_satisfacao_media`.
+
+#### A3. `historico` aberto em tabela
+- **Estrutura:** `silver.atendimentos` (1 linha por chamado) e `silver.tratativas_atendimento` (1 linha por tratativa: `protocolo`, `sequencia`, `acao`, `canal`, `data_tratativa`, `source_file`).
+- **Tamanho do histórico:** 1, 2 ou 3 tratativas por chamado, em partes iguais (106.717, 106.322 e 105.832 chamados), somando 636.857.
+- **Alternativa considerada:** manter a lista na Silver. Descartada: a Gold, o portal (SQLite ou PostgreSQL) e o agente de SQL não leem listas. A Bronze continua com a lista original.
+- **Impacto na Gold:** `qtd_tratativas` vem pronta no chamado; `ultima_acao` (se mantida) sai da maior `sequencia` de `silver.tratativas_atendimento`.
+
+#### A4. Datas
+- **Formatos:** `yyyy-MM-dd HH:mm:ss` em `data_abertura` e `data_fechamento` (318.871 linhas cada) e `yyyy-MM-dd'T'HH:mm:ss` na data de cada tratativa (636.857). Nenhum valor começa com `9999`.
+- **Por que não há risco dia/mês:** só existe o padrão ISO. O que valida a conversão é o gabarito do histórico (abertura <= primeira tratativa, fechamento = última tratativa), que vale em 318.871 de 318.871 chamados. Nenhuma tratativa fica fora do intervalo abertura–fechamento.
+- **Período:** aberturas de 2022-07-01 a 2026-06-30; os fechamentos chegam a 2026-07-10 (chamados abertos no fim de junho).
+- **Tempo de resolução (execução da Silver):** de 1,00 h a 719,00 h, média de 133,6 h, nenhum valor negativo. A média bate com a composição conhecida (~361 h em julho de 2025 e ~120 h nos demais meses).
+- **Decisão:** `timestamp` na Silver, porque a hora é necessária para `tempo_resolucao_horas`.
+- **Impacto na Gold:** o contrato lista `data_abertura` e `data_fechamento` como `data`; a Gold faz o cast para `date` e mantém `tempo_resolucao_horas` (calculado na Silver, em horas com 2 casas).
+
+#### A5. A última ação não é o status
+- **Observação:** todos os chamados estão fechados, mas a última ação registrada se divide entre DESPACHO (64.257), RETORNO AO CLIENTE (63.987), ABERTURA (63.903), ENCERRAMENTO (63.432) e ANALISE (63.292). O histórico parece uma amostra de ações, e não um processo completo.
+- **Amostra da execução da Silver:** `AT000000020` tem uma única tratativa, `RETORNO AO CLIENTE`; `AT000000026` começa em `ENCERRAMENTO` e termina em `DESPACHO`. A primeira tratativa também nem sempre é `ABERTURA`.
+- **Decisão:** o estado do chamado vem de `aberto` (data de fechamento nula). `ultima_acao` não deve ser lida como situação.
+- **Impacto na Gold e no agente:** se `ultima_acao` for mantida em `fato_atendimento`, descrevê-la no dicionário como "última ação registrada".
+
+#### A6. Pico de chamados em julho de 2025
+- **Problema:** 18.061 chamados em 2025-07, contra ~6.400 por mês (de 6.237 a 6.624 nos outros 47 meses). O aumento é geral: todos os assuntos sobem de 2,67× a 3,06×, todos os canais de 2,79× a 2,88×, os 31 dias têm volume parecido e há 14.828 UCs distintas.
+- **Por que parece um evento real, e não erro:** os protocolos são contíguos (230.048 a 248.108, exatamente 18.061 números seguidos); as ocorrências de rede do mesmo mês são 5,3× o normal (17.844 contra ~3.370), 97% de causa climática e 72% em três alimentadores (`ALM-REC-008`, `ALM-SAO-004` e `ALM-JAB-004`); o tempo até fechar sobe de ~120 h para ~361 h e a nota média cai de ~4,10 para ~3,11.
+- **O consumo de julho é normal** (13,49 milhões de kWh, 3,2% abaixo de julho de 2024), então o evento **não explica a queda de volume** do diagnóstico.
+- **Decisão:** manter os 18.061 chamados. Descartar apagaria um fato do negócio.
+- **Impacto na Gold e no diagnóstico:** `qtd_atendimentos` de 2025-07 fica ~2,8× o normal e puxa a comparação entre períodos: de 76.561 chamados no primeiro ano para 88.823 nos últimos 12 meses (+16%). Sem o excesso de julho (~11.660 chamados), a alta seria de ~0,8%. Quem consome os KPIs precisa dessa explicação (dicionário de dados e insights de IA).
+
+#### A7. Chamado aberto e sentinela
+- **Regra:** `data_fechamento` nula significa chamado aberto, e `aberto = data_fechamento IS NULL`. Qualquer `data_fechamento` que comece com `9999` viraria nulo (convenção do grupo).
+- **Hoje:** 0 chamados abertos e 0 sentinelas, então `aberto` é falsa em todas as linhas. A checagem "nenhum chamado aberto" é uma proteção desta extração: se falhar, conferir antes se a conversão da data quebrou.
+- **Impacto na Gold:** a lista de "chamados abertos" da visão 360 usa `aberto`. Hoje ela sai vazia para todas as UCs, o que é o dado correto.
 
 ### Verificado e sem problema
-- Sem linha de cabeçalho repetida (`protocolo = 'protocolo'`: 0 linhas na Bronze).
+- **Cabeçalho repetido** (`protocolo = 'protocolo'`): 0. **Cópias** por `protocolo`: 0. Protocolo nulo ou fora do padrão `AT` + 9 dígitos: 0. Chamados repetidos com protocolos diferentes (mesma UC, abertura e assunto): 0.
+- **UCs:** todos os chamados têm `id_uc` no padrão `UC` + 6 dígitos, existente no cadastro e com leitura. Nenhum chamado nas 200 UCs de teste. 44.940 das 45.000 UCs têm ao menos um chamado (média de 7,1 por UC, máximo 20).
+- **Ausência:** nenhuma coluna usa `N/A`, `NULL`, `-1`, vazio ou `9999-12-31`. O `historico` nunca é nulo nem vazio.
+- **Categorias:** 5 canais, 6 assuntos, 15 subassuntos (17 pares assunto × subassunto) e 5 ações, sem variações de grafia (reconfirmado na execução da Silver). A Silver aplica `upper(trim)` e checa o domínio.
+- **Histórico:** `sequencia` sempre numérica e igual à posição + 1; datas em ordem crescente; nenhuma tratativa antes da abertura nem depois do fechamento; os canais das tratativas são os mesmos 5 do chamado.
+- **Resposta à pendência de "A investigar":** `data_fechamento` não tem sentinela `9999-12-31` e `id_uc` não tem órfãs com 7 dígitos.
 
+---
 ## `inspecoes` (I)
 
 ### Resumo

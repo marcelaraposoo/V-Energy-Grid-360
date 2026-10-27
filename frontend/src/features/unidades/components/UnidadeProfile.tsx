@@ -18,7 +18,7 @@ import {
   formatarMoeda,
   formatarNumero,
 } from '../formatters'
-import type { SelecaoContaAlta, Visao360 } from '../types'
+import type { PeriodoInterrupcoes, SelecaoContaAlta, Visao360 } from '../types'
 import { UnidadeFields } from './UnidadeFields'
 import {
   AtendimentosSection,
@@ -62,6 +62,8 @@ export function UnidadeProfile({ id }: { id: string }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [dados, setDados] = useState<Visao360 | null>(null)
   const [comparacao, setComparacao] = useState<SelecaoContaAlta | null>(null)
+  const [periodoInterrupcoes, setPeriodoInterrupcoes] =
+    useState<PeriodoInterrupcoes>('12_meses')
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [tentativa, setTentativa] = useState(0)
@@ -79,18 +81,24 @@ export function UnidadeProfile({ id }: { id: string }) {
     setCarregando(true)
     setComparacao(value)
   }
+  const alterarPeriodoInterrupcoes = (value: PeriodoInterrupcoes) => {
+    setErro(null)
+    setCarregando(true)
+    setPeriodoInterrupcoes(value)
+  }
 
   useEffect(() => {
     const controller = new AbortController()
-    consultarVisao360(id, comparacao, controller.signal)
+    consultarVisao360(id, comparacao, periodoInterrupcoes, controller.signal)
       .then((resposta) => {
         if (controller.signal.aborted) return
-        // O filtro atualiza somente o diagnóstico; o histórico mantém sua finalidade.
+        // Os filtros atualizam seus blocos; o histórico de consumo permanece independente.
         setDados((anteriores) =>
           anteriores
             ? {
                 ...anteriores,
                 diagnostico_conta_alta: resposta.diagnostico_conta_alta,
+                interrupcoes: resposta.interrupcoes,
               }
             : resposta,
         )
@@ -109,7 +117,7 @@ export function UnidadeProfile({ id }: { id: string }) {
         if (!controller.signal.aborted) setCarregando(false)
       })
     return () => controller.abort()
-  }, [id, comparacao, tentativa])
+  }, [id, comparacao, periodoInterrupcoes, tentativa])
 
   if (!dados) {
     return (
@@ -266,6 +274,8 @@ export function UnidadeProfile({ id }: { id: string }) {
           dados={dados}
           comparacao={selecao}
           onComparacaoChange={alterarComparacao}
+          periodoInterrupcoes={periodoInterrupcoes}
+          onPeriodoInterrupcoesChange={alterarPeriodoInterrupcoes}
           carregando={carregando}
           erro={erro}
           onRetry={tentarNovamente}

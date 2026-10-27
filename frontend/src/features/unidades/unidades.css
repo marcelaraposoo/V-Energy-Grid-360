@@ -414,6 +414,51 @@
   position: relative;
   overflow-x: auto;
 }
+.ucv-interrupcoes,
+.ucv-interruption-results {
+  display: grid;
+  gap: 20px;
+}
+.ucv-interruption-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 2px 0;
+}
+.ucv-interruption-filter h2 {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+.ucv-interruption-filter p,
+.ucv-interruption-results > [role='status'] {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.ucv-interruption-filter p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.ucv-interruption-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ucv-interruption-periods button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border-color: transparent;
+  font-size: 12px;
+  font-weight: 500;
+}
+.ucv-interruption-periods button[aria-pressed='true'] {
+  border-color: #ffd43b33;
+  background: #ffd43b0d;
+  color: var(--accent);
+}
 .ucv-table {
   width: 100%;
   min-width: 720px;

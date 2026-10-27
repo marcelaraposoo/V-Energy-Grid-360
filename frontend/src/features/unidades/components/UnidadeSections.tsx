@@ -8,7 +8,7 @@ import {
   formatarMoeda,
   formatarNumero,
 } from '../formatters'
-import type { SelecaoContaAlta, Visao360 } from '../types'
+import type { PeriodoInterrupcoes, SelecaoContaAlta, Visao360 } from '../types'
 import { ConsumoChart } from './ConsumoChart'
 import { ContaAltaCard } from './ContaAltaCard'
 import { HistoryTable } from './HistoryTable'
@@ -196,52 +196,148 @@ export function GeracaoSection({ dados }: SectionProps) {
   )
 }
 
-export function InterrupcoesSection({ dados }: SectionProps) {
+type InterrupcoesSectionProps = SectionProps & {
+  periodoInterrupcoes: PeriodoInterrupcoes
+  onPeriodoInterrupcoesChange: (value: PeriodoInterrupcoes) => void
+  carregando: boolean
+  erro: string | null
+  onRetry: () => void
+}
+
+const periodosInterrupcoes: { value: PeriodoInterrupcoes; label: string }[] = [
+  { value: '6_meses', label: '6 meses' },
+  { value: '12_meses', label: '12 meses' },
+  { value: 'todos', label: 'Todos' },
+]
+
+export function InterrupcoesSection({
+  dados,
+  periodoInterrupcoes,
+  onPeriodoInterrupcoesChange,
+  carregando,
+  erro,
+  onRetry,
+}: InterrupcoesSectionProps) {
   const interrupcoes = dados.interrupcoes
-  const escopo =
-    interrupcoes.escopo === 'alimentador' ? 'do alimentador' : 'da UC'
+  const periodo =
+    interrupcoes.periodo_inicio && interrupcoes.periodo_fim
+      ? `${formatarCompetencia(interrupcoes.periodo_inicio)} a ${formatarCompetencia(interrupcoes.periodo_fim)}`
+      : 'Período não disponível'
   return (
-    <Panel
-      title={`Interrupções ${escopo}`}
-      description={
-        interrupcoes.escopo === 'alimentador'
-          ? `Ocorrências do alimentador ${interrupcoes.alimentador_id}. A ocorrência individual nesta UC não está confirmada por esses registros.`
-          : 'Histórico de interrupções da própria unidade consumidora'
-      }
-    >
-      <UnidadeFields
-        fields={[
-          {
-            label: 'Ocorrências nos últimos 12 meses',
-            value: formatarNumero(interrupcoes.ultimos_12_meses),
-          },
-          {
-            label: 'DEC do alimentador (horas)',
-            value: formatarNumero(interrupcoes.dec_horas),
-          },
-          {
-            label: 'FEC do alimentador',
-            value: formatarNumero(interrupcoes.fec_vezes),
-          },
-        ]}
-      />
-      <HistoryTable
-        title={`Ocorrências recentes ${escopo}`}
-        columns={['Início', 'Encerramento', 'Duração (min)', 'Causa']}
-        icon={Unplug}
-        description="Não há ocorrências recentes disponíveis no período consultado."
-        empty={!interrupcoes.recentes.length}
+    <div className="ucv-interrupcoes">
+      <section
+        className="ucv-interruption-filter"
+        aria-label="Filtro compartilhado de interrupções"
       >
-        {interrupcoes.recentes.map((ocorrencia) => (
-          <tr key={ocorrencia.ocorrencia_id}>
-            <th scope="row">{formatarDataHora(ocorrencia.data)}</th>
-            <td>{formatarDataHora(ocorrencia.data_fim)}</td>
-            <td>{formatarNumero(ocorrencia.duracao_h * 60)}</td>
-            <td>{ocorrencia.causa ?? 'Não informada'}</td>
-          </tr>
-        ))}
-      </HistoryTable>
-    </Panel>
+        <div>
+          <h2>Período das interrupções</h2>
+          <p>
+            {carregando
+              ? 'Atualizando período…'
+              : erro
+                ? 'Não foi possível atualizar o período.'
+                : periodo}
+          </p>
+        </div>
+        <div
+          className="ucv-interruption-periods"
+          role="group"
+          aria-label="Período das interrupções"
+        >
+          {periodosInterrupcoes.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              className="button button--secondary"
+              aria-pressed={periodoInterrupcoes === value}
+              onClick={() => {
+                if (periodoInterrupcoes !== value)
+                  onPeriodoInterrupcoesChange(value)
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+      <div
+        className="ucv-interruption-results"
+        aria-busy={carregando}
+        aria-live="polite"
+      >
+        {carregando ? (
+          <p role="status">
+            Atualizando interrupções e contexto do alimentador…
+          </p>
+        ) : erro ? (
+          <div role="alert" className="ucv-diagnostic-error">
+            <p>{erro}</p>
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={onRetry}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        ) : (
+          <>
+            <Panel
+              title="Interrupções da UC"
+              description={`Ocorrências da própria unidade consumidora · ${periodo}`}
+            >
+              <UnidadeFields
+                fields={[
+                  {
+                    label: 'Quantidade de ocorrências',
+                    value: formatarNumero(interrupcoes.qtd_ocorrencias),
+                  },
+                  {
+                    label: 'Duração total das interrupções (min)',
+                    value: formatarNumero(interrupcoes.duracao_total_min),
+                  },
+                ]}
+              />
+              <HistoryTable
+                title="Histórico de interrupções da UC"
+                columns={['Início', 'Fim', 'Duração (min)', 'Tipo', 'Causa']}
+                icon={Unplug}
+                description="Não há interrupções registradas para esta UC no período selecionado."
+                empty={!interrupcoes.historico.length}
+              >
+                {interrupcoes.historico.map((ocorrencia) => (
+                  <tr key={ocorrencia.ocorrencia_id}>
+                    <th scope="row">{formatarDataHora(ocorrencia.data)}</th>
+                    <td>{formatarDataHora(ocorrencia.data_fim)}</td>
+                    <td>{formatarNumero(ocorrencia.duracao_min)}</td>
+                    <td>{ocorrencia.tipo}</td>
+                    <td>{ocorrencia.causa ?? 'Não informada'}</td>
+                  </tr>
+                ))}
+              </HistoryTable>
+            </Panel>
+            <Panel
+              title="Contexto do alimentador"
+              description={`Indicadores acumulados no mesmo período · ${periodo}`}
+            >
+              <UnidadeFields
+                fields={[
+                  { label: 'Alimentador', value: interrupcoes.alimentador_id },
+                  {
+                    label: 'DEC acumulado (horas)',
+                    value: formatarNumero(interrupcoes.dec_horas),
+                  },
+                  {
+                    label: 'FEC acumulado',
+                    value: formatarNumero(interrupcoes.fec_vezes),
+                  },
+                ]}
+              />
+            </Panel>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 

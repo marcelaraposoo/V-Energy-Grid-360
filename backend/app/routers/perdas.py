@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.routers.deps import repo_dep
 from app.schemas import Ordem, OrdemCreate, ResultadoInspecao, SuspeitaFila
@@ -8,9 +8,13 @@ router = APIRouter(prefix="/api/perdas", tags=["perdas"])
 
 
 @router.get("/fila", response_model=list[SuspeitaFila])
-def fila(municipio: str | None = None, classe: str | None = None, prob_minima: float = Query(0, ge=0, le=1),
-         limite: int = Query(50, ge=1, le=200), repo=Depends(repo_dep)):
-    return perdas.fila(repo, municipio, classe, prob_minima, limite)
+def fila(response: Response, q: str | None = Query(None, max_length=100, description="busca por UC ou titular"),
+         municipio: str | None = None, classe: str | None = None, prob_minima: float = Query(0, ge=0, le=1),
+         pagina: int = Query(1, ge=1), tamanho: int = Query(20, ge=1, le=100), repo=Depends(repo_dep)):
+    """Fila priorizada de suspeitas. O total de itens (após os filtros) vai no cabeçalho `X-Total-Count`."""
+    itens, total = perdas.fila(repo, municipio, classe, prob_minima, q, pagina, tamanho)
+    response.headers["X-Total-Count"] = str(total)
+    return itens
 
 
 @router.post("/ordens", response_model=Ordem, status_code=201)

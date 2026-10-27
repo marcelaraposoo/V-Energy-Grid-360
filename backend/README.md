@@ -34,7 +34,8 @@ docs/contrato-gold.md
 | GET | `/dashboard/kpis`, `/dashboard/serie` | visão do diretor |
 | GET | `/receita/variacao?agrupar_por=municipio\|bairro\|classe` | efeito preço × volume (drill-down) |
 | GET | `/unidades?q=`, `/unidades/{uc}/visao-360` | atendente |
-| GET | `/perdas/fila` | fila priorizada |
+| GET | `/perdas/fila?q=&pagina=&tamanho=` | fila priorizada, com busca e paginação (total no cabeçalho `X-Total-Count`) |
+| GET | `/perdas/fila/exportar?q=&municipio=&classe=&prob_minima=&limite=` | fila filtrada em CSV (`;`, UTF-8 com BOM, abre no Excel); `limite` padrão 500, máximo 5000 |
 | POST/GET | `/perdas/ordens`, `/{id}/iniciar`, `/{id}/resultado`, `/{id}/cancelar` | ordens de inspeção |
 | GET | `/continuidade/alimentadores`, `/alimentadores/{id}/serie` | DEC/FEC |
 | POST/GET | `/ia/perguntar` (stub), `/ia/insights?tela=` | módulo de IA |
@@ -43,7 +44,7 @@ Filtros comuns: `municipio`, `bairro`, `classe`; períodos: `base_inicio/base_fi
 Padrão: base = primeiros 12 meses, atual = últimos 12 (como na pergunta do diretor).
 
 ## Premissas
-- Mock: 400 UCs, 48 competências (2022-10 a 2026-09); ordens de inspeção ficam em memória (reiniciam com o servidor).
+- Mock: 400 UCs, 48 competências (2022-10 a 2026-09); ordens de inspeção ficam no SQLite do portal (`data/portal.db`, criado sozinho) e sobrevivem a reinícios. Para zerar, pare o servidor e apague o arquivo. O caminho muda com `PORTAL_DB_PATH` no `.env`.
 - Efeito-preço inclui reajuste + bandeira + mix de classes.
 - DEC/FEC simplificados conforme o enunciado.
 - UC com ordem ativa sai da fila de suspeitas; score de prioridade = probabilidade × kWh/mês recuperável.

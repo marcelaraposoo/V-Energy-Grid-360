@@ -468,7 +468,7 @@ Exploração: `exploracao_atendimentos.ipynb`. Silver: `02_silver_atendimentos.i
 
 Fonte: `bronze.inspecoes` (`inspecoes.xlsx`, 3 abas unidas na Bronze com a coluna `aba_origem`). 1.389 linhas na Bronze e na Silver (nenhuma removida): `ago-set` 511, `out-nov` 495 e `dez` 383.
 Exploração: `exploracao_inspecoes.ipynb`. Silver: `02_silver_inspecoes.ipynb`.
-**Decisões tomadas por Aimê e Marcela**, que assumiram o bloco C. Registro em 26/10/2026.
+**Decisões tomadas por Aimê**, responsável pela tabela, com a autonomia combinada com o grupo. Registro em 26/10/2026.
 
 ### Resumo
 
@@ -476,7 +476,7 @@ Exploração: `exploracao_inspecoes.ipynb`. Silver: `02_silver_inspecoes.ipynb`.
 |---|---|---|---|---|---|
 | I1 | data | 4 formatos: ISO (1.256), `MM-dd-yyyy` (46), `dd.MM.yyyy` (44) e `dd/MM/yyyy` (43) | 133 fora do ISO | Converter cada padrão com o seu formato e gravar como `date` | A convenção do projeto converte 100%; a ordem trocada deixa sem converter de 26 a 33 linhas em cada padrão |
 | I2 | data | Data fora do período da aba | 107 (7,7%), todas na aba `dez` | Manter a data + flag `data_fora_da_aba` | A aba indica o mês de lançamento: são inspeções de ago a nov lançadas em dezembro. Nenhuma ordem de leitura as coloca em dezembro |
-| I3 | resultado | 8 grafias para 3 textos (`IRREGULARIDADE CONFIRMADA`, `CONFIRMADA`, `SEM IRREGULARIDADE`, `NADA CONSTA` e variações de maiúsculas) | 164 fora dos 2 valores padrão | Mapa explícito, valor a valor, para `IRREGULARIDADE CONFIRMADA` e `SEM IRREGULARIDADE` + flag `irregularidade_confirmada` | `NADA CONSTA` tem tipo vazio e energia zero, igual a `SEM IRREGULARIDADE`. Mapa explícito evita que "NÃO CONFIRMADA" vire confirmada |
+| I3 | resultado | 8 grafias (4 textos com variações de maiúsculas) para 2 significados: `IRREGULARIDADE CONFIRMADA`, `CONFIRMADA`, `SEM IRREGULARIDADE` e `NADA CONSTA` | 164 fora dos 2 valores padrão | Mapa explícito, valor a valor, para `IRREGULARIDADE CONFIRMADA` e `SEM IRREGULARIDADE` + flag `irregularidade_confirmada` | `NADA CONSTA` tem tipo vazio e energia zero, igual a `SEM IRREGULARIDADE`. O mapa explícito evita que "NÃO CONFIRMADA" vire confirmada |
 | I4 | tipo_irregularidade | Ausente em 2 formas: nulo real (441) e `-` (77) | 518 | Converter para nulo real | São exatamente as 518 inspeções sem irregularidade |
 | I5 | kwh_recuperado | Vírgula decimal (`1313,70`) misturada com ponto (`838.10`) | 125 (9,0%) | Trocar vírgula por ponto e converter para `decimal(12,2)` | Um `cast` simples anularia esses valores |
 
@@ -487,6 +487,8 @@ Exploração: `exploracao_inspecoes.ipynb`. Silver: `02_silver_inspecoes.ipynb`.
 - **Problema:** 107 datas não ISO estão na aba `dez`, mas são de agosto (24), setembro (23), outubro (34) e novembro (26). Nenhuma ordem dia/mês as coloca em dezembro.
 - **Interpretação:** a aba `dez` recebeu também inspeções feitas nos meses anteriores e lançadas em dezembro. A data registrada é a da inspeção.
 - **Decisão:** manter a data e marcar `data_fora_da_aba = true`. A checagem da Silver garante que isso só acontece na aba `dez`.
+- **Alternativa considerada:** trocar a data para dezembro. Descartada: a data escrita é a da inspeção, e nenhuma leitura do formato a coloca em dezembro.
+- **Impacto na Gold:** análises por mês usam `data_inspecao`, e não `aba_origem`.
 
 #### I3. Mapa do resultado
 
@@ -500,8 +502,8 @@ Exploração: `exploracao_inspecoes.ipynb`. Silver: `02_silver_inspecoes.ipynb`.
 
 ### Verificado e sem problema
 - Sem cabeçalho repetido e sem cópias: 1.389 linhas e 1.389 `id_inspecao` distintos; a mesma inspeção não aparece em duas abas.
-- Todos os `id_uc` no padrão e existentes na Silver de UCs; nenhuma inspeção em UC de teste.
-- 40 inspetores, todos no padrão `INSP-000` depois do `trim`.
+- Todos os `id_uc` no padrão e existentes na Silver de UCs; nenhuma inspeção em UC de teste nem órfã com 7 dígitos.
+- 40 inspetores, todos no padrão `INSP-000`. Alguns vêm com espaços sobrando (`" INSP-006"`); a Silver aplica `upper(trim)`, sem mudar nenhum código.
 - **Tipo preenchido se e somente se a irregularidade foi confirmada.** 5 tipos sem variações: `DESVIO DIRETO` (182), `BY-PASS` (181), `MEDIDOR ADULTERADO` (180), `LACRE VIOLADO` (164) e `LIGACAO CLANDESTINA` (164).
 - **Energia recuperada positiva em 100% das confirmadas** (mediana de ~1.072 kWh; máximo de 15.609) **e zero em 100% das sem irregularidade.**
 - Todas as inspeções entre agosto e dezembro de 2025.

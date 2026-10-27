@@ -201,11 +201,14 @@ class OutputGuardrailDecision(str, Enum):
 
 
 class OutputGuardrailReason(str, Enum):
+    EMPTY_ANSWER = "empty_answer"
     ANSWER_TOO_LONG = "answer_too_long"
     UNSUPPORTED_NUMBER = "unsupported_number"
     URL_IN_ANSWER = "url_in_answer"
     SQL_IN_ANSWER = "sql_in_answer"
     PROMPT_LEAK = "prompt_leak"
+    PROVIDER_DISCLOSURE = "provider_disclosure"
+    TECHNICAL_ERROR_LEAK = "technical_error_leak"
     GUARDRAIL_INTERNAL_ERROR = "guardrail_internal_error"
 
 

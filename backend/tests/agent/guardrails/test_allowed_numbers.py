@@ -86,6 +86,7 @@ def test_derived_values_disabled_when_row_count_exceeds_rows():
     allowed = _allowed(
         [["Recife", 4820], ["Olinda", 1310]],
         row_count=80,
+        truncated=True,
     )
 
     assert allowed.derived_enabled is False

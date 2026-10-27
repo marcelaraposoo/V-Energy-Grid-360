@@ -156,6 +156,12 @@ class QueryExecutionResult(BaseModel):
                 "rows não pode ter mais linhas que row_count."
             )
 
+        if not self.truncated and len(self.rows) != self.row_count:
+            raise ValueError(
+                "Sem truncamento, row_count deve ser igual "
+                "ao número de linhas em rows."
+            )
+
         for row in self.rows:
             if len(row) != len(self.columns):
                 raise ValueError(

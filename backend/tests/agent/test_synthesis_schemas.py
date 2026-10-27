@@ -95,3 +95,42 @@ def test_rejects_empty_answer(answer):
             status=SynthesisStatus.ANSWERED,
             answer=answer,
         )
+
+
+def test_rejects_row_count_greater_than_rows_without_truncation():
+    with pytest.raises(ValidationError):
+        QueryExecutionResult(
+            columns=["a"],
+            rows=[[1]],
+            row_count=500,
+        )
+
+
+def test_rejects_explicit_untruncated_result_with_missing_rows():
+    with pytest.raises(ValidationError):
+        QueryExecutionResult(
+            columns=["a"],
+            rows=[[1]],
+            row_count=500,
+            truncated=False,
+        )
+
+
+def test_rejects_non_empty_row_count_with_no_rows_and_no_truncation():
+    with pytest.raises(ValidationError):
+        QueryExecutionResult(
+            columns=["a"],
+            rows=[],
+            row_count=3,
+        )
+
+
+def test_truncated_result_with_all_rows_is_valid():
+    result = QueryExecutionResult(
+        columns=["a"],
+        rows=[[1], [2]],
+        row_count=2,
+        truncated=True,
+    )
+
+    assert result.truncated is True

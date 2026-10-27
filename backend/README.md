@@ -34,7 +34,7 @@ docs/contrato-gold.md
 | GET | `/dashboard/kpis`, `/dashboard/serie` | visão do diretor |
 | GET | `/receita/variacao?agrupar_por=municipio\|bairro\|classe` | efeito preço × volume (drill-down) |
 | GET | `/unidades?q=`, `/unidades/{uc}/visao-360` | atendente |
-| GET | `/perdas/fila` | fila priorizada |
+| GET | `/perdas/fila?q=&pagina=&tamanho=` | fila priorizada, com busca e paginação (total no cabeçalho `X-Total-Count`) |
 | POST/GET | `/perdas/ordens`, `/{id}/iniciar`, `/{id}/resultado`, `/{id}/cancelar` | ordens de inspeção |
 | GET | `/continuidade/alimentadores`, `/alimentadores/{id}/serie` | DEC/FEC |
 | POST/GET | `/ia/perguntar` (stub), `/ia/insights?tela=` | módulo de IA |

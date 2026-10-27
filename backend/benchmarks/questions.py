@@ -62,9 +62,9 @@ QUESTIONS = (
     ),
     Question(
         "V7", "valida-dificil",
-        "Qual a soma do efeito preço e do efeito volume da classe "
-        "COMERCIAL em Recife, entre o primeiro ano e os últimos "
-        "12 meses?",
+        "Para a classe COMERCIAL em Recife, qual a soma do efeito "
+        "preço e qual a soma do efeito volume, em duas colunas "
+        "separadas, entre o primeiro ano e os últimos 12 meses?",
         "ready",
         "SELECT SUM(efeito_preco), SUM(efeito_volume) "
         "FROM receita_decomposicao "

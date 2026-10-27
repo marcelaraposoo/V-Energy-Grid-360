@@ -420,6 +420,22 @@ async def run_benchmark(arguments) -> None:
         RUNS_PATH.unlink()
 
     runs = load_runs()
+    if arguments.redo:
+        redo_ids = set(arguments.redo.split(","))
+        runs = {
+            key: record
+            for key, record in runs.items()
+            if key[0] not in redo_ids
+        }
+        RESULTS_DIR.mkdir(exist_ok=True)
+        RUNS_PATH.write_text(
+            "".join(
+                json.dumps(record, ensure_ascii=False) + "\n"
+                for record in runs.values()
+            ),
+            encoding="utf-8",
+        )
+
     only = (
         set(arguments.only.split(",")) if arguments.only else None
     )
@@ -488,6 +504,7 @@ def main() -> None:
     parser.add_argument("--report-only", action="store_true")
     parser.add_argument("--fresh", action="store_true")
     parser.add_argument("--only", type=str, default=None)
+    parser.add_argument("--redo", type=str, default=None)
     parser.add_argument(
         "--max-openrouter-calls", type=int, default=45
     )

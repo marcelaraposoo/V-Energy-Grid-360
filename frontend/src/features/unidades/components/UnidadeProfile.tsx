@@ -18,7 +18,7 @@ import {
   formatarMoeda,
   formatarNumero,
 } from '../formatters'
-import type { PeriodoInterrupcoes, SelecaoContaAlta, Visao360 } from '../types'
+import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
 import { UnidadeFields } from './UnidadeFields'
 import {
   AtendimentosSection,
@@ -63,7 +63,9 @@ export function UnidadeProfile({ id }: { id: string }) {
   const [dados, setDados] = useState<Visao360 | null>(null)
   const [comparacao, setComparacao] = useState<SelecaoContaAlta | null>(null)
   const [periodoInterrupcoes, setPeriodoInterrupcoes] =
-    useState<PeriodoInterrupcoes>('12_meses')
+    useState<PeriodoHistorico>('12_meses')
+  const [periodoAtendimentos, setPeriodoAtendimentos] =
+    useState<PeriodoHistorico>('12_meses')
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [tentativa, setTentativa] = useState(0)
@@ -81,15 +83,26 @@ export function UnidadeProfile({ id }: { id: string }) {
     setCarregando(true)
     setComparacao(value)
   }
-  const alterarPeriodoInterrupcoes = (value: PeriodoInterrupcoes) => {
+  const alterarPeriodoInterrupcoes = (value: PeriodoHistorico) => {
     setErro(null)
     setCarregando(true)
     setPeriodoInterrupcoes(value)
   }
+  const alterarPeriodoAtendimentos = (value: PeriodoHistorico) => {
+    setErro(null)
+    setCarregando(true)
+    setPeriodoAtendimentos(value)
+  }
 
   useEffect(() => {
     const controller = new AbortController()
-    consultarVisao360(id, comparacao, periodoInterrupcoes, controller.signal)
+    consultarVisao360(
+      id,
+      comparacao,
+      periodoInterrupcoes,
+      periodoAtendimentos,
+      controller.signal,
+    )
       .then((resposta) => {
         if (controller.signal.aborted) return
         // Os filtros atualizam seus blocos; o histórico de consumo permanece independente.
@@ -99,6 +112,8 @@ export function UnidadeProfile({ id }: { id: string }) {
                 ...anteriores,
                 diagnostico_conta_alta: resposta.diagnostico_conta_alta,
                 interrupcoes: resposta.interrupcoes,
+                periodo_atendimentos: resposta.periodo_atendimentos,
+                atendimentos: resposta.atendimentos,
               }
             : resposta,
         )
@@ -117,7 +132,7 @@ export function UnidadeProfile({ id }: { id: string }) {
         if (!controller.signal.aborted) setCarregando(false)
       })
     return () => controller.abort()
-  }, [id, comparacao, periodoInterrupcoes, tentativa])
+  }, [id, comparacao, periodoInterrupcoes, periodoAtendimentos, tentativa])
 
   if (!dados) {
     return (
@@ -276,6 +291,8 @@ export function UnidadeProfile({ id }: { id: string }) {
           onComparacaoChange={alterarComparacao}
           periodoInterrupcoes={periodoInterrupcoes}
           onPeriodoInterrupcoesChange={alterarPeriodoInterrupcoes}
+          periodoAtendimentos={periodoAtendimentos}
+          onPeriodoAtendimentosChange={alterarPeriodoAtendimentos}
           carregando={carregando}
           erro={erro}
           onRetry={tentarNovamente}

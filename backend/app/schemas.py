@@ -158,19 +158,22 @@ class OcorrenciaRedeUC(BaseModel):
     data_fim: datetime
 
 
-PeriodoInterrupcoes = Literal["6_meses", "12_meses", "todos"]
-PERIODO_INTERRUPCOES_PADRAO: PeriodoInterrupcoes = "12_meses"
+PeriodoHistorico = Literal["6_meses", "12_meses", "todos"]
+PERIODO_HISTORICO_PADRAO: PeriodoHistorico = "12_meses"
 
 
-class InterrupcoesUC(BaseModel):
+class PeriodoHistoricoUC(BaseModel):
+    periodo: PeriodoHistorico
+    periodo_inicio: Competencia | None
+    periodo_fim: Competencia | None
+
+
+class InterrupcoesUC(PeriodoHistoricoUC):
     alimentador_id: str
-    periodo: PeriodoInterrupcoes
     qtd_ocorrencias: int = Field(ge=0)
     duracao_total_min: int = Field(ge=0, description="Duração total das interrupções da própria UC no período.")
     dec_horas: float | None = Field(description="DEC do alimentador, como contexto da UC.")
     fec_vezes: float | None = Field(description="FEC do alimentador, como contexto da UC.")
-    periodo_inicio: Competencia | None
-    periodo_fim: Competencia | None
     historico: list[OcorrenciaRedeUC]
     escopo: Literal["uc"] = Field(
         description="Escopo da contagem, duração total e histórico: a própria UC.",
@@ -211,6 +214,7 @@ class Visao360(BaseModel):
     medidor: MedidorUC | None
     geracao_distribuida: GeracaoDistribuidaUC | None
     interrupcoes: InterrupcoesUC
+    periodo_atendimentos: PeriodoHistoricoUC
     atendimentos: list[AtendimentoUC]
 
 

@@ -7,8 +7,9 @@ from app.schemas import (
     ClassificacaoVariacao,
     ComparacaoMetricaUC,
     DiagnosticoContaAltaUC,
-    PERIODO_INTERRUPCOES_PADRAO,
-    PeriodoInterrupcoes,
+    PERIODO_HISTORICO_PADRAO,
+    PeriodoHistorico,
+    PeriodoHistoricoUC,
     Visao360,
 )
 from app.services.continuidade import resumo_periodo
@@ -110,9 +111,22 @@ def _diagnostico_conta_alta(
     )
 
 
+def _periodo_historico(competencias: list[str], periodo: PeriodoHistorico) -> PeriodoHistoricoUC:
+    if not competencias:
+        return PeriodoHistoricoUC(periodo=periodo, periodo_inicio=None, periodo_fim=None)
+    inicio, fim = competencias[0], competencias[-1]
+    if periodo != "todos":
+        meses = 6 if periodo == "6_meses" else 12
+        ano, mes = map(int, fim.split("-"))
+        ano, mes = divmod(ano * 12 + mes - meses, 12)
+        inicio = max(inicio, f"{ano:04d}-{mes + 1:02d}")
+    return PeriodoHistoricoUC(periodo=periodo, periodo_inicio=inicio, periodo_fim=fim)
+
+
 def visao_360(
     repo, uc_id: str, competencia_atual: str | None = None, competencia_referencia: str | None = None,
-    periodo_interrupcoes: PeriodoInterrupcoes = PERIODO_INTERRUPCOES_PADRAO,
+    periodo_interrupcoes: PeriodoHistorico = PERIODO_HISTORICO_PADRAO,
+    periodo_atendimentos: PeriodoHistorico = PERIODO_HISTORICO_PADRAO,
 ) -> Visao360:
     uc = repo.uc(uc_id)
     if not uc:
@@ -128,27 +142,25 @@ def visao_360(
     faturas = sorted(repo.faturas_uc(uc_id), key=lambda f: f["competencia"], reverse=True)
     c = sorted(repo.competencias())
     diag = _diagnostico_conta_alta(serie, faturas, competencia_atual, competencia_referencia)
-    inicio = None
-    if c:
-        if periodo_interrupcoes == "todos":
-            inicio = c[0]
-        else:
-            meses = 6 if periodo_interrupcoes == "6_meses" else 12
-            ano, mes = map(int, c[-1].split("-"))
-            ano, mes = divmod(ano * 12 + mes - meses, 12)
-            inicio = max(c[0], f"{ano:04d}-{mes + 1:02d}")
+    periodo_oc = _periodo_historico(c, periodo_interrupcoes)
+    inicio = periodo_oc.periodo_inicio
     oc = repo.ocorrencias(inicio, c[-1], uc_id=uc["uc_id"]) if c else []
     mensais = repo.indicadores_continuidade(inicio, c[-1], alimentador_id=uc["alimentador_id"]) if c else []
     continuidade = resumo_periodo(mensais)
+    periodo_at = _periodo_historico(c, periodo_atendimentos)
+    atendimentos = [
+        a for a in repo.atendimentos_uc(uc_id)
+        if c and periodo_at.periodo_inicio <= a["data"][:7] <= periodo_at.periodo_fim
+    ]
     return Visao360(
         cadastro=uc, consumo=consumo, diagnostico_conta_alta=diag, faturas=faturas[:12],
         faturas_em_aberto=[f for f in faturas if f["status"] in ("aberta", "atrasada")],
         medidor=repo.medidor_uc(uc_id), geracao_distribuida=repo.gd_uc(uc_id),
-        interrupcoes={"alimentador_id": uc["alimentador_id"], "periodo": periodo_interrupcoes,
+        interrupcoes={**periodo_oc.model_dump(), "alimentador_id": uc["alimentador_id"],
                       "qtd_ocorrencias": len(oc), "duracao_total_min": sum(o["duracao_min"] for o in oc),
                       "dec_horas": continuidade["dec_horas"], "fec_vezes": continuidade["fec_vezes"],
-                      "periodo_inicio": inicio, "periodo_fim": c[-1] if c else None,
                       "escopo": "uc",
                       "historico": sorted(oc, key=lambda o: o["data"], reverse=True)},
-        atendimentos=sorted(repo.atendimentos_uc(uc_id), key=lambda a: a["data"], reverse=True),
+        periodo_atendimentos=periodo_at,
+        atendimentos=sorted(atendimentos, key=lambda a: a["data"], reverse=True),
     )

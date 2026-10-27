@@ -43,7 +43,7 @@ def test_visao_360():
 def test_visao_360_atendimentos_da_gold():
     repo = get_repo()
     fato = next(a for a in repo.d["fato_atendimento"] if a["nota_satisfacao"] is None)
-    r = client.get(f"/api/unidades/{fato['id_uc']}/visao-360")
+    r = client.get(f"/api/unidades/{fato['id_uc']}/visao-360", params={"periodo_atendimentos": "todos"})
     assert r.status_code == 200
     atendimentos = r.json()["atendimentos"]
     assert [a["data"] for a in atendimentos] == sorted(
@@ -109,6 +109,30 @@ def test_visao_360_filtra_periodo_de_interrupcoes(periodo, inicio):
 
 def test_visao_360_rejeita_periodo_de_interrupcoes_invalido():
     assert client.get("/api/unidades/UC000121/visao-360?periodo_interrupcoes=3_meses").status_code == 422
+
+
+@pytest.mark.parametrize(("periodo", "inicio"), [
+    ("6_meses", "2026-01"), ("12_meses", "2025-07"), ("todos", "2022-07"),
+])
+def test_visao_360_filtra_periodo_de_atendimentos(periodo, inicio):
+    repo = get_repo()
+    uc_id = repo.d["fato_atendimento"][0]["id_uc"]
+    r = client.get(f"/api/unidades/{uc_id}/visao-360", params={"periodo_atendimentos": periodo})
+    assert r.status_code == 200
+    resposta = r.json()
+    assert resposta["periodo_atendimentos"] == {
+        "periodo": periodo, "periodo_inicio": inicio, "periodo_fim": "2026-06",
+    }
+    esperados = sorted(
+        [a for a in repo.atendimentos_uc(uc_id) if inicio <= a["data"][:7] <= "2026-06"],
+        key=lambda a: a["data"], reverse=True,
+    )
+    assert resposta["atendimentos"] == esperados
+    assert resposta["interrupcoes"]["periodo"] == "12_meses"
+
+
+def test_visao_360_rejeita_periodo_de_atendimentos_invalido():
+    assert client.get("/api/unidades/UC000001/visao-360?periodo_atendimentos=3_meses").status_code == 422
 
 
 def test_visao_360_seleciona_meses():

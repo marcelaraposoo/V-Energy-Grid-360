@@ -9,10 +9,11 @@ import {
   formatarNumero,
   formatarNotaSatisfacao,
 } from '../formatters'
-import type { PeriodoInterrupcoes, SelecaoContaAlta, Visao360 } from '../types'
+import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
 import { ConsumoChart } from './ConsumoChart'
 import { ContaAltaCard } from './ContaAltaCard'
 import { HistoryTable } from './HistoryTable'
+import { FiltroPeriodoHistorico } from './FiltroPeriodoHistorico'
 import { UnidadeFields } from './UnidadeFields'
 
 type SectionProps = { dados: Visao360 }
@@ -198,18 +199,12 @@ export function GeracaoSection({ dados }: SectionProps) {
 }
 
 type InterrupcoesSectionProps = SectionProps & {
-  periodoInterrupcoes: PeriodoInterrupcoes
-  onPeriodoInterrupcoesChange: (value: PeriodoInterrupcoes) => void
+  periodoInterrupcoes: PeriodoHistorico
+  onPeriodoInterrupcoesChange: (value: PeriodoHistorico) => void
   carregando: boolean
   erro: string | null
   onRetry: () => void
 }
-
-const periodosInterrupcoes: { value: PeriodoInterrupcoes; label: string }[] = [
-  { value: '6_meses', label: '6 meses' },
-  { value: '12_meses', label: '12 meses' },
-  { value: 'todos', label: 'Todos' },
-]
 
 export function InterrupcoesSection({
   dados,
@@ -226,51 +221,20 @@ export function InterrupcoesSection({
       : 'Período não disponível'
   return (
     <div className="ucv-interrupcoes">
-      <section
-        className="ucv-interruption-filter"
-        aria-label="Filtro compartilhado de interrupções"
-      >
-        <div>
-          <h2>Período das interrupções</h2>
-          <p>
-            {carregando
-              ? 'Atualizando período…'
-              : erro
-                ? 'Não foi possível atualizar o período.'
-                : periodo}
-          </p>
-        </div>
-        <div
-          className="ucv-interruption-periods"
-          role="group"
-          aria-label="Período das interrupções"
-        >
-          {periodosInterrupcoes.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              className="button button--secondary"
-              aria-pressed={periodoInterrupcoes === value}
-              onClick={() => {
-                if (periodoInterrupcoes !== value)
-                  onPeriodoInterrupcoesChange(value)
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
+      <FiltroPeriodoHistorico
+        title="Período das interrupções"
+        value={periodoInterrupcoes}
+        onChange={onPeriodoInterrupcoesChange}
+        periodo={interrupcoes}
+        carregando={carregando}
+        erro={erro}
+      />
       <div
-        className="ucv-interruption-results"
+        className="ucv-history-results"
         aria-busy={carregando}
         aria-live="polite"
       >
-        {carregando ? (
-          <p role="status">
-            Atualizando interrupções e contexto do alimentador…
-          </p>
-        ) : erro ? (
+        {erro ? (
           <div role="alert" className="ucv-diagnostic-error">
             <p>{erro}</p>
             <button
@@ -342,68 +306,112 @@ export function InterrupcoesSection({
   )
 }
 
-export function AtendimentosSection({ dados }: SectionProps) {
+type AtendimentosSectionProps = SectionProps & {
+  periodoAtendimentos: PeriodoHistorico
+  onPeriodoAtendimentosChange: (value: PeriodoHistorico) => void
+  carregando: boolean
+  erro: string | null
+  onRetry: () => void
+}
+
+export function AtendimentosSection({
+  dados,
+  periodoAtendimentos,
+  onPeriodoAtendimentosChange,
+  carregando,
+  erro,
+  onRetry,
+}: AtendimentosSectionProps) {
   return (
-    <Panel
-      title="Chamados de atendimento"
-      description="Solicitações e últimas ações registradas para a unidade"
-    >
-      <HistoryTable
-        title="Histórico de chamados de atendimento"
-        columns={[
-          'Protocolo',
-          'Assunto',
-          'Subassunto',
-          'Canal',
-          'Abertura',
-          'Fechamento',
-          'Situação',
-          'Última ação',
-          'Satisfação',
-        ]}
-        icon={Headphones}
-        description="Não há chamados registrados para esta unidade."
-        empty={!dados.atendimentos.length}
+    <div className="ucv-atendimentos">
+      <FiltroPeriodoHistorico
+        title="Período dos atendimentos"
+        value={periodoAtendimentos}
+        onChange={onPeriodoAtendimentosChange}
+        periodo={dados.periodo_atendimentos}
+        carregando={carregando}
+        erro={erro}
+      />
+      <div
+        className="ucv-history-results"
+        aria-busy={carregando}
+        aria-live="polite"
       >
-        {dados.atendimentos.map((atendimento) => (
-          <tr key={atendimento.protocolo}>
-            <th scope="row">{atendimento.protocolo}</th>
-            <td>{atendimento.assunto}</td>
-            <td>{atendimento.subassunto}</td>
-            <td>{atendimento.canal}</td>
-            <td>{formatarDataHora(atendimento.data)}</td>
-            <td>
-              {atendimento.data_fechamento
-                ? formatarDataHora(atendimento.data_fechamento)
-                : 'Em aberto'}
-              {atendimento.tempo_resolucao_horas !== null && (
-                <small className="ucv-atendimento-detail">
-                  {formatarNumero(atendimento.tempo_resolucao_horas)} h até o
-                  fechamento
-                </small>
-              )}
-            </td>
-            <td>
-              <span
-                className="badge ucv-atendimento"
-                data-status={atendimento.aberto ? 'Em aberto' : 'Fechado'}
-              >
-                {atendimento.aberto ? 'Em aberto' : 'Fechado'}
-              </span>
-            </td>
-            <td>
-              {atendimento.ultima_acao}
-              <small className="ucv-atendimento-detail">
-                {atendimento.qtd_tratativas}{' '}
-                {atendimento.qtd_tratativas === 1
-                  ? 'ação registrada'
-                  : 'ações registradas'}
-              </small>
-            </td>
-            <td>{formatarNotaSatisfacao(atendimento.nota_satisfacao)}</td>
-          </tr>
-        ))}
-      </HistoryTable>
-    </Panel>
+        {erro ? (
+          <div role="alert" className="ucv-diagnostic-error">
+            <p>{erro}</p>
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={onRetry}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        ) : (
+          <Panel
+            title="Chamados de atendimento"
+            description="Solicitações e últimas ações registradas para a unidade · por data de abertura"
+          >
+            <HistoryTable
+              title="Histórico de chamados de atendimento"
+              columns={[
+                'Protocolo',
+                'Assunto',
+                'Subassunto',
+                'Canal',
+                'Abertura',
+                'Fechamento',
+                'Situação',
+                'Última ação',
+                'Satisfação',
+              ]}
+              icon={Headphones}
+              description="Não há chamados registrados para esta unidade no período selecionado."
+              empty={!dados.atendimentos.length}
+            >
+              {dados.atendimentos.map((atendimento) => (
+                <tr key={atendimento.protocolo}>
+                  <th scope="row">{atendimento.protocolo}</th>
+                  <td>{atendimento.assunto}</td>
+                  <td>{atendimento.subassunto}</td>
+                  <td>{atendimento.canal}</td>
+                  <td>{formatarDataHora(atendimento.data)}</td>
+                  <td>
+                    {atendimento.data_fechamento
+                      ? formatarDataHora(atendimento.data_fechamento)
+                      : 'Em aberto'}
+                    {atendimento.tempo_resolucao_horas !== null && (
+                      <small className="ucv-atendimento-detail">
+                        {formatarNumero(atendimento.tempo_resolucao_horas)} h
+                        até o fechamento
+                      </small>
+                    )}
+                  </td>
+                  <td>
+                    <span
+                      className="badge ucv-atendimento"
+                      data-status={atendimento.aberto ? 'Em aberto' : 'Fechado'}
+                    >
+                      {atendimento.aberto ? 'Em aberto' : 'Fechado'}
+                    </span>
+                  </td>
+                  <td>
+                    {atendimento.ultima_acao}
+                    <small className="ucv-atendimento-detail">
+                      {atendimento.qtd_tratativas}{' '}
+                      {atendimento.qtd_tratativas === 1
+                        ? 'ação registrada'
+                        : 'ações registradas'}
+                    </small>
+                  </td>
+                  <td>{formatarNotaSatisfacao(atendimento.nota_satisfacao)}</td>
+                </tr>
+              ))}
+            </HistoryTable>
+          </Panel>
+        )}
+      </div>
+    </div>
   )
 }

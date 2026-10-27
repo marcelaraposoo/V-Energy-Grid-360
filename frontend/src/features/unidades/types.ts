@@ -128,19 +128,22 @@ export type CausaInterrupcao =
   | 'TERCEIROS'
   | 'FALHA DE EQUIPAMENTO'
 
-export type PeriodoInterrupcoes = '6_meses' | '12_meses' | 'todos'
+export type PeriodoHistorico = '6_meses' | '12_meses' | 'todos'
 
-export interface InterrupcoesUC {
+export interface PeriodoHistoricoUC {
+  periodo: PeriodoHistorico
+  periodo_inicio: string | null
+  periodo_fim: string | null
+}
+
+export interface InterrupcoesUC extends PeriodoHistoricoUC {
   alimentador_id: string
-  periodo: PeriodoInterrupcoes
   qtd_ocorrencias: number
   /** Duração total das interrupções da própria UC no período selecionado. */
   duracao_total_min: number
   /** Indicadores do alimentador, como contexto da UC. */
   dec_horas: number | null
   fec_vezes: number | null
-  periodo_inicio: string | null
-  periodo_fim: string | null
   historico: OcorrenciaRedeUC[]
   /** Escopo da contagem, duração total e histórico: a própria UC. */
   escopo: 'uc'
@@ -196,5 +199,6 @@ export interface Visao360 {
   medidor: MedidorUC | null
   geracao_distribuida: GeracaoDistribuidaUC | null
   interrupcoes: InterrupcoesUC
+  periodo_atendimentos: PeriodoHistoricoUC
   atendimentos: AtendimentoUC[]
 }

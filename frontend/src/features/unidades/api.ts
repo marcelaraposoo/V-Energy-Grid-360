@@ -1,15 +1,17 @@
-import type { PeriodoInterrupcoes, SelecaoContaAlta, Visao360 } from './types'
+import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from './types'
 
 const apiUrl = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
 export async function consultarVisao360(
   id: string,
   comparacao: SelecaoContaAlta | null,
-  periodoInterrupcoes: PeriodoInterrupcoes,
+  periodoInterrupcoes: PeriodoHistorico,
+  periodoAtendimentos: PeriodoHistorico,
   signal: AbortSignal,
 ): Promise<Visao360> {
   const query = new URLSearchParams()
   query.set('periodo_interrupcoes', periodoInterrupcoes)
+  query.set('periodo_atendimentos', periodoAtendimentos)
   if (comparacao?.competencia_atual)
     query.set('competencia_atual', comparacao.competencia_atual)
   if (comparacao?.competencia_referencia)

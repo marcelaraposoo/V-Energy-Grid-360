@@ -415,11 +415,12 @@
   overflow-x: auto;
 }
 .ucv-interrupcoes,
-.ucv-interruption-results {
+.ucv-atendimentos,
+.ucv-history-results {
   display: grid;
   gap: 20px;
 }
-.ucv-interruption-filter {
+.ucv-history-filter {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -427,34 +428,34 @@
   gap: 12px;
   padding: 2px 0;
 }
-.ucv-interruption-filter h2 {
+.ucv-history-filter h2 {
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
 }
-.ucv-interruption-filter p,
-.ucv-interruption-results > [role='status'] {
+.ucv-history-filter p,
+.ucv-history-results > [role='status'] {
   color: var(--text-secondary);
   font-size: 12px;
 }
-.ucv-interruption-filter p {
+.ucv-history-filter p {
   margin-top: 4px;
   color: var(--text-muted);
   font-size: 11px;
 }
-.ucv-interruption-periods {
+.ucv-history-periods {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
-.ucv-interruption-periods button {
+.ucv-history-periods button {
   min-height: 32px;
   padding: 6px 10px;
   border-color: transparent;
   font-size: 12px;
   font-weight: 500;
 }
-.ucv-interruption-periods button[aria-pressed='true'] {
+.ucv-history-periods button[aria-pressed='true'] {
   border-color: #ffd43b33;
   background: #ffd43b0d;
   color: var(--accent);

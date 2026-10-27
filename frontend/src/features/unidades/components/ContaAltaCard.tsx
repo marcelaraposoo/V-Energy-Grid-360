@@ -83,14 +83,15 @@ export function ContaAltaCard({
           })
         }
       />
+      <span className="sr-only" role="status">
+        {carregando ? 'Atualizando comparação…' : ''}
+      </span>
       <div
         aria-busy={carregando}
         aria-live="polite"
         className="ucv-diagnostic-result"
       >
-        {carregando ? (
-          <p role="status">Atualizando comparação…</p>
-        ) : erro ? (
+        {erro ? (
           <div role="alert" className="ucv-diagnostic-error">
             <p>{erro}</p>
             <button

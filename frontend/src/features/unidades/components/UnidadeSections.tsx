@@ -381,12 +381,6 @@ export function AtendimentosSection({
                     {atendimento.data_fechamento
                       ? formatarDataHora(atendimento.data_fechamento)
                       : 'Em aberto'}
-                    {atendimento.tempo_resolucao_horas !== null && (
-                      <small className="ucv-atendimento-detail">
-                        {formatarNumero(atendimento.tempo_resolucao_horas)} h
-                        até o fechamento
-                      </small>
-                    )}
                   </td>
                   <td>
                     <span

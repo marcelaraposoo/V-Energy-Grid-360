@@ -35,6 +35,7 @@ docs/contrato-gold.md
 | GET | `/receita/variacao?agrupar_por=municipio\|bairro\|classe` | efeito preço × volume (drill-down) |
 | GET | `/unidades?q=`, `/unidades/{uc}/visao-360` | atendente |
 | GET | `/perdas/fila?q=&pagina=&tamanho=` | fila priorizada, com busca e paginação (total no cabeçalho `X-Total-Count`) |
+| GET | `/perdas/fila/exportar?q=&municipio=&classe=&prob_minima=&limite=` | fila filtrada em CSV (`;`, UTF-8 com BOM, abre no Excel); `limite` padrão 500, máximo 5000 |
 | POST/GET | `/perdas/ordens`, `/{id}/iniciar`, `/{id}/resultado`, `/{id}/cancelar` | ordens de inspeção |
 | GET | `/continuidade/alimentadores`, `/alimentadores/{id}/serie` | DEC/FEC |
 | POST/GET | `/ia/perguntar` (stub), `/ia/insights?tela=` | módulo de IA |

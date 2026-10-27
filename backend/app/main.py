@@ -9,7 +9,7 @@ from app.routers import catalogos, continuidade, dashboard, ia, perdas, unidades
 app = FastAPI(title=settings.app_name, version="0.1.0")
 
 app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_methods=["*"], allow_headers=["*"],
-                   expose_headers=["X-Total-Count"])
+                   expose_headers=["X-Total-Count", "Content-Disposition"])
 
 for r in (catalogos, dashboard, unidades, perdas, continuidade, ia):
     app.include_router(r.router)

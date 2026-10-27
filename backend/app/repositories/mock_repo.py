@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from app.mock.mock_data import CLASSES, MUNICIPIOS, build_mock_data
+from app.repositories.base import OrdensStore
+from app.repositories.ordens_store import MemoriaOrdensStore
 
 
 class MockRepository:
-    def __init__(self) -> None:
+    def __init__(self, ordens: OrdensStore | None = None) -> None:
+        """`ordens`: onde guardar as ordens de inspeção. Sem ele, ficam só em memória (comportamento antigo)."""
         self.d = build_mock_data()
         self._ucs = {u["id_uc"]: u for u in self.d["dim_uc"]}
         self._faturas_por_uc: dict[str, list[dict]] = {}
         for fatura in self.d["fato_consumo_faturamento"]:
             self._faturas_por_uc.setdefault(fatura["id_uc"], []).append(fatura)
-        self._ordens: dict[int, dict] = {}
-        self._seq = 0
+        self._ordens = ordens if ordens is not None else MemoriaOrdensStore()
 
     # catálogos
     def competencias(self):
@@ -164,20 +164,13 @@ class MockRepository:
         return self.d["suspeitas"]
 
     def criar_ordem(self, dados):
-        self._seq += 1
-        agora = datetime.now().isoformat(timespec="seconds")
-        ordem = {"id": self._seq, "status": "PENDENTE", "criada_em": agora, "atualizada_em": agora,
-                 "resultado": None, **dados}
-        self._ordens[self._seq] = ordem
-        return ordem
+        return self._ordens.criar(dados)
 
     def listar_ordens(self, status=None):
-        return [o for o in self._ordens.values() if status is None or o["status"] == status]
+        return self._ordens.listar(status)
 
     def obter_ordem(self, ordem_id):
-        return self._ordens.get(ordem_id)
+        return self._ordens.obter(ordem_id)
 
     def atualizar_ordem(self, ordem_id, campos):
-        o = self._ordens[ordem_id]
-        o.update(campos, atualizada_em=datetime.now().isoformat(timespec="seconds"))
-        return o
+        return self._ordens.atualizar(ordem_id, campos)

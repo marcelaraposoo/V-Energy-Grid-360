@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from pydantic_ai.exceptions import ModelAPIError
 
 from app.agent.providers import openrouter
 from app.agent.schemas import (
@@ -19,17 +20,15 @@ def make_settings(
 ):
     return SimpleNamespace(
         openrouter_api_key=api_key,
-        openrouter_models=(
-            "model-a",
-            "model-b",
-            "model-c",
-        ),
         provider_timeout_seconds=20.0,
     )
 
 
 class FakeResult:
-    def __init__(self, output):
+    def __init__(
+        self,
+        output,
+    ):
         self.output = output
 
 
@@ -78,7 +77,9 @@ async def test_missing_api_key_returns_configuration_error(
     monkeypatch.setattr(
         openrouter,
         "settings",
-        make_settings(api_key=None),
+        make_settings(
+            api_key=None
+        ),
     )
 
     usage_calls = []
@@ -93,7 +94,7 @@ async def test_missing_api_key_returns_configuration_error(
 
     output, attempt = (
         await openrouter.run_openrouter(
-            "model-a",
+            "modelo-teste",
             "teste",
         )
     )
@@ -105,17 +106,25 @@ async def test_missing_api_key_returns_configuration_error(
         == ProviderName.OPENROUTER
     )
 
-    assert attempt.model == "model-a"
+    assert (
+        attempt.model
+        == "modelo-teste"
+    )
+
+    assert attempt.attempt == 1
     assert attempt.success is False
     assert attempt.latency_ms == 0.0
 
     assert (
         attempt.error_type
-        == ProviderErrorType.CONFIGURATION_ERROR
+        == (
+            ProviderErrorType
+            .CONFIGURATION_ERROR
+        )
     )
 
-    # Sem chave, nenhuma chamada real ao
-    # OpenRouter ocorreu.
+    # Sem chave, nenhuma chamada real
+    # deve ser registrada.
     assert usage_calls == []
 
 
@@ -153,7 +162,7 @@ async def test_successful_openrouter_call(
 
     output, attempt = (
         await openrouter.run_openrouter(
-            "model-a",
+            "modelo-teste",
             "Qual foi o consumo?",
         )
     )
@@ -165,7 +174,11 @@ async def test_successful_openrouter_call(
         == ProviderName.OPENROUTER
     )
 
-    assert attempt.model == "model-a"
+    assert (
+        attempt.model
+        == "modelo-teste"
+    )
+
     assert attempt.attempt == 1
     assert attempt.success is True
     assert attempt.error_type is None
@@ -174,7 +187,7 @@ async def test_successful_openrouter_call(
     assert attempt.latency_ms >= 0
 
     assert usage_calls == [
-        "usage",
+        "usage"
     ]
 
 
@@ -231,10 +244,15 @@ async def test_usage_is_registered_before_request(
         ),
     )
 
-    await openrouter.run_openrouter(
-        "model-a",
-        "teste",
+    output, attempt = (
+        await openrouter.run_openrouter(
+            "modelo-teste",
+            "teste",
+        )
     )
+
+    assert output == "ok"
+    assert attempt.success is True
 
     assert calls == [
         "usage",
@@ -276,12 +294,18 @@ async def test_failed_openrouter_call_is_still_registered(
 
     output, attempt = (
         await openrouter.run_openrouter(
-            "model-a",
+            "modelo-teste",
             "teste",
         )
     )
 
     assert output is None
+
+    assert (
+        attempt.provider
+        == ProviderName.OPENROUTER
+    )
+
     assert attempt.success is False
 
     assert (
@@ -289,10 +313,13 @@ async def test_failed_openrouter_call_is_still_registered(
         == ProviderErrorType.UNKNOWN
     )
 
-    # A tentativa chegou ao provider,
-    # então permanece registrada mesmo falhando.
+    assert attempt.latency_ms is not None
+    assert attempt.latency_ms >= 0
+
+    # Mesmo falhando, a tentativa chegou
+    # ao provider e deve ser contabilizada.
     assert usage_calls == [
-        "usage",
+        "usage"
     ]
 
 
@@ -326,7 +353,7 @@ async def test_attempt_number_is_preserved(
 
     output, attempt = (
         await openrouter.run_openrouter(
-            "model-b",
+            "modelo-teste",
             "teste",
             attempt=3,
         )
@@ -334,7 +361,7 @@ async def test_attempt_number_is_preserved(
 
     assert output == "resposta simulada"
     assert attempt.attempt == 3
-    assert attempt.model == "model-b"
+    assert attempt.success is True
 
 
 @pytest.mark.anyio
@@ -358,7 +385,10 @@ async def test_instructions_are_passed_to_agent(
             instructions=None,
             output_type=str,
         ):
-            captured["prompt"] = prompt
+            captured[
+                "prompt"
+            ] = prompt
+
             captured[
                 "instructions"
             ] = instructions
@@ -393,7 +423,7 @@ async def test_instructions_are_passed_to_agent(
 
     output, attempt = (
         await openrouter.run_openrouter(
-            "model-c",
+            "modelo-teste",
             "Pergunta do usuário",
             instructions=(
                 "Responda apenas com dados."
@@ -417,15 +447,43 @@ async def test_instructions_are_passed_to_agent(
 
 
 def test_classify_unknown_error():
+    error = RuntimeError(
+        "erro qualquer"
+    )
+
     result = (
-        openrouter.classify_openrouter_error(
-            RuntimeError(
-                "erro qualquer"
-            )
+        openrouter
+        .classify_openrouter_error(
+            error
         )
     )
 
     assert (
         result
         == ProviderErrorType.UNKNOWN
+    )
+
+
+def test_generic_model_api_error_is_recoverable():
+    error = ModelAPIError(
+        model_name="openrouter-test",
+        message=(
+            "Falha genérica simulada "
+            "do provider."
+        ),
+    )
+
+    result = (
+        openrouter
+        .classify_openrouter_error(
+            error
+        )
+    )
+
+    assert (
+        result
+        == (
+            ProviderErrorType
+            .PROVIDER_UNAVAILABLE
+        )
     )

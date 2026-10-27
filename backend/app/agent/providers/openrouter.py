@@ -1,9 +1,11 @@
+import logging
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
 
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import (
+    ModelAPIError,
     ModelConnectionError,
     ModelHTTPError,
     ModelQuotaExceededError,
@@ -26,6 +28,9 @@ from app.agent.schemas import (
     ProviderName,
 )
 from app.core.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 def _build_model(
@@ -67,6 +72,9 @@ def classify_openrouter_error(
     ):
         return ProviderErrorType.TIMEOUT
 
+    # Precisa vir depois do timeout,
+    # pois ModelTimeoutError pode derivar de
+    # ModelConnectionError.
     if isinstance(
         error,
         ModelConnectionError,
@@ -107,6 +115,18 @@ def classify_openrouter_error(
             return (
                 ProviderErrorType.PROVIDER_UNAVAILABLE
             )
+
+    # Classe-base para falhas da API do provider
+    # que não receberam uma classificação mais
+    # específica do PydanticAI.
+    #
+    # Esse tipo de falha deve permitir que o router
+    # tente o próximo modelo do pool.
+    if isinstance(
+        error,
+        ModelAPIError,
+    ):
+        return ProviderErrorType.PROVIDER_UNAVAILABLE
 
     return ProviderErrorType.UNKNOWN
 
@@ -191,6 +211,33 @@ async def run_openrouter(
             perf_counter() - start
         ) * 1000
 
+        error_type = classify_openrouter_error(
+            error
+        )
+
+        # UNKNOWN deveria ser excepcional.
+        # Mantemos informação suficiente para
+        # descobrir a classe real sem registrar
+        # prompt nem dados do usuário.
+        if error_type == ProviderErrorType.UNKNOWN:
+            logger.exception(
+                "Erro OpenRouter não classificado. "
+                "model=%s "
+                "exception_type=%s "
+                "cause_type=%s "
+                "error=%r "
+                "cause=%r",
+                model_name,
+                type(error).__name__,
+                (
+                    type(error.__cause__).__name__
+                    if error.__cause__
+                    else None
+                ),
+                error,
+                error.__cause__,
+            )
+
         provider_attempt = ProviderAttempt(
             provider=ProviderName.OPENROUTER,
             model=model_name,
@@ -198,9 +245,7 @@ async def run_openrouter(
             started_at=started_at,
             success=False,
             latency_ms=latency_ms,
-            error_type=classify_openrouter_error(
-                error
-            ),
+            error_type=error_type,
         )
 
         return None, provider_attempt

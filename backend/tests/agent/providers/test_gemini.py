@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from pydantic_ai.exceptions import ModelAPIError
 
 from app.agent.providers import gemini
 from app.agent.schemas import (
@@ -9,6 +10,18 @@ from app.agent.schemas import (
 )
 
 
+def test_generic_model_api_error_is_recoverable():
+    error = ModelAPIError(
+        model_name="gemini-3.1-flash-lite",
+        message="Falha genérica simulada do provider.",
+    )
+
+    result = gemini.classify_gemini_error(error)
+
+    assert (
+        result
+        == ProviderErrorType.PROVIDER_UNAVAILABLE
+    )
 @pytest.fixture
 def anyio_backend():
     return "asyncio"

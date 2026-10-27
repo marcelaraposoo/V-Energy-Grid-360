@@ -392,8 +392,8 @@ Exploração: `exploracao_faturas.ipynb`.
 ## `atendimentos` (A)
 
 Fonte: `bronze.atendimentos` (`atendimentos.json`). 318.871 chamados e 636.857 tratativas na Bronze **e na Silver** (nenhum registro removido).
-Exploração: `exploracao_atendimentos.ipynb`. Silver: `02_silver_atendimentos.ipynb` (grava `silver.atendimentos` e `silver.tratativas_atendimento`).
-**Decisões tomadas por Marcela**, responsável pela tabela (assumida depois da desistência da responsável original), com a autonomia combinada com o grupo para as tabelas de cada integrante. Registro em 26/10/2026.
+Exploração: `exploracao_atendimentos.ipynb`. Silver: `02_silver_atendimentos.ipynb` (grava `silver.atendimentos` e `silver.tratativas_atendimento`). Gold: `03_gold_fato_atendimento.ipynb` (tabela B1 do contrato).
+**Decisões tomadas por Marcela**, responsável pela tabela (assumida depois da desistência da responsável original), com a autonomia combinada com o grupo para as tabelas de cada integrante. Registro em 27/10/2026.
 
 **É a tabela mais limpa do projeto:** sem cópias, órfãs, cabeçalho repetido, datas misturadas, sentinelas nem códigos de ausência. Os itens abaixo são decisões de modelagem e de interpretação. Cabeçalho repetido, cópias e UC inexistente (0 casos) **não têm tratamento** na Silver: ficam só como checagens, que falham e impedem a gravação se aparecerem numa carga futura.
 
@@ -416,7 +416,7 @@ Exploração: `exploracao_atendimentos.ipynb`. Silver: `02_silver_atendimentos.i
 - **Decisão:** manter nulo e converter o texto para `decimal(3,1)` com `try_cast`. A faixa observada vai de 1,3 a 5,0, com média 4,043 e 309.305 notas preenchidas.
 - **Alternativas consideradas:** preencher com a média (inventaria avaliação) ou com zero (puxaria a média para baixo).
 - **Casas decimais:** a nota tem no máximo 1 casa decimal na origem (conferido na execução da Silver), então o cast não arredonda nada. A checagem da Silver exige isso.
-- **Impacto na Gold:** `nota_satisfacao_media` é a média das notas **preenchidas**. A escala "a confirmar" do contrato é de 1 a 5.
+- **Impacto na Gold:** `nota_satisfacao_media` é a média das notas **preenchidas**. A escala é de 1 a 5, fechada no contrato v4.
 
 #### A2. Acúmulo de notas em 5,0
 - **Observação:** a curva das notas desce de 4,1 a 4,9 (4.363 chamados em 4,9), mas há 6.160 em 5,0. Compatível com notas acima de 5 cortadas no teto (**hipótese**).
@@ -427,7 +427,7 @@ Exploração: `exploracao_atendimentos.ipynb`. Silver: `02_silver_atendimentos.i
 - **Estrutura:** `silver.atendimentos` (1 linha por chamado) e `silver.tratativas_atendimento` (1 linha por tratativa: `protocolo`, `sequencia`, `acao`, `canal`, `data_tratativa`, `source_file`).
 - **Tamanho do histórico:** 1, 2 ou 3 tratativas por chamado, em partes iguais (106.717, 106.322 e 105.832 chamados), somando 636.857.
 - **Alternativa considerada:** manter a lista na Silver. Descartada: a Gold, o portal (SQLite ou PostgreSQL) e o agente de SQL não leem listas. A Bronze continua com a lista original.
-- **Impacto na Gold:** `qtd_tratativas` vem pronta no chamado; `ultima_acao` (se mantida) sai da maior `sequencia` de `silver.tratativas_atendimento`.
+- **Impacto na Gold:** `qtd_tratativas` vem pronta no chamado; `ultima_acao` sai da maior `sequencia` de `silver.tratativas_atendimento`. As tratativas **não** entram na Gold (decisão da v4 do contrato).
 
 #### A4. Datas
 - **Formatos:** `yyyy-MM-dd HH:mm:ss` em `data_abertura` e `data_fechamento` (318.871 linhas cada) e `yyyy-MM-dd'T'HH:mm:ss` na data de cada tratativa (636.857). Nenhum valor começa com `9999`.
@@ -435,13 +435,13 @@ Exploração: `exploracao_atendimentos.ipynb`. Silver: `02_silver_atendimentos.i
 - **Período:** aberturas de 2022-07-01 a 2026-06-30; os fechamentos chegam a 2026-07-10 (chamados abertos no fim de junho).
 - **Tempo de resolução (execução da Silver):** de 1,00 h a 719,00 h, média de 133,6 h, nenhum valor negativo. A média bate com a composição conhecida (~361 h em julho de 2025 e ~120 h nos demais meses).
 - **Decisão:** `timestamp` na Silver, porque a hora é necessária para `tempo_resolucao_horas`.
-- **Impacto na Gold:** o contrato lista `data_abertura` e `data_fechamento` como `data`; a Gold faz o cast para `date` e mantém `tempo_resolucao_horas` (calculado na Silver, em horas com 2 casas).
+- **Impacto na Gold:** o contrato (v3 em diante) pede **data e hora** em `data_hora_abertura` e `data_hora_fechamento`: a Gold **não** converte para `date` e só renomeia as colunas. `tempo_resolucao_horas` já vem calculado na Silver (horas, 2 casas). Os horários são locais, sem fuso (o `Z` que o Databricks exibe é só a exibição).
 
 #### A5. A última ação não é o status
 - **Observação:** todos os chamados estão fechados, mas a última ação registrada se divide entre DESPACHO (64.257), RETORNO AO CLIENTE (63.987), ABERTURA (63.903), ENCERRAMENTO (63.432) e ANALISE (63.292). O histórico parece uma amostra de ações, e não um processo completo.
 - **Amostra da execução da Silver:** `AT000000020` tem uma única tratativa, `RETORNO AO CLIENTE`; `AT000000026` começa em `ENCERRAMENTO` e termina em `DESPACHO`. A primeira tratativa também nem sempre é `ABERTURA`.
 - **Decisão:** o estado do chamado vem de `aberto` (data de fechamento nula). `ultima_acao` não deve ser lida como situação.
-- **Impacto na Gold e no agente:** se `ultima_acao` for mantida em `fato_atendimento`, descrevê-la no dicionário como "última ação registrada".
+- **Impacto na Gold e no agente:** `ultima_acao` é a **última ação registrada**, e não a situação do chamado. Exemplo: "quantos chamados foram encerrados?" **não** se responde com `ultima_acao = 'ENCERRAMENTO'` (63.432 chamados), e sim com todos os chamados fechados (`aberto = false`: 318.871). Entra no dicionário de dados e no catálogo de métricas da IA.
 
 #### A6. Pico de chamados em julho de 2025
 - **Problema:** 18.061 chamados em 2025-07, contra ~6.400 por mês (de 6.237 a 6.624 nos outros 47 meses). O aumento é geral: todos os assuntos sobem de 2,67× a 3,06×, todos os canais de 2,79× a 2,88×, os 31 dias têm volume parecido e há 14.828 UCs distintas.
@@ -453,7 +453,7 @@ Exploração: `exploracao_atendimentos.ipynb`. Silver: `02_silver_atendimentos.i
 #### A7. Chamado aberto e sentinela
 - **Regra:** `data_fechamento` nula significa chamado aberto, e `aberto = data_fechamento IS NULL`. Qualquer `data_fechamento` que comece com `9999` viraria nulo (convenção do grupo).
 - **Hoje:** 0 chamados abertos e 0 sentinelas, então `aberto` é falsa em todas as linhas. A checagem "nenhum chamado aberto" é uma proteção desta extração: se falhar, conferir antes se a conversão da data quebrou.
-- **Impacto na Gold:** a lista de "chamados abertos" da visão 360 usa `aberto`. Hoje ela sai vazia para todas as UCs, o que é o dado correto.
+- **Impacto na Gold:** `aberto` é falsa em todos os chamados desta base: **não há chamados em aberto**. O histórico de chamados de cada UC (todos os que ela já abriu) aparece normalmente na visão 360.
 
 ### Verificado e sem problema
 - **Cabeçalho repetido** (`protocolo = 'protocolo'`): 0. **Cópias** por `protocolo`: 0. Protocolo nulo ou fora do padrão `AT` + 9 dígitos: 0. Chamados repetidos com protocolos diferentes (mesma UC, abertura e assunto): 0.
@@ -462,6 +462,7 @@ Exploração: `exploracao_atendimentos.ipynb`. Silver: `02_silver_atendimentos.i
 - **Categorias:** 5 canais, 6 assuntos, 15 subassuntos (17 pares assunto × subassunto) e 5 ações, sem variações de grafia (reconfirmado na execução da Silver). A Silver aplica `upper(trim)` e checa o domínio.
 - **Histórico:** `sequencia` sempre numérica e igual à posição + 1; datas em ordem crescente; nenhuma tratativa antes da abertura nem depois do fechamento; os canais das tratativas são os mesmos 5 do chamado.
 - **Resposta à pendência de "A investigar":** `data_fechamento` não tem sentinela `9999-12-31` e `id_uc` não tem órfãs com 7 dígitos.
+
 
 ---
 ## `inspecoes` (I)

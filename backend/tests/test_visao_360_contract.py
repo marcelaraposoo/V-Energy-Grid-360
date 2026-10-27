@@ -48,7 +48,6 @@ def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
         por_protocolo = {a["protocolo"]: a for a in repo.atendimentos_uc(uc_id)}
         for atendimento in resposta["atendimentos"]:
             original = dict(por_protocolo[atendimento["protocolo"]])
-            original["data"] += "T00:00:00"
             assert atendimento | original == atendimento
 
 
@@ -139,16 +138,18 @@ def test_contrato_rejeita_interrupcao_sem_uc_ou_encerramento_e_valores_invalidos
         Visao360.model_validate(resposta)
 
 
-@pytest.mark.parametrize("data_abertura", [
+@pytest.mark.parametrize("campo", ["data", "data_fechamento"])
+@pytest.mark.parametrize("data_hora", [
     "2026-06-10T00:00:00",
     "2026-06-10T22:35:12",
     "2026-06-10T22:35:12-03:00",
 ])
-def test_contrato_preserva_horario_de_abertura_do_atendimento(repo, resposta, data_abertura):
-    atendimento = deepcopy(next(iter(repo.d["atendimentos"].values()))[0])
-    atendimento["data"] = data_abertura
+def test_contrato_preserva_horarios_do_atendimento(repo, resposta, campo, data_hora):
+    uc_id = repo.d["fato_atendimento"][0]["id_uc"]
+    atendimento = deepcopy(repo.atendimentos_uc(uc_id)[0])
+    atendimento[campo] = data_hora
     resposta["atendimentos"] = [atendimento]
 
     contrato = Visao360.model_validate(resposta)
 
-    assert contrato.model_dump(mode="json")["atendimentos"][0]["data"] == data_abertura
+    assert contrato.model_dump(mode="json")["atendimentos"][0][campo] == data_hora

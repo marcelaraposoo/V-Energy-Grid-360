@@ -1,7 +1,8 @@
 """Gerador de dados MOCKADOS (determinístico).
 
-Cadastro, consumo/faturas e interrupções seguem dim_uc, fato_consumo_faturamento
-e fato_interrupcao da Gold consolidada (v4, arquivo gold_contrato_v3.md).
+Cadastro, consumo/faturas, interrupções e atendimentos seguem dim_uc,
+fato_consumo_faturamento, fato_interrupcao e fato_atendimento da Gold consolidada
+(v4, arquivo gold_contrato_v3.md).
 Premissas da simulação:
 - 48 competências (2022-07 a 2026-06), 400 UCs, 14 municípios, 2 alimentadores por município.
 - Nomes mascarados, endereços e coordenadas fictícios. Toda UC possui um medidor ativo.
@@ -54,7 +55,14 @@ NOMES = ["Ana", "Bruno", "Carla", "Diego", "Elisa", "Felipe", "Gabriela", "Hugo"
 SOBRENOMES = ["Silva", "Souza", "Oliveira", "Santos", "Lima", "Pereira", "Costa", "Barbosa", "Ferreira", "Melo", "Albuquerque", "Cavalcanti"]
 CAUSAS = ["CLIMATICA", "SOBRECARGA", "NAO IDENTIFICADA", "VEGETACAO", "TERCEIROS", "FALHA DE EQUIPAMENTO", None]
 TIPOS_OCORRENCIA = ["FALTA DE ENERGIA", "DANO EM EQUIPAMENTO", "OSCILACAO", "SOBRECARGA", "FIO PARTIDO"]
-ASSUNTOS = ["Conta alta", "Falta de luz", "Religação", "Segunda via", "Leitura incorreta", "Troca de medidor"]
+CANAIS_ATENDIMENTO = ("TELEFONE", "APP", "WHATSAPP", "SITE", "PRESENCIAL")
+ACOES_ATENDIMENTO = ("ABERTURA", "ANALISE", "DESPACHO", "RETORNO AO CLIENTE", "ENCERRAMENTO")
+# Somente os pares explicitamente confirmados na B1; a lista completa vem da Silver.
+PARES_ATENDIMENTO_MOCK = (
+    ("DANO ELETRICO", "VISTORIA"),
+    ("GERACAO DISTRIBUIDA", "VISTORIA"),
+    ("LIGACAO NOVA", "VISTORIA"),
+)
 
 
 def competencias() -> list[str]:
@@ -332,23 +340,27 @@ def build_mock_data() -> dict:
         a["ucs_total"] = sum(u["data_ligacao"] <= DATA_REFERENCIA.isoformat() for u in ucs_por_alimentador.get(a["id"], []))
     dec_fec_mensal = build_dec_fec_alimentador_mensal(dim_uc, fato_interrupcao, alimentadores, comps)
 
-    # atendimentos
-    atendimentos: dict[str, list[dict]] = {}
+    # Contrato B1: um chamado por protocolo. Todos estão fechados nesta base.
+    fato_atendimento = []
+    fim_base = datetime.combine(DATA_REFERENCIA, datetime.max.time()).replace(microsecond=0)
     seq = 0
-    for u in ucs:
+    for uc in dim_uc:
         for _ in range(rng.choices([0, 1, 2, 3], weights=[50, 30, 15, 5])[0]):
             seq += 1
-            atendimentos.setdefault(u["uc_id"], []).append({
-                "protocolo": f"AT{seq:07d}",
-                "data": f"{comps[rng.randint(30, 47)]}-{rng.randint(1, 28):02d}",
-                "canal": rng.choice(["Telefone", "App", "WhatsApp", "Loja"]),
-                "assunto": rng.choice(ASSUNTOS),
-                "status": rng.choice(["Resolvido", "Resolvido", "Em andamento"]),
-                "nota_satisfacao": rng.choice([None, 1, 2, 3, 4, 5]),
-                "tratativas": [
-                    {"data": "—", "descricao": "Chamado aberto"},
-                    {"data": "—", "descricao": "Encaminhado à área responsável"},
-                ],
+            comp = comps[rng.randint(30, 47)]
+            ano, mes = map(int, comp.split("-"))
+            abertura = datetime(ano, mes, rng.randint(1, 28), rng.randrange(24), rng.randrange(60))
+            fechamento = min(abertura + timedelta(minutes=rng.randint(60, 719 * 60)), fim_base)
+            assunto, subassunto = rng.choice(PARES_ATENDIMENTO_MOCK)
+            fato_atendimento.append({
+                "protocolo": f"AT{seq:09d}", "id_uc": uc["id_uc"],
+                "municipio": uc["municipio"], "bairro": uc["bairro"], "classe": uc["classe"],
+                "canal": rng.choice(CANAIS_ATENDIMENTO), "assunto": assunto, "subassunto": subassunto,
+                "data_hora_abertura": abertura.isoformat(), "data_hora_fechamento": fechamento.isoformat(),
+                "mes_referencia": comp, "aberto": False,
+                "tempo_resolucao_horas": round((fechamento - abertura).total_seconds() / 3600, 2),
+                "qtd_tratativas": rng.randint(1, 3), "ultima_acao": rng.choice(ACOES_ATENDIMENTO),
+                "nota_satisfacao": None if rng.random() < 0.03 else rng.randint(13, 50) / 10,
             })
 
     # fila de suspeitas (perdas não técnicas)
@@ -375,6 +387,6 @@ def build_mock_data() -> dict:
     return {
         "competencias": comps, "alimentadores": alimentadores,
         "dim_uc": dim_uc, "fato_consumo_faturamento": fato_consumo_faturamento,
-        "fato_interrupcao": fato_interrupcao, "atendimentos": atendimentos, "suspeitas": suspeitas,
+        "fato_interrupcao": fato_interrupcao, "fato_atendimento": fato_atendimento, "suspeitas": suspeitas,
         "dec_fec_alimentador_mensal": dec_fec_mensal,
     }

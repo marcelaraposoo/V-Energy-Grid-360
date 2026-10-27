@@ -40,6 +40,28 @@ def test_visao_360():
     assert client.get("/api/unidades/UC999999/visao-360").status_code == 404
 
 
+def test_visao_360_atendimentos_da_gold():
+    repo = get_repo()
+    fato = next(a for a in repo.d["fato_atendimento"] if a["nota_satisfacao"] is None)
+    r = client.get(f"/api/unidades/{fato['id_uc']}/visao-360")
+    assert r.status_code == 200
+    atendimentos = r.json()["atendimentos"]
+    assert [a["data"] for a in atendimentos] == sorted(
+        [a["data"] for a in atendimentos], reverse=True,
+    )
+    por_protocolo = {a["protocolo"]: a for a in repo.d["fato_atendimento"]}
+    for a in atendimentos:
+        original = por_protocolo[a["protocolo"]]
+        assert a["uc_id"] == original["id_uc"] == fato["id_uc"]
+        assert a["data"] == original["data_hora_abertura"]
+        assert a["data_fechamento"] == original["data_hora_fechamento"]
+        assert a["aberto"] is False
+        assert a["ultima_acao"] == original["ultima_acao"]
+        assert a["nota_satisfacao"] == original["nota_satisfacao"]
+        assert "status" not in a and "tratativas" not in a
+    assert next(a for a in atendimentos if a["protocolo"] == fato["protocolo"])["nota_satisfacao"] is None
+
+
 def test_visao_360_comparacao_padrao():
     r = client.get("/api/unidades/UC000001/visao-360")
     assert r.status_code == 200

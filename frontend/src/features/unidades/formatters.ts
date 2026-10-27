@@ -8,6 +8,10 @@ const percentual = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 1,
   signDisplay: 'exceptZero',
 })
+const notaSatisfacao = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
 
 export function formatarNumero(valor: number | null | undefined): string {
   return valor == null ? 'Não disponível' : numero.format(valor)
@@ -19,6 +23,10 @@ export function formatarMoeda(valor: number | null | undefined): string {
 
 export function formatarPercentual(valor: number | null): string {
   return valor === null ? 'Não disponível' : `${percentual.format(valor)}%`
+}
+
+export function formatarNotaSatisfacao(valor: number | null): string {
+  return valor === null ? 'Não avaliado' : `${notaSatisfacao.format(valor)} / 5`
 }
 
 export function formatarCompetencia(valor: string): string {

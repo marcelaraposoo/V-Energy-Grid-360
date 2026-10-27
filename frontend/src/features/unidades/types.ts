@@ -146,23 +146,45 @@ export interface InterrupcoesUC {
   escopo: 'uc'
 }
 
-export interface TratativaAtendimentoUC {
-  /** O mock usa '—' quando a data é desconhecida. */
-  data: string
-  descricao: string
-}
-
 export interface AtendimentoUC {
   protocolo: string
+  uc_id: string
   /** Data e hora de abertura em ISO 8601. */
   data: string
-  canal: string
-  assunto: string
-  status: string
+  /** Data e hora de fechamento; nula se estiver em aberto. */
+  data_fechamento: string | null
+  canal: 'TELEFONE' | 'APP' | 'WHATSAPP' | 'SITE' | 'PRESENCIAL'
+  assunto:
+    | 'FALTA DE ENERGIA'
+    | 'FATURA'
+    | 'DANO ELETRICO'
+    | 'LIGACAO NOVA'
+    | 'GERACAO DISTRIBUIDA'
+    | 'RELIGACAO'
+  subassunto:
+    | 'VISTORIA'
+    | 'INTERRUPCAO PARCIAL'
+    | 'INTERRUPCAO TOTAL'
+    | 'OSCILACAO'
+    | 'URGENCIA'
+    | 'RESSARCIMENTO'
+    | 'APOS PAGAMENTO'
+    | 'SOLICITACAO'
+    | 'HOMOLOGACAO'
+    | 'PRAZO'
+    | 'CREDITOS'
+    | 'CONTESTACAO'
+    | 'SEGUNDA VIA'
+    | 'VALOR ALTO'
+    | 'PARCELAMENTO'
+  /** A situação é determinada por este campo, independentemente da última ação. */
+  aberto: boolean
+  tempo_resolucao_horas: number | null
+  qtd_tratativas: number
+  ultima_acao:
+    'ABERTURA' | 'ANALISE' | 'DESPACHO' | 'RETORNO AO CLIENTE' | 'ENCERRAMENTO'
+  /** Nota de 1 a 5, com uma casa decimal; nula significa não avaliado. */
   nota_satisfacao: number | null
-  tratativas: TratativaAtendimentoUC[]
-  aberto: boolean | null
-  ultima_acao: string | null
 }
 
 export interface Visao360 {

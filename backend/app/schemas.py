@@ -177,21 +177,29 @@ class InterrupcoesUC(BaseModel):
     )
 
 
-class TratativaAtendimentoUC(BaseModel):
-    data: str = Field(description="O mock usa '—' quando a data da tratativa não está disponível.")
-    descricao: str
+CanalAtendimento = Literal["TELEFONE", "APP", "WHATSAPP", "SITE", "PRESENCIAL"]
+AssuntoAtendimento = Literal["FALTA DE ENERGIA", "FATURA", "DANO ELETRICO", "LIGACAO NOVA", "GERACAO DISTRIBUIDA", "RELIGACAO"]
+SubassuntoAtendimento = Literal[
+    "VISTORIA", "INTERRUPCAO PARCIAL", "INTERRUPCAO TOTAL", "OSCILACAO", "URGENCIA",
+    "RESSARCIMENTO", "APOS PAGAMENTO", "SOLICITACAO", "HOMOLOGACAO", "PRAZO", "CREDITOS",
+    "CONTESTACAO", "SEGUNDA VIA", "VALOR ALTO", "PARCELAMENTO",
+]
+AcaoAtendimento = Literal["ABERTURA", "ANALISE", "DESPACHO", "RETORNO AO CLIENTE", "ENCERRAMENTO"]
 
 
 class AtendimentoUC(BaseModel):
-    protocolo: str
+    protocolo: str = Field(pattern=r"^AT\d{9}$")
+    uc_id: str
     data: datetime
-    canal: str
-    assunto: str
-    status: str
-    nota_satisfacao: float | None
-    tratativas: list[TratativaAtendimentoUC]
-    aberto: bool | None = None
-    ultima_acao: str | None = None
+    data_fechamento: datetime | None
+    canal: CanalAtendimento
+    assunto: AssuntoAtendimento
+    subassunto: SubassuntoAtendimento
+    aberto: bool = Field(description="Situação do chamado; ultima_acao não determina se está aberto.")
+    tempo_resolucao_horas: float | None = Field(ge=0)
+    qtd_tratativas: int = Field(ge=1, le=3)
+    ultima_acao: AcaoAtendimento
+    nota_satisfacao: float | None = Field(ge=1, le=5, multiple_of=0.1)
 
 
 class Visao360(BaseModel):

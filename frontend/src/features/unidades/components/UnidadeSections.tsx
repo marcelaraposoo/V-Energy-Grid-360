@@ -7,6 +7,7 @@ import {
   formatarDataHora,
   formatarMoeda,
   formatarNumero,
+  formatarNotaSatisfacao,
 } from '../formatters'
 import type { PeriodoInterrupcoes, SelecaoContaAlta, Visao360 } from '../types'
 import { ConsumoChart } from './ConsumoChart'
@@ -352,8 +353,10 @@ export function AtendimentosSection({ dados }: SectionProps) {
         columns={[
           'Protocolo',
           'Assunto',
+          'Subassunto',
           'Canal',
           'Abertura',
+          'Fechamento',
           'Situação',
           'Última ação',
           'Satisfação',
@@ -366,19 +369,38 @@ export function AtendimentosSection({ dados }: SectionProps) {
           <tr key={atendimento.protocolo}>
             <th scope="row">{atendimento.protocolo}</th>
             <td>{atendimento.assunto}</td>
+            <td>{atendimento.subassunto}</td>
             <td>{atendimento.canal}</td>
             <td>{formatarDataHora(atendimento.data)}</td>
             <td>
-              <span className="badge ucv-atendimento" data-status={atendimento.status}>
-                {atendimento.status}
+              {atendimento.data_fechamento
+                ? formatarDataHora(atendimento.data_fechamento)
+                : 'Em aberto'}
+              {atendimento.tempo_resolucao_horas !== null && (
+                <small className="ucv-atendimento-detail">
+                  {formatarNumero(atendimento.tempo_resolucao_horas)} h até o
+                  fechamento
+                </small>
+              )}
+            </td>
+            <td>
+              <span
+                className="badge ucv-atendimento"
+                data-status={atendimento.aberto ? 'Em aberto' : 'Fechado'}
+              >
+                {atendimento.aberto ? 'Em aberto' : 'Fechado'}
               </span>
             </td>
             <td>
-              {atendimento.ultima_acao ??
-                atendimento.tratativas.at(-1)?.descricao ??
-                'Não disponível'}
+              {atendimento.ultima_acao}
+              <small className="ucv-atendimento-detail">
+                {atendimento.qtd_tratativas}{' '}
+                {atendimento.qtd_tratativas === 1
+                  ? 'ação registrada'
+                  : 'ações registradas'}
+              </small>
             </td>
-            <td>{formatarNumero(atendimento.nota_satisfacao)}</td>
+            <td>{formatarNotaSatisfacao(atendimento.nota_satisfacao)}</td>
           </tr>
         ))}
       </HistoryTable>

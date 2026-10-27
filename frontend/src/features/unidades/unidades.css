@@ -499,12 +499,17 @@
 .badge.ucv-fatura--atrasada {
   color: #f87171;
 }
-.ucv-atendimento[data-status='Resolvido' i] {
+.ucv-atendimento[data-status='Fechado' i] {
   color: var(--success);
 }
-.ucv-atendimento[data-status='Em aberto' i],
-.ucv-atendimento[data-status='Em andamento' i] {
+.ucv-atendimento[data-status='Em aberto' i] {
   color: var(--accent);
+}
+.ucv-atendimento-detail {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 @media (max-width: 1279px) {

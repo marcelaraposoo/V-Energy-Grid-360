@@ -92,6 +92,9 @@
   margin: 0;
   padding: 22px;
 }
+.ucv-medidor .ucv-fields {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
 .ucv-fields dt {
   color: var(--text-muted);
   font-size: 12px;
@@ -224,10 +227,12 @@
   box-shadow: 0 4px 16px #0005;
   pointer-events: none;
 }
-.ucv-chart-tooltip p + p {
+.ucv-chart-tooltip p {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+}
+.ucv-chart-tooltip p + p {
   margin-top: 6px;
 }
 .ucv-chart-tooltip .ucv-chart-tooltip-current {
@@ -343,7 +348,7 @@
 .ucv-table {
   width: 100%;
   min-width: 720px;
-  text-align: left;
+  text-align: center;
   border-collapse: collapse;
 }
 .ucv-table th {
@@ -366,6 +371,26 @@
 }
 .ucv-history > .empty-state {
   min-height: 200px;
+}
+.ucv-table th,
+.ucv-table td {
+  vertical-align: middle;
+}
+.badge.ucv-fatura--paga {
+  color: var(--success);
+}
+.badge.ucv-fatura--aberta {
+  color: var(--accent);
+}
+.badge.ucv-fatura--atrasada {
+  color: #f87171;
+}
+.ucv-atendimento[data-status='Resolvido' i] {
+  color: var(--success);
+}
+.ucv-atendimento[data-status='Em aberto' i],
+.ucv-atendimento[data-status='Em andamento' i] {
+  color: var(--accent);
 }
 
 @media (max-width: 1279px) {
@@ -413,6 +438,9 @@
     padding: 18px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 18px;
+  }
+  .ucv-medidor .ucv-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .ucv-summary-grid {
     grid-template-columns: minmax(0, 1fr);

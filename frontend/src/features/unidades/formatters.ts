@@ -4,7 +4,8 @@ const moeda = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 })
 const percentual = new Intl.NumberFormat('pt-BR', {
-  maximumFractionDigits: 6,
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
   signDisplay: 'exceptZero',
 })
 

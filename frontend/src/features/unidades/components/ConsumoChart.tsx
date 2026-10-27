@@ -1,8 +1,21 @@
 import { useId, useRef, useState } from 'react'
 import { ChartColumn } from 'lucide-react'
 import { EmptyState } from '../../../components/ui/EmptyState'
-import { formatarCompetencia, formatarNumero } from '../formatters'
+import { formatarNumero } from '../formatters'
 import type { ConsumoMensalUC } from '../types'
+
+const competencia = new Intl.DateTimeFormat('pt-BR', {
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
+function formatarMesDoHistorico(valor: string): string {
+  return competencia
+    .format(new Date(`${valor}-01T00:00:00Z`))
+    .replace(' de ', '/')
+    .replace('.', '')
+}
 
 export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
   const [mostrarAnterior, setMostrarAnterior] = useState(true)
@@ -127,7 +140,7 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
                   key={c.competencia}
                   role="button"
                   tabIndex={0}
-                  aria-label={`Consumo de ${formatarCompetencia(c.competencia)}${mostrarAnterior ? ' comparado ao mesmo mês do ano anterior' : ''}`}
+                  aria-label={`Consumo de ${formatarMesDoHistorico(c.competencia)}${mostrarAnterior ? ' comparado ao mesmo mês do ano anterior' : ''}`}
                   aria-describedby={
                     tooltip?.indice === i ? tooltipId : undefined
                   }
@@ -181,7 +194,7 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
                     className="ucv-chart-current"
                   />
                   <text x={x} y={altura - 16} textAnchor="middle">
-                    {formatarCompetencia(c.competencia)}
+                    {formatarMesDoHistorico(c.competencia)}
                   </text>
                 </g>
               )
@@ -196,10 +209,13 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
             className="ucv-chart-tooltip"
             style={{ left: tooltip.x, top: tooltip.y }}
           >
-            <p>{formatarCompetencia(selecionado.competencia)}</p>
             {mostrarAnterior && (
               <p>
-                <span>{Number(selecionado.competencia.slice(0, 4)) - 1}</span>
+                <span>
+                  {formatarMesDoHistorico(
+                    `${Number(selecionado.competencia.slice(0, 4)) - 1}${selecionado.competencia.slice(4)}`,
+                  )}
+                </span>
                 <span>
                   {selecionado.consumo_kwh_ano_anterior === null
                     ? 'Não disponível'
@@ -208,7 +224,7 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
               </p>
             )}
             <p className="ucv-chart-tooltip-current">
-              <span>{selecionado.competencia.slice(0, 4)}</span>
+              <span>{formatarMesDoHistorico(selecionado.competencia)}</span>
               <strong>{formatarNumero(selecionado.consumo_kwh)} kWh</strong>
             </p>
           </div>

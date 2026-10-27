@@ -114,7 +114,9 @@ export function FaturasSection({ dados }: SectionProps) {
             <td>{formatarData(fatura.vencimento)}</td>
             <td>{formatarData(fatura.data_pagamento)}</td>
             <td>
-              <span className="badge">{status[fatura.status]}</span>
+              <span className={`badge ucv-fatura--${fatura.status}`}>
+                {status[fatura.status]}
+              </span>
             </td>
           </tr>
         ))}
@@ -129,6 +131,7 @@ export function MedidorSection({ dados }: SectionProps) {
     <Panel
       title="Medidor atual"
       description="Equipamento instalado na unidade consumidora"
+      className="ucv-medidor"
     >
       {medidor ? (
         <UnidadeFields
@@ -139,7 +142,7 @@ export function MedidorSection({ dados }: SectionProps) {
               label: 'Data de instalação',
               value: formatarData(medidor.data_instalacao),
             },
-            { label: 'Situação', value: medidor.status },
+            { label: 'Situação', value: medidor.status.toUpperCase() },
           ]}
         />
       ) : (
@@ -270,7 +273,11 @@ export function AtendimentosSection({ dados }: SectionProps) {
             <td>{atendimento.assunto}</td>
             <td>{atendimento.canal}</td>
             <td>{formatarDataHora(atendimento.data)}</td>
-            <td>{atendimento.status}</td>
+            <td>
+              <span className="badge ucv-atendimento" data-status={atendimento.status}>
+                {atendimento.status}
+              </span>
+            </td>
             <td>
               {atendimento.ultima_acao ??
                 atendimento.tratativas.at(-1)?.descricao ??

@@ -23,22 +23,25 @@ NO_DATA_MESSAGE = (
     "classe de consumo."
 )
 
+
 _PROMPT_TAG_PATTERN = re.compile(
-    r"<(\s*/?\s*(?:user_question|executed_sql|query_result)\b)",
+    r"<(\s*/?\s*(?:user_question|executed_sql|query_result|"
+    r"guardrail_feedback)\b)",
     flags=re.IGNORECASE,
 )
 
 
 def _neutralize_prompt_tags(text: str) -> str:
     """
-    Impede que a pergunta ou o SQL abram ou fechem as tags
-    estruturais do prompt (ex.: '</user_question>').
+    Impede que a pergunta, o SQL ou o feedback abram ou fechem
+    as tags estruturais do prompt (ex.: '</user_question>').
 
     Só as tags do prompt são alteradas. Comparações SQL como
     'a < 5' continuam intactas.
     """
 
     return _PROMPT_TAG_PATTERN.sub(r"&lt;\1", text)
+
 
 def _to_safe_json(value: Any) -> str:
     """
@@ -62,12 +65,14 @@ def build_synthesis_prompt(
     question: str,
     sql: str,
     result: QueryExecutionResult,
+    guardrail_feedback: str | None = None,
 ) -> str:
     """
     Monta o conteúdo dinâmico enviado à etapa 4.4.
 
     As regras fixas ficam nos arquivos Markdown.
-    Aqui entram apenas a pergunta, o SQL e o resultado.
+    Aqui entram apenas a pergunta, o SQL, o resultado e,
+    em uma regeneração, o feedback do Output Guardrail.
     """
 
     rows_shown = result.rows[:MAX_ROWS_IN_PROMPT]
@@ -85,6 +90,15 @@ def build_synthesis_prompt(
         "truncated": is_partial,
     }
 
+    feedback_section = ""
+
+    if guardrail_feedback and guardrail_feedback.strip():
+        feedback_section = (
+            "\n\n<guardrail_feedback>\n"
+            f"{_neutralize_prompt_tags(guardrail_feedback.strip())}\n"
+            "</guardrail_feedback>"
+        )
+
     return (
         "<user_question>\n"
         f"{_neutralize_prompt_tags(question)}\n"
@@ -95,6 +109,7 @@ def build_synthesis_prompt(
         "<query_result>\n"
         f"{_to_safe_json(payload)}\n"
         "</query_result>"
+        f"{feedback_section}"
     )
 
 
@@ -102,6 +117,7 @@ async def synthesize_answer(
     question: str,
     sql: str,
     result: QueryExecutionResult,
+    guardrail_feedback: str | None = None,
 ) -> tuple[
     SynthesisResult | None,
     list[ProviderAttempt],
@@ -113,9 +129,10 @@ async def synthesize_answer(
     Responsabilidades:
     - tratar resultado vazio sem chamar a IA;
     - montar o prompt com pergunta, SQL e resultado;
-    - pedir ao modelo uma resposta estruturada e fiel aos dados.
+    - pedir ao modelo uma resposta estruturada e fiel aos dados;
+    - receber feedback do Output Guardrail para uma regeneração.
 
-    Esta função NÃO executa SQL.
+    Esta função NÃO executa SQL e NÃO valida a resposta.
     """
 
     if result.row_count == 0 and not result.rows:
@@ -132,6 +149,7 @@ async def synthesize_answer(
         question=question,
         sql=sql,
         result=result,
+        guardrail_feedback=guardrail_feedback,
     )
 
     output, attempts, error = await run_with_fallback(
@@ -144,6 +162,15 @@ async def synthesize_answer(
         return None, attempts, error
 
     if not isinstance(output, SynthesisResult):
+        return (
+            None,
+            attempts,
+            ProviderErrorType.INVALID_OUTPUT,
+        )
+
+    # NO_DATA é decidido em código. Se o modelo devolver esse
+    # status havendo linhas, a resposta contradiz o resultado.
+    if output.status != SynthesisStatus.ANSWERED:
         return (
             None,
             attempts,

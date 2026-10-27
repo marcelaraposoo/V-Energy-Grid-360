@@ -12,13 +12,6 @@ from app.agent.schemas import QueryExecutionResult
 # Um teste garante que os dois valores não se separem.
 MAX_ROWS_SHOWN = 50
 
-CONSTANT_VALUES = (
-    Decimal(0),
-    Decimal(1),
-    Decimal(12),
-    Decimal(100),
-)
-
 _ISO_DATE_PATTERN = re.compile(
     r"\b((?:19|20)\d{2})-(0[1-9]|1[0-2])(?:-(\d{2}))?\b"
 )
@@ -99,13 +92,29 @@ def build_allowed_numbers(
     *,
     max_rows_shown: int = MAX_ROWS_SHOWN,
 ) -> AllowedNumbers:
+    """
+    Monta o conjunto de números que a resposta pode citar.
+
+    Entram como evidência: valores das linhas (e números dentro
+    dos textos das células), row_count, linhas enviadas, posições
+    e, só com resultado completo, soma, média, mínimo, máximo,
+    contagem e participação no total de cada coluna.
+
+    Entram como contexto: números e datas do SQL executado, que
+    foi gerado a partir do filtro real (período, limite, limiar).
+
+    NÃO entram: números da pergunta do usuário e constantes
+    globais. Quem escreve a pergunta pode afirmar qualquer valor,
+    e isso não é evidência do que o banco retornou. O parâmetro
+    question continua na assinatura para não alterar os chamadores.
+    """
+
     shown_rows = result.rows[:max_rows_shown]
 
-    values: list[Decimal] = list(CONSTANT_VALUES)
+    values: list[Decimal] = []
 
-    for text in (question, sql):
-        values.extend(_numbers_in_text(text))
-        values.extend(_date_components(text))
+    values.extend(_numbers_in_text(sql))
+    values.extend(_date_components(sql))
 
     values.append(Decimal(result.row_count))
     values.append(Decimal(len(shown_rows)))

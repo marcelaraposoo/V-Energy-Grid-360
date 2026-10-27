@@ -119,10 +119,13 @@ def test_malformed_number_is_unsupported():
     assert result.unsupported_values == ["1.2.3"]
 
 
-def test_constants_and_period_numbers_are_allowed():
+def test_period_from_sql_and_row_values_are_allowed():
     result = _validate(
-        "Em 2026-06, considerando 12 meses, Recife tem 4.820.",
-        question="Quantas UCs em 2026-06?",
+        "Em 2026-06, Recife tem 4.820 unidades.",
+        sql=(
+            "SELECT municipio, COUNT(*) AS ucs FROM dim_uc "
+            "WHERE mes_referencia = '2026-06' GROUP BY municipio"
+        ),
     )
 
     assert result.decision == OutputGuardrailDecision.ALLOW
@@ -280,6 +283,29 @@ def test_feedback_for_unsupported_numbers_includes_values_and_answer():
     assert "9.999" in feedback
     assert "Recife tem 9.999 unidades." in feedback
 
+
+def test_blocks_number_taken_only_from_the_question():
+    result = _validate(
+        "Sim, a receita foi 9999.",
+        question="A receita foi 9999?",
+        result=_result(rows=[["Recife", 1000]]),
+    )
+
+    assert _is_blocked(
+        result, OutputGuardrailReason.UNSUPPORTED_NUMBER
+    )
+    assert result.unsupported_values == ["9999"]
+
+
+def test_blocks_constant_not_supported_by_the_result():
+    result = _validate(
+        "Recife tem 4.820 unidades, 12 a mais que o esperado."
+    )
+
+    assert _is_blocked(
+        result, OutputGuardrailReason.UNSUPPORTED_NUMBER
+    )
+    assert result.unsupported_values == ["12"]
 
 def test_feedback_does_not_repeat_leaked_content():
     result = OutputGuardrailResult(

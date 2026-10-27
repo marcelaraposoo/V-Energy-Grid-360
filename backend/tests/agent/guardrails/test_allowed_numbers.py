@@ -9,6 +9,10 @@ from app.agent.guardrails.allowed_numbers import (
 from app.agent.schemas import QueryExecutionResult
 
 
+# SQL sem números: nada entra como contexto por acidente.
+PLAIN_SQL = "SELECT municipio, receita FROM kpis_mensal"
+
+
 def _result(rows, row_count=None, truncated=False):
     columns = [f"c{i}" for i in range(len(rows[0]))]
 
@@ -22,7 +26,7 @@ def _result(rows, row_count=None, truncated=False):
     )
 
 
-def _allowed(rows, question="Pergunta?", sql="SELECT 1", **kwargs):
+def _allowed(rows, question="Pergunta?", sql=PLAIN_SQL, **kwargs):
     return build_allowed_numbers(
         question, sql, _result(rows, **kwargs)
     )
@@ -103,23 +107,55 @@ def test_rows_beyond_prompt_limit_are_not_allowed():
     assert not _supported(allowed, "55000")
 
 
-def test_numbers_from_question_and_sql_are_supported():
+def test_numbers_from_sql_are_supported():
     allowed = _allowed(
         [["a", 1000]],
-        question="Quais os 77 maiores?",
-        sql="SELECT * FROM t LIMIT 31",
+        sql=PLAIN_SQL + " ORDER BY receita DESC LIMIT 31",
     )
 
-    assert _supported(allowed, "77", "31")
+    assert _supported(allowed, "31")
 
 
-def test_date_components_are_supported():
+def test_number_only_in_question_is_not_evidence():
     allowed = _allowed(
         [["a", 1000]],
-        question="Receita em 2026-06",
+        question="A receita foi 9999?",
+    )
+
+    assert not _supported(allowed, "9999")
+    assert _supported(allowed, "1000")
+
+
+def test_number_in_question_counts_only_when_the_sql_uses_it():
+    question = "Quais os 77 maiores?"
+
+    without_limit = _allowed([["a", 1000]], question=question)
+    with_limit = _allowed(
+        [["a", 1000]],
+        question=question,
+        sql=PLAIN_SQL + " ORDER BY receita DESC LIMIT 77",
+    )
+
+    assert not _supported(without_limit, "77")
+    assert _supported(with_limit, "77")
+
+
+def test_date_components_from_sql_are_supported():
+    allowed = _allowed(
+        [["a", 1000]],
+        sql=PLAIN_SQL + " WHERE mes_referencia = '2026-06'",
     )
 
     assert _supported(allowed, "2026", "6")
+    assert not _supported(allowed, "2025")
+
+
+def test_date_components_only_in_question_are_not_evidence():
+    allowed = _allowed(
+        [["a", 1000]],
+        question="Receita em 2025-01",
+    )
+
     assert not _supported(allowed, "2025")
 
 
@@ -168,10 +204,11 @@ def test_sign_is_ignored():
     assert _supported(allowed, "52")
 
 
-def test_constants_are_supported():
-    allowed = _allowed([["a", 1000]])
+def test_global_constants_are_not_evidence():
+    allowed = _allowed([["a", 1000], ["b", 3000]])
 
-    assert _supported(allowed, "12", "100", "0", "1")
+    for token in ("0", "12", "100"):
+        assert not _supported(allowed, token)
 
 
 def test_positions_up_to_row_count_are_supported():

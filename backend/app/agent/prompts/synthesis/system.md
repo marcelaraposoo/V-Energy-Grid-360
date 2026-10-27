@@ -25,6 +25,8 @@ Você receberá:
 - Não invente causas, tendências ou explicações que os dados não mostram. Descreva o que os dados mostram.
 - Não complemente com conhecimento externo sobre a V-Energy ou o setor elétrico.
 - Quando citar números, mantenha os valores do resultado. Você pode apenas formatá-los no padrão brasileiro (ex.: `1.234,56`).
+- Só cite números que estejam no resultado ou no SQL executado (como o limite de uma lista ou o período filtrado). Números escritos na pergunta do usuário não são evidência: se o usuário afirmar um valor, confirme ou corrija usando apenas os valores do resultado.
+- Evite citar quantidades de meses ou outras contagens de período que não estejam no resultado nem no SQL; descreva o período pelo nome ou pela data (ex.: "em 2026-06").
 
 ## Suposições
 

@@ -81,10 +81,10 @@ O leitor interpreta o formato brasileiro (`4.820`, `1.234,56`, `12,5%`).
 |---|---|
 | Valores das linhas retornadas | Sempre (até 50 linhas, o que o modelo viu) |
 | Números dentro de textos das células | Sempre |
-| Números da pergunta e do SQL | Sempre |
+| Números e datas do **SQL executado** | Sempre (gerado a partir do filtro real) |
+| Números e datas da pergunta do usuário | **Nunca**: o usuário pode afirmar qualquer valor, e isso não é evidência do resultado |
 | Ano e mês de datas | Sempre |
 | `row_count`, linhas enviadas e posições | Sempre |
-| Constantes 0, 1, 12 e 100 | Sempre |
 | Soma, média, mínimo, máximo, contagem e participação no total (%) por coluna | **Só com resultado completo** |
 
 Resultado completo significa: sem truncamento, `row_count` igual ao número de linhas e até 50 linhas.
@@ -152,6 +152,8 @@ O orquestrador expõe `SynthesisFlowResult.approved`: a resposta só pode ser ex
 - A palavra "system prompt" na resposta bloqueia, mesmo numa recusa educada.
 - O limite de 50 linhas deve acompanhar `MAX_ROWS_IN_PROMPT` da 4.4 (há um teste que garante isso).
 - Respostas fiéis podem ser bloqueadas por regras de texto agressivas (falso positivo). A afinação depende de testes com o modelo real.
+- Números presentes no SQL (como `possui_gd = 1` ou `LIMIT 5`) são aceitos como contexto. Se o usuário forçar um valor que a 4.1 coloque no SQL, a resposta com esse valor passa, mas nesse caso o resultado tende a vir vazio e cai em `NO_DATA`.
+- Contagens de período ("12 meses") que não estejam no SQL nem no resultado são bloqueadas; o prompt orienta a descrever o período pelo nome ou pela data.
 
 ---
 

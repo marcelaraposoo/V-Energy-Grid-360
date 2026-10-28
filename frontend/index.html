@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      try {
+        if (localStorage.getItem('v-energy-theme') === 'light') {
+          document.documentElement.dataset.theme = 'light'
+        }
+      } catch {
+        // O tema escuro continua disponível quando o armazenamento está bloqueado.
+      }
+    </script>
     <title>V-Energy Grid 360</title>
   </head>
   <body>

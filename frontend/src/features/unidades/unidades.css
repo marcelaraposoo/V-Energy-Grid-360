@@ -20,7 +20,7 @@
 }
 .ucv-search-empty .empty-state-icon {
   color: var(--accent);
-  background: #ffd43b05;
+  background: color-mix(in srgb, var(--accent) 2%, transparent);
 }
 .ucv-area-grid {
   display: grid;
@@ -69,7 +69,7 @@
   border-radius: 12px;
   border: 1px solid var(--border);
   color: var(--accent);
-  background: #ffd43b05;
+  background: color-mix(in srgb, var(--accent) 2%, transparent);
   flex-shrink: 0;
 }
 .ucv-identity-header p {
@@ -159,11 +159,11 @@
   white-space: nowrap;
 }
 .ucv-tabs button:hover {
-  background: var(--surface-elevated);
+  background: var(--accent-hover-bg, var(--surface-elevated));
 }
 .ucv-tabs button[aria-selected='true'] {
   color: var(--accent);
-  background: #ffd43b0d;
+  background: var(--accent-selected-bg, color-mix(in srgb, var(--accent) 5%, transparent));
 }
 .ucv-consumo-grid {
   display: grid;
@@ -209,7 +209,7 @@
   stroke: var(--border-subtle);
 }
 .ucv-chart-current {
-  fill: var(--accent);
+  fill: var(--chart-current);
 }
 .ucv-chart-previous {
   fill: var(--text-muted);
@@ -224,7 +224,7 @@
   background: var(--surface-elevated);
   color: var(--text-primary);
   font-size: 12px;
-  box-shadow: 0 4px 16px #0005;
+  box-shadow: var(--shadow-tooltip);
   pointer-events: none;
 }
 .ucv-chart-tooltip p {
@@ -261,12 +261,12 @@
   background: var(--text-muted);
 }
 .ucv-legend-dot--accent {
-  background: var(--accent);
+  background: var(--chart-current);
 }
 .ucv-conta-alta {
   padding: 22px;
   align-self: start;
-  border-top: 2px solid #ffd43b66;
+  border-top: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
   overflow: visible;
 }
 .ucv-conta-alta header {
@@ -326,7 +326,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-elevated);
-  box-shadow: 0 12px 32px #0006;
+  box-shadow: var(--shadow-popover);
 }
 .ucv-month-picker-year {
   display: flex;
@@ -362,11 +362,11 @@
 .ucv-month-picker-year button:hover:not(:disabled),
 .ucv-month-picker-month:hover:not(:disabled) {
   border-color: var(--border);
-  background: var(--surface);
+  background: var(--accent-hover-bg, var(--surface));
 }
 .ucv-month-picker-month[aria-pressed='true'] {
   border-color: var(--accent);
-  background: #ffd43b18;
+  background: var(--accent-selected-strong-bg, color-mix(in srgb, var(--accent) 9%, transparent));
   color: var(--accent);
 }
 .ucv-diagnostic-result > [role='status'],
@@ -405,7 +405,7 @@
   color: var(--accent);
 }
 .ucv-variation.ucv-variation--significativa {
-  color: #fb923c;
+  color: var(--warning);
 }
 .ucv-variation.ucv-variation--reducao {
   color: var(--success);
@@ -456,8 +456,8 @@
   font-weight: 500;
 }
 .ucv-history-periods button[aria-pressed='true'] {
-  border-color: #ffd43b33;
-  background: #ffd43b0d;
+  border-color: var(--accent-selected-border, color-mix(in srgb, var(--accent) 20%, transparent));
+  background: var(--accent-selected-bg, color-mix(in srgb, var(--accent) 5%, transparent));
   color: var(--accent);
 }
 .ucv-table {
@@ -472,7 +472,7 @@
   font-weight: 500;
   color: var(--text-secondary);
   white-space: nowrap;
-  background: #ffffff03;
+  background: var(--subtle-overlay);
   border-block: 1px solid var(--border-subtle);
 }
 .ucv-table tbody th,
@@ -498,7 +498,7 @@
   color: var(--accent);
 }
 .badge.ucv-fatura--atrasada {
-  color: #f87171;
+  color: var(--danger);
 }
 .ucv-atendimento[data-status='Fechado' i] {
   color: var(--success);

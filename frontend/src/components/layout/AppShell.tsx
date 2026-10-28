@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Menu, Search, Sparkles, Zap } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { UnitSearch } from '../ui/UnitSearch'
+import { ThemeToggle } from '../ui/ThemeToggle'
 import { getCurrentPage, navigation } from './navigation'
 
 function Brand({ onNavigate }: { onNavigate?: () => void }) {
@@ -181,6 +182,7 @@ export function AppShell() {
           >
             <Search size={20} />
           </Link>
+          <ThemeToggle />
           <Link
             className="assistant-shortcut"
             to="/assistente"

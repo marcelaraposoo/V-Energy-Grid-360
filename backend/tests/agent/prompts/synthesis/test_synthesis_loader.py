@@ -47,3 +47,12 @@ def test_raises_error_when_prompt_file_is_empty(
 
     with pytest.raises(ValueError):
         loader.load_synthesis_prompts()
+
+def test_prompt_allows_simple_aggregations_only_when_complete():
+    prompt = loader.load_synthesis_prompts()
+
+    assert "Não calcule novos valores" not in prompt
+    assert "estiver completo" in prompt
+    assert "guardrail_feedback" in prompt
+    assert "Números escritos na pergunta" in prompt
+    assert "datas que aparecem no SQL executado" in prompt

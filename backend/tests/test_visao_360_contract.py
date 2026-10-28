@@ -97,13 +97,24 @@ def test_contrato_aceita_historico_insuficiente_e_blocos_sem_registros(resposta)
 
 @pytest.mark.parametrize(
     ("campo", "valor"),
-    [("valor_total", "valor inválido"), ("data_pagamento", "2026-02-30")],
+    [("valor_total", "valor inválido"), ("data_pagamento", "2026-02-30"),
+     ("tributos", "valor inválido"), ("preco_medio_kwh", "valor inválido")],
 )
 def test_contrato_rejeita_dados_invalidos_em_faturas(resposta, campo, valor):
     resposta["faturas"][0][campo] = valor
     with pytest.raises(ValidationError) as erro:
         Visao360.model_validate(resposta)
     assert erro.value.errors()[0]["loc"] == ("faturas", 0, campo)
+
+
+@pytest.mark.parametrize("valor", [None, 0.0])
+def test_contrato_preserva_tributos_e_preco_medio_nulos_ou_zero(resposta, valor):
+    resposta["faturas"][0].update(tributos=valor, preco_medio_kwh=valor)
+
+    fatura = Visao360.model_validate(resposta).model_dump(mode="json")["faturas"][0]
+
+    assert fatura["tributos"] == valor
+    assert fatura["preco_medio_kwh"] == valor
 
 
 def test_contrato_nao_expoe_campos_internos_do_repositorio(resposta):

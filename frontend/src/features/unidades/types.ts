@@ -80,6 +80,9 @@ export interface FaturaUC {
   data_pagamento: string | null
   valor_energia: number | null
   valor_total: number | null
+  tributos: number | null
+  /** valor_energia / consumo_kwh; inclui bandeira e exclui tributos. */
+  preco_medio_kwh: number | null
 }
 
 export interface MedidorUC {

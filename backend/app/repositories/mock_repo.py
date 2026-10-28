@@ -76,7 +76,8 @@ class MockRepository:
             "bandeira": f["bandeira_tarifaria"], "vencimento": f["data_vencimento"],
             "status": status, "id_fatura": f["id_fatura"],
             "data_pagamento": f["data_pagamento"], "valor_energia": f["valor_energia"],
-            "valor_total": f["valor_total"],
+            "valor_total": f["valor_total"], "tributos": f["tributos"],
+            "preco_medio_kwh": f["preco_medio_kwh"],
         }
 
     def consumo_uc(self, uc_id):

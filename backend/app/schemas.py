@@ -123,6 +123,10 @@ class FaturaUC(BaseModel):
     data_pagamento: date | None = None
     valor_energia: float | None = None
     valor_total: float | None = None
+    tributos: float | None = None
+    preco_medio_kwh: float | None = Field(
+        default=None, description="Valor da energia / consumo em kWh; inclui bandeira e exclui tributos.",
+    )
 
 
 class MedidorUC(BaseModel):

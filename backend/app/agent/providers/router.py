@@ -23,6 +23,11 @@ GEMINI_FALLBACK_ERRORS = {
     ProviderErrorType.CONFIGURATION_ERROR,
 }
 
+OPENROUTER_WIDE_ERRORS = {
+    ProviderErrorType.QUOTA_EXHAUSTED,
+    ProviderErrorType.CONFIGURATION_ERROR,
+}
+
 async def run_with_fallback(
     prompt: str,
     *,
@@ -99,14 +104,8 @@ async def run_with_fallback(
             provider_attempt.error_type
         )
 
-        if (
-            error_type
-            == ProviderErrorType.QUOTA_EXHAUSTED
-        ):
-            # A conta do OpenRouter esgotou: trocar de modelo
-            # nele não resolve, mas o último recurso é outro
-            # provedor.
-            final_error = ProviderErrorType.QUOTA_EXHAUSTED
+        if error_type in OPENROUTER_WIDE_ERRORS:
+            final_error = error_type
             break
 
         if (

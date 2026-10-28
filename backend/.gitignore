@@ -6,4 +6,5 @@ data/*.db
 data/*.db-journal
 .pytest_cache/
 .runtime/
+benchmarks/data/
 debug_providers.py

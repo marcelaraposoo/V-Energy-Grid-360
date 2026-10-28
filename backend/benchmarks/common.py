@@ -43,9 +43,11 @@ EXTRA_GEMINI_MODEL = "gemini-3.5-flash-lite"
 # Candidatos fora do pool atual do OpenRouter.
 EXTRA_OPENROUTER_MODELS = ("cohere/north-mini-code:free",)
 
-# O health check de 27/10 mostrou que o modo "tool" é instável nos
-# modelos do OpenRouter. Para retestá-lo: ("tool", "prompted").
+# Modos do OpenRouter: "tool" foi instável nos health checks de 27/10.
 OPENROUTER_MODES = ("prompted",)
+
+# Modelos que não gastam cota: 429 em 12/12 chamadas.
+EXCLUDED_OPENROUTER_MODELS = ("google/gemma-4-31b-it:free",)
 
 OPENROUTER_PACING_SECONDS = 4.0
 
@@ -89,9 +91,18 @@ def available_candidates() -> tuple[list[Candidate], list[str]]:
         notes.append("GEMINI_API_KEY ausente: Gemini ignorado.")
 
     if settings.openrouter_api_key:
-        for model in dict.fromkeys(
-            [*settings.openrouter_models, *EXTRA_OPENROUTER_MODELS]
-        ):
+        models = [
+            model
+            for model in dict.fromkeys(
+                [
+                    *settings.openrouter_models,
+                    *EXTRA_OPENROUTER_MODELS,
+                ]
+            )
+            if model not in EXCLUDED_OPENROUTER_MODELS
+        ]
+
+        for model in models:
             for mode in OPENROUTER_MODES:
                 candidates.append(
                     Candidate(

@@ -43,6 +43,18 @@ docs/contrato-gold.md
 Filtros comuns: `municipio`, `bairro`, `classe`; períodos: `base_inicio/base_fim/atual_inicio/atual_fim` (`YYYY-MM`).
 Padrão: base = primeiros 12 meses, atual = últimos 12 (como na pergunta do diretor).
 
+### Diagnóstico de conta alta
+
+`GET /api/unidades/{uc}/visao-360?comparacao=mes_anterior` aceita três modos:
+- `mes_anterior`: última competência da base × competência imediatamente anterior;
+- `ano_anterior`: última competência da base × mesmo mês do ano anterior;
+- `trimestre_ano_anterior` (padrão): últimos três meses consecutivos × mesmos meses do ano anterior.
+
+A resposta identifica as competências e separa totais, percentuais e classificações de consumo (kWh)
+e faturamento (`valor_total`, R$). Dados ausentes e referência zero têm mensagens próprias.
+Os limites das faixas ficam nas constantes `LIMITE_VARIACAO_PEQUENA_PCT` e
+`LIMITE_VARIACAO_MODERADA_PCT`, em `app/services/unidades.py`. O histórico geral não depende desse filtro.
+
 ## Premissas
 - Mock: 400 UCs, 48 competências (2022-10 a 2026-09); ordens de inspeção ficam no SQLite do portal (`data/portal.db`, criado sozinho) e sobrevivem a reinícios. Para zerar, pare o servidor e apague o arquivo. O caminho muda com `PORTAL_DB_PATH` no `.env`.
 - Efeito-preço inclui reajuste + bandeira + mix de classes.

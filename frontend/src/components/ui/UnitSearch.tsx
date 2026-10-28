@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Search } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { normalizarIdentificadorUC } from '../../utils/uc'
 
 type UnitSearchProps = {
   compact?: boolean
@@ -22,7 +23,7 @@ export function UnitSearch({ compact = false }: UnitSearchProps) {
       onSubmit={(event) => {
         event.preventDefault()
         if (!value.trim()) return
-        navigate(`/uc/${encodeURIComponent(value.trim())}`)
+        navigate(`/uc/${encodeURIComponent(normalizarIdentificadorUC(value))}`)
         setValue('')
       }}
     >
@@ -30,9 +31,21 @@ export function UnitSearch({ compact = false }: UnitSearchProps) {
       <input
         id={compact ? 'global-uc-search' : 'page-uc-search'}
         aria-label="Identificador da unidade consumidora"
-        placeholder={compact ? 'Buscar UC...' : 'Digite o identificador da UC'}
+        placeholder={compact ? 'Buscar UC...' : 'Ex.: UC100000'}
         value={value}
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => {
+          event.currentTarget.setCustomValidity('')
+          setValue(normalizarIdentificadorUC(event.target.value))
+        }}
+        onInvalid={(event) => {
+          event.currentTarget.setCustomValidity(
+            event.currentTarget.validity.valueMissing
+              ? 'Informe o identificador da UC.'
+              : 'Use UC seguido de seis dígitos, como UC100000.',
+          )
+        }}
+        pattern="UC[0-9]{6}"
+        title="UC seguido de seis dígitos, como UC100000"
         autoComplete="off"
         maxLength={100}
         required

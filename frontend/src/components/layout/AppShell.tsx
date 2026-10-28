@@ -1,15 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  ChevronRight,
-  Menu,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Search,
-  Sparkles,
-  X,
-  Zap,
-} from 'lucide-react'
-import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom'
+import { Menu, Search, Sparkles, Zap } from 'lucide-react'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { UnitSearch } from '../ui/UnitSearch'
 import { getCurrentPage, navigation } from './navigation'
 
@@ -87,7 +78,6 @@ export function AppShell() {
   const mobileMenu = useRef<HTMLDialogElement>(null)
   const location = useLocation()
   const page = getCurrentPage(location.pathname)
-  const isUnidadesPage = useMatch('/uc/:id?') !== null
 
   useEffect(() => {
     document.title = `${page.title} | V-Energy Grid 360`
@@ -98,10 +88,11 @@ export function AppShell() {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        const search =
-          document.getElementById('page-uc-search') ??
-          document.getElementById('global-uc-search')
-        if (search && search.getClientRects().length) {
+        const search = [
+          document.getElementById('global-uc-search'),
+          document.getElementById('page-uc-search'),
+        ].find((element) => element?.getClientRects().length)
+        if (search) {
           event.preventDefault()
           search.focus()
         }
@@ -126,22 +117,6 @@ export function AppShell() {
         Pular para o conteúdo
       </a>
       <aside className="sidebar">
-        <div className="sidebar-brand">
-          <Brand />
-        </div>
-        <button
-          className="sidebar-collapse icon-button"
-          onClick={() => setCollapsed(!collapsed)}
-          type="button"
-          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          aria-expanded={!collapsed}
-        >
-          {collapsed ? (
-            <PanelLeftOpen size={18} />
-          ) : (
-            <PanelLeftClose size={18} />
-          )}
-        </button>
         <Navigation />
         <SidebarFooter />
       </aside>
@@ -164,7 +139,7 @@ export function AppShell() {
               aria-label="Fechar menu"
               onClick={() => mobileMenu.current?.close()}
             >
-              <X size={20} />
+              <Menu size={22} aria-hidden="true" />
             </button>
           </div>
           <Navigation onNavigate={() => mobileMenu.current?.close()} />
@@ -172,8 +147,17 @@ export function AppShell() {
         </div>
       </dialog>
 
-      <div className="app-workspace">
-        <header className="topbar">
+      <header className="topbar">
+        <div className="topbar-brand">
+          <button
+            className="sidebar-collapse icon-button"
+            onClick={() => setCollapsed(!collapsed)}
+            type="button"
+            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+            aria-expanded={!collapsed}
+          >
+            <Menu size={22} aria-hidden="true" />
+          </button>
           <button
             className="mobile-menu-trigger icon-button"
             type="button"
@@ -182,38 +166,32 @@ export function AppShell() {
             aria-controls="mobile-navigation"
             onClick={() => mobileMenu.current?.showModal()}
           >
-            <Menu size={22} />
+            <Menu size={22} aria-hidden="true" />
           </button>
-          <nav className="breadcrumb" aria-label="Localização">
-            <span>{page.group}</span>
-            <ChevronRight size={14} aria-hidden="true" />
-            <strong aria-current="page">{page.title}</strong>
-          </nav>
-          <div className="topbar-actions">
-            {!isUnidadesPage && (
-              <>
-                <div className="global-search">
-                  <UnitSearch compact />
-                </div>
-                <Link
-                  to="/uc"
-                  className="icon-button mobile-search"
-                  aria-label="Buscar unidade consumidora"
-                >
-                  <Search size={20} />
-                </Link>
-              </>
-            )}
-            <Link
-              className="assistant-shortcut"
-              to="/assistente"
-              aria-label="Perguntar à IA"
-            >
-              <Sparkles size={16} aria-hidden="true" />
-              <span>Perguntar à IA</span>
-            </Link>
+          <Brand />
+        </div>
+        <div className="topbar-actions">
+          <div className="global-search">
+            <UnitSearch compact />
           </div>
-        </header>
+          <Link
+            to="/uc"
+            className="icon-button mobile-search"
+            aria-label="Buscar unidade consumidora"
+          >
+            <Search size={20} />
+          </Link>
+          <Link
+            className="assistant-shortcut"
+            to="/assistente"
+            aria-label="Perguntar à IA"
+          >
+            <Sparkles size={16} aria-hidden="true" />
+            <span>Perguntar à IA</span>
+          </Link>
+        </div>
+      </header>
+      <div className="app-workspace">
         <main className="main-content" id="main-content" tabIndex={-1}>
           <Outlet />
         </main>

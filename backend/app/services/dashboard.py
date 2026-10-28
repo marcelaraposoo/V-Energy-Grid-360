@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.schemas import Filtros, Kpi, KpisResponse, Periodo, SeriePonto
-from app.services.continuidade import dec_fec
+from app.services.continuidade import resumo_periodo
 
 
 def periodos_padrao(repo) -> tuple[Periodo, Periodo]:
@@ -20,12 +20,11 @@ def _calc(repo, p: Periodo, f: Filtros) -> dict:
     receita = sum(r["valor"] for r in rows)
     kwh = sum(r["consumo_kwh"] for r in rows)
     atrasado = sum(r["valor"] for r in rows if r["status"] == "atrasada")
-    alims = repo.alimentadores(f.municipio)
-    dec, fec = dec_fec(repo.ocorrencias(p.inicio, p.fim, municipio=f.municipio), sum(a["ucs_total"] for a in alims))
+    continuidade = resumo_periodo(repo.indicadores_continuidade(p.inicio, p.fim, municipio=f.municipio))
     return {
         "receita": receita, "kwh": kwh, "tarifa": receita / kwh if kwh else 0,
         "ucs": len({r["uc_id"] for r in rows}), "inadimplencia": atrasado / receita * 100 if receita else 0,
-        "dec": dec, "fec": fec,
+        "dec": continuidade["dec_horas"], "fec": continuidade["fec_vezes"],
     }
 
 

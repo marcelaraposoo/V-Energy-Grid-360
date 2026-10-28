@@ -5,7 +5,17 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+load_dotenv(BACKEND_DIR / ".env")
+
+
+def _caminho_no_backend(valor: str) -> str:
+    """Caminho relativo vale a partir da pasta backend (e não de onde o uvicorn foi iniciado),
+    para não nascer um segundo banco vazio ao rodar de outra pasta."""
+    if valor == ":memory:" or Path(valor).is_absolute():
+        return valor
+    return str(BACKEND_DIR / valor)
 
 
 CORS_PADRAO = (
@@ -28,9 +38,21 @@ class Settings:
     )
 
     sqlite_path: str = field(
-        default_factory=lambda: os.getenv(
-            "SQLITE_PATH",
-            "data/gold.db",
+        default_factory=lambda: _caminho_no_backend(
+            os.getenv(
+                "SQLITE_PATH",
+                "data/gold.db",
+            )
+        )
+    )
+
+    # Banco do portal (ordens de inspeção): separado do gold.db para a exportação da Gold não apagá-lo
+    portal_db_path: str = field(
+        default_factory=lambda: _caminho_no_backend(
+            os.getenv(
+                "PORTAL_DB_PATH",
+                "data/portal.db",
+            )
         )
     )
 
@@ -53,7 +75,8 @@ class Settings:
         )
     )
 
-    gemini_model: str = "gemini-3.1-flash-lite"
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_last_resort_model: str | None = "gemini-3.1-flash-lite"
 
     # OpenRouter — contingência
     openrouter_api_key: str | None = field(
@@ -63,11 +86,11 @@ class Settings:
     )
 
     openrouter_models = (
-        "google/gemma-4-31b-it:free",
+        "cohere/north-mini-code:free",
         "nvidia/nemotron-3-ultra-550b-a55b:free",
     )
 
-    provider_timeout_seconds: float = 20.0
+    provider_timeout_seconds: float = 30.0
 
 
 

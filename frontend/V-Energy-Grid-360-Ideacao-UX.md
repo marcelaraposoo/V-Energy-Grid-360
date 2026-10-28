@@ -16,6 +16,7 @@ Antes de alterar a interface, consultar estes arquivos:
 | `src/components/layout/navigation.ts` | Grupos, nomes e links da navegação |
 | `src/App.tsx` | Rotas registradas |
 | `src/components/ui/` | Componentes reutilizáveis |
+| `src/features/unidades/unidades.css` | Estilos específicos da Visão 360 |
 
 Os valores descritos abaixo correspondem à base atual. Os componentes e tokens
 existentes devem ser reutilizados ao criar novas telas, evitando estilos paralelos.
@@ -115,6 +116,8 @@ Preservar os ajustes existentes no layout, como o intervalo de 28px após o cabe
 No mobile, o menu usa um `dialog` nativo com largura `min(290px, 88vw)`.
 Deve fechar ao navegar, pressionar Escape, clicar no fundo ou voltar à largura de desktop/tablet.
 A busca global em campo é substituída por um link para a página da UC.
+Nas rotas `/uc` e `/uc/:id`, tanto o campo quanto o link de busca do cabeçalho
+ficam ocultos, pois a própria página já possui busca.
 
 Novas telas devem funcionar a partir de 320px sem rolagem horizontal da página.
 Quando uma tabela exigir mais largura, restringir a rolagem ao seu contêiner.
@@ -123,7 +126,10 @@ Filtros e ações devem quebrar linha ou empilhar antes de comprimir o texto.
 ### Cabeçalho e navegação
 
 - Breadcrumb com grupo e página atual; no mobile, priorizar o nome da página.
-- Busca global de UC e atalho `Ctrl/Cmd + K` já existentes.
+- Busca global de UC e atalho `Ctrl/Cmd + K` já existentes. O identificador segue
+  o formato `UC` + seis dígitos da proposta Gold; espaços nas extremidades e
+  letras minúsculas são normalizados.
+- Na Visão 360, `Ctrl/Cmd + K` foca a busca da própria página.
 - Acesso “Perguntar à IA” direciona para `/assistente`.
 - A sidebar deve mostrar apenas rotas disponíveis e destacar o item correspondente à rota atual.
 
@@ -138,7 +144,7 @@ Filtros e ações devem quebrar linha ou empilhar antes de comprimir o texto.
 | `Panel` | Superfície com título, descrição e ações opcionais |
 | `EmptyState` | Ícone, título, explicação e ação opcional; variante compacta |
 | `UnitSearch` | Busca por identificador de UC; variante compacta para o cabeçalho |
-| `UnderDevelopmentPage` | Aviso temporário das quatro telas atuais |
+| `UnderDevelopmentPage` | Aviso temporário das páginas ainda não iniciadas |
 
 Há estilos compartilhados para botões primários/secundários, badges e links.
 KPI, gráficos, tabelas, filtros, drawer, chat e insights completos ainda precisam
@@ -187,8 +193,6 @@ Waterfall para preço × volume; barras horizontais para rankings.
 | Operações | Ordens de Inspeção | `/inspecoes/ordens` |
 | Inteligência | Assistente IA | `/assistente` |
 
-As quatro páginas permanecem com o aviso “Em desenvolvimento”.
-A busca global navega para a rota da UC, mas ainda não consulta o backend.
 
 ### Organização proposta para expansão
 

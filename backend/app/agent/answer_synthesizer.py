@@ -1,0 +1,180 @@
+import json
+import re
+from typing import Any
+
+from app.agent.prompts.synthesis.loader import (
+    load_synthesis_prompts,
+)
+from app.agent.providers.router import run_with_fallback
+from app.agent.schemas import (
+    ProviderAttempt,
+    ProviderErrorType,
+    QueryExecutionResult,
+    SynthesisResult,
+    SynthesisStatus,
+)
+
+
+MAX_ROWS_IN_PROMPT = 50
+
+NO_DATA_MESSAGE = (
+    "Não encontrei dados para essa consulta com os filtros "
+    "aplicados. Tente ajustar o período, o município ou a "
+    "classe de consumo."
+)
+
+
+_PROMPT_TAG_PATTERN = re.compile(
+    r"<(\s*/?\s*(?:user_question|executed_sql|query_result|"
+    r"guardrail_feedback)\b)",
+    flags=re.IGNORECASE,
+)
+
+
+def _neutralize_prompt_tags(text: str) -> str:
+    """
+    Impede que a pergunta, o SQL ou o feedback abram ou fechem
+    as tags estruturais do prompt (ex.: '</user_question>').
+
+    Só as tags do prompt são alteradas. Comparações SQL como
+    'a < 5' continuam intactas.
+    """
+
+    return _PROMPT_TAG_PATTERN.sub(r"&lt;\1", text)
+
+
+def _to_safe_json(value: Any) -> str:
+    """
+    Serializa para JSON e neutraliza o caractere '<'.
+
+    Evita que um valor vindo do banco feche as tags do prompt
+    (ex.: '</query_result>') e escape da área de dados.
+    O JSON continua válido: \\u003c representa '<'.
+    """
+
+    text = json.dumps(
+        value,
+        ensure_ascii=False,
+        default=str,
+    )
+
+    return text.replace("<", "\\u003c")
+
+
+def build_synthesis_prompt(
+    question: str,
+    sql: str,
+    result: QueryExecutionResult,
+    guardrail_feedback: str | None = None,
+) -> str:
+    """
+    Monta o conteúdo dinâmico enviado à etapa 4.4.
+
+    As regras fixas ficam nos arquivos Markdown.
+    Aqui entram apenas a pergunta, o SQL, o resultado e,
+    em uma regeneração, o feedback do Output Guardrail.
+    """
+
+    rows_shown = result.rows[:MAX_ROWS_IN_PROMPT]
+
+    is_partial = (
+        result.truncated
+        or result.row_count > len(rows_shown)
+    )
+
+    payload = {
+        "columns": result.columns,
+        "rows": rows_shown,
+        "row_count": result.row_count,
+        "rows_provided": len(rows_shown),
+        "truncated": is_partial,
+    }
+
+    feedback_section = ""
+
+    if guardrail_feedback and guardrail_feedback.strip():
+        feedback_section = (
+            "\n\n<guardrail_feedback>\n"
+            f"{_neutralize_prompt_tags(guardrail_feedback.strip())}\n"
+            "</guardrail_feedback>"
+        )
+
+    return (
+        "<user_question>\n"
+        f"{_neutralize_prompt_tags(question)}\n"
+        "</user_question>\n\n"
+        "<executed_sql>\n"
+        f"{_neutralize_prompt_tags(sql)}\n"
+        "</executed_sql>\n\n"
+        "<query_result>\n"
+        f"{_to_safe_json(payload)}\n"
+        "</query_result>"
+        f"{feedback_section}"
+    )
+
+
+async def synthesize_answer(
+    question: str,
+    sql: str,
+    result: QueryExecutionResult,
+    guardrail_feedback: str | None = None,
+) -> tuple[
+    SynthesisResult | None,
+    list[ProviderAttempt],
+    ProviderErrorType | None,
+]:
+    """
+    Executa a etapa 4.4 do agente.
+
+    Responsabilidades:
+    - tratar resultado vazio sem chamar a IA;
+    - montar o prompt com pergunta, SQL e resultado;
+    - pedir ao modelo uma resposta estruturada e fiel aos dados;
+    - receber feedback do Output Guardrail para uma regeneração.
+
+    Esta função NÃO executa SQL e NÃO valida a resposta.
+    """
+
+    if result.row_count == 0 and not result.rows:
+        no_data = SynthesisResult(
+            status=SynthesisStatus.NO_DATA,
+            answer=NO_DATA_MESSAGE,
+        )
+
+        return no_data, [], None
+
+    instructions = load_synthesis_prompts()
+
+    prompt = build_synthesis_prompt(
+        question=question,
+        sql=sql,
+        result=result,
+        guardrail_feedback=guardrail_feedback,
+    )
+
+    output, attempts, error = await run_with_fallback(
+        prompt,
+        output_type=SynthesisResult,
+        instructions=instructions,
+    )
+
+    if error is not None:
+        return None, attempts, error
+
+    if not isinstance(output, SynthesisResult):
+        return (
+            None,
+            attempts,
+            ProviderErrorType.INVALID_OUTPUT,
+        )
+
+    # NO_DATA é decidido em código. Se o modelo devolver esse
+    # status havendo linhas, a resposta contradiz o resultado.
+    if output.status != SynthesisStatus.ANSWERED:
+        return (
+            None,
+            attempts,
+            ProviderErrorType.INVALID_OUTPUT,
+        )
+
+    return output, attempts, None

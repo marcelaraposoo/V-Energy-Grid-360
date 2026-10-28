@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, PromptedOutput
 from pydantic_ai.exceptions import (
     ModelAPIError,
     ModelConnectionError,
@@ -181,10 +181,16 @@ async def run_openrouter(
         # está prestes a acontecer.
         register_request_attempt()
 
+        resolved_output_type = (
+            str
+            if output_type is str
+            else PromptedOutput(output_type)
+        )
+
         result = await agent.run(
             prompt,
             instructions=instructions,
-            output_type=output_type,
+            output_type=resolved_output_type,
         )
 
         latency_ms = (

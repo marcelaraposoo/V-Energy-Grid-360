@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.repositories import get_repo
 
 client = TestClient(app)
 
@@ -36,7 +37,130 @@ def test_visao_360():
     uc = client.get("/api/unidades?limite=1").json()[0]["uc_id"]
     j = client.get(f"/api/unidades/{uc}/visao-360").json()
     assert len(j["consumo"]) == 12 and "mensagem" in j["diagnostico_conta_alta"]
-    assert client.get("/api/unidades/UC99999/visao-360").status_code == 404
+    assert client.get("/api/unidades/UC999999/visao-360").status_code == 404
+
+
+def test_visao_360_atendimentos_da_gold():
+    repo = get_repo()
+    fato = next(a for a in repo.d["fato_atendimento"] if a["nota_satisfacao"] is None)
+    r = client.get(f"/api/unidades/{fato['id_uc']}/visao-360", params={"periodo_atendimentos": "todos"})
+    assert r.status_code == 200
+    atendimentos = r.json()["atendimentos"]
+    assert [a["data"] for a in atendimentos] == sorted(
+        [a["data"] for a in atendimentos], reverse=True,
+    )
+    por_protocolo = {a["protocolo"]: a for a in repo.d["fato_atendimento"]}
+    for a in atendimentos:
+        original = por_protocolo[a["protocolo"]]
+        assert a["uc_id"] == original["id_uc"] == fato["id_uc"]
+        assert a["data"] == original["data_hora_abertura"]
+        assert a["data_fechamento"] == original["data_hora_fechamento"]
+        assert a["aberto"] is False
+        assert a["ultima_acao"] == original["ultima_acao"]
+        assert a["nota_satisfacao"] == original["nota_satisfacao"]
+        assert "status" not in a and "tratativas" not in a
+    assert next(a for a in atendimentos if a["protocolo"] == fato["protocolo"])["nota_satisfacao"] is None
+
+
+def test_visao_360_comparacao_padrao():
+    r = client.get("/api/unidades/UC000001/visao-360")
+    assert r.status_code == 200
+    diagnostico = r.json()["diagnostico_conta_alta"]
+    assert diagnostico["competencia_atual"] == "2026-06"
+    assert diagnostico["competencia_referencia"] == "2026-05"
+    assert len(diagnostico["competencias_disponiveis"]) == 48
+
+
+def test_visao_360_interrupcoes_da_propria_uc():
+    repo = get_repo()
+    original = next(o for o in repo.d["fato_interrupcao"] if o["mes_referencia"] >= "2025-07")
+    r = client.get(f"/api/unidades/{original['id_uc']}/visao-360")
+    assert r.status_code == 200
+    interrupcoes = r.json()["interrupcoes"]
+    assert interrupcoes["escopo"] == "uc"
+    assert interrupcoes["qtd_ocorrencias"] > 0
+    por_id = {o["id_ocorrencia"]: o for o in repo.d["fato_interrupcao"]}
+    for o in interrupcoes["historico"]:
+        fato = por_id[o["ocorrencia_id"]]
+        assert o["uc_id"] == original["id_uc"]
+        assert o["data"] == fato["data_hora_inicio"]
+        assert o["data_fim"] == fato["data_hora_fim"]
+        assert o["duracao_min"] == fato["duracao_min"]
+        assert o["causa"] == fato["causa"]
+        assert o["tipo"] == fato["tipo"]
+        assert o["causa_evitavel"] == fato["causa_evitavel"]
+        assert "duracao_h" not in o and "ucs_afetadas" not in o
+
+
+@pytest.mark.parametrize(("periodo", "inicio"), [
+    ("6_meses", "2026-01"), ("12_meses", "2025-07"), ("todos", "2022-07"),
+])
+def test_visao_360_filtra_periodo_de_interrupcoes(periodo, inicio):
+    r = client.get("/api/unidades/UC000121/visao-360", params={"periodo_interrupcoes": periodo})
+    assert r.status_code == 200
+    dados = r.json()["interrupcoes"]
+    assert dados["periodo"] == periodo
+    assert dados["periodo_inicio"] == inicio
+    assert dados["periodo_fim"] == "2026-06"
+    assert dados["qtd_ocorrencias"] == len(dados["historico"])
+    assert dados["duracao_total_min"] == sum(o["duracao_min"] for o in dados["historico"])
+    assert all(inicio <= o["competencia"] <= "2026-06" for o in dados["historico"])
+
+
+def test_visao_360_rejeita_periodo_de_interrupcoes_invalido():
+    assert client.get("/api/unidades/UC000121/visao-360?periodo_interrupcoes=3_meses").status_code == 422
+
+
+@pytest.mark.parametrize(("periodo", "inicio"), [
+    ("6_meses", "2026-01"), ("12_meses", "2025-07"), ("todos", "2022-07"),
+])
+def test_visao_360_filtra_periodo_de_atendimentos(periodo, inicio):
+    repo = get_repo()
+    uc_id = repo.d["fato_atendimento"][0]["id_uc"]
+    r = client.get(f"/api/unidades/{uc_id}/visao-360", params={"periodo_atendimentos": periodo})
+    assert r.status_code == 200
+    resposta = r.json()
+    assert resposta["periodo_atendimentos"] == {
+        "periodo": periodo, "periodo_inicio": inicio, "periodo_fim": "2026-06",
+    }
+    esperados = sorted(
+        [a for a in repo.atendimentos_uc(uc_id) if inicio <= a["data"][:7] <= "2026-06"],
+        key=lambda a: a["data"], reverse=True,
+    )
+    assert resposta["atendimentos"] == esperados
+    assert resposta["interrupcoes"]["periodo"] == "12_meses"
+
+
+def test_visao_360_rejeita_periodo_de_atendimentos_invalido():
+    assert client.get("/api/unidades/UC000001/visao-360?periodo_atendimentos=3_meses").status_code == 422
+
+
+def test_visao_360_seleciona_meses():
+    r = client.get("/api/unidades/UC000001/visao-360", params={
+        "competencia_atual": "2024-06", "competencia_referencia": "2022-07",
+    })
+    assert r.status_code == 200
+    diagnostico = r.json()["diagnostico_conta_alta"]
+    assert diagnostico["competencia_atual"] == "2024-06"
+    assert diagnostico["competencia_referencia"] == "2022-07"
+    assert diagnostico["consumo"]["variacao_pct"] is not None
+
+
+@pytest.mark.parametrize("atual", ["2026-05", "2026-06", None])
+def test_visao_360_rejeita_referencia_igual_ou_posterior(atual):
+    params = {"competencia_referencia": "2026-06"}
+    if atual:
+        params["competencia_atual"] = atual
+    r = client.get("/api/unidades/UC000001/visao-360", params=params)
+    assert r.status_code == 422
+    assert "referência deve ser anterior" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("campo", ["competencia_atual", "competencia_referencia"])
+@pytest.mark.parametrize("valor", ["2026-13", "06/2026", "", "2020-01"])
+def test_visao_360_rejeita_competencia_invalida_ou_sem_historico(campo, valor):
+    r = client.get("/api/unidades/UC000001/visao-360", params={campo: valor})
+    assert r.status_code == 422
 
 
 def test_fila_ordenada_e_fluxo_de_ordem():
@@ -120,3 +244,124 @@ def test_medidor_sem_ultima_manutencao():
     uc = client.get("/api/unidades?limite=1").json()[0]["uc_id"]
     medidor = client.get(f"/api/unidades/{uc}/visao-360").json()["medidor"]
     assert "ultima_manutencao" not in medidor and "data_instalacao" in medidor
+
+
+# ---------- fila: busca e paginação ----------
+def _fila(**params):
+    r = client.get("/api/perdas/fila", params=params)
+    assert r.status_code == 200, r.text
+    return r.json(), int(r.headers["X-Total-Count"])
+
+
+def test_fila_paginacao_cobre_tudo_sem_repetir():
+    tudo, total = _fila(tamanho=100)
+    assert total == len(tudo) and total > 10
+    paginas, pagina = [], 1
+    while True:
+        itens, t = _fila(pagina=pagina, tamanho=7)
+        assert t == total
+        if not itens:
+            break
+        assert len(itens) <= 7
+        paginas += itens
+        pagina += 1
+    assert [i["uc_id"] for i in paginas] == [i["uc_id"] for i in tudo]
+    assert [i["posicao"] for i in paginas] == list(range(1, total + 1))
+
+
+def test_fila_pagina_alem_do_fim_devolve_lista_vazia_com_total():
+    _, total = _fila()
+    itens, t = _fila(pagina=999)
+    assert itens == [] and t == total
+
+
+def test_fila_busca_por_uc_e_titular_sem_acento_nem_caixa():
+    tudo, total = _fila(tamanho=100)
+    alvo = tudo[3]
+    por_uc, _ = _fila(q=alvo["uc_id"].lower())
+    assert alvo["uc_id"] in [i["uc_id"] for i in por_uc]
+    nome = alvo["titular"].split()[0].upper()
+    por_nome, t = _fila(q=nome, tamanho=100)
+    assert t == len(por_nome) and 1 <= t <= total
+    assert all(nome.lower() in i["titular"].lower() or nome.lower() in i["uc_id"].lower() for i in por_nome)
+    vazio, t0 = _fila(q="zzzz-nao-existe")
+    assert vazio == [] and t0 == 0
+
+
+def test_fila_busca_combina_com_filtros_e_mantem_posicao_na_fila_filtrada():
+    tudo, _ = _fila(tamanho=100)
+    mun = tudo[0]["municipio"]
+    so_mun, t = _fila(municipio=mun, tamanho=100)
+    assert t == len(so_mun) and all(i["municipio"] == mun for i in so_mun)
+    assert [i["posicao"] for i in so_mun] == list(range(1, t + 1))
+
+
+def test_fila_parametros_invalidos_retornam_422():
+    for params in ({"pagina": 0}, {"tamanho": 0}, {"tamanho": 101}, {"prob_minima": 2}, {"q": "x" * 101}):
+        assert client.get("/api/perdas/fila", params=params).status_code == 422
+
+
+def test_fila_expoe_total_para_o_navegador_via_cors():
+    r = client.get("/api/perdas/fila", headers={"Origin": "http://localhost:5173"})
+    assert "x-total-count" in r.headers["access-control-expose-headers"].lower()
+
+
+def test_normalizar_remove_acento_e_caixa():
+    from app.services.perdas import normalizar
+    assert normalizar("  João ÁLVARO ") == "joao alvaro"
+
+
+# ---------- ordens: transições inválidas e mensagens de erro ----------
+def _nova_ordem(indice=0):
+    uc = client.get("/api/perdas/fila", params={"tamanho": 100}).json()[indice]["uc_id"]
+    r = client.post("/api/perdas/ordens", json={"uc_id": uc})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def _acao(oid, acao, corpo=None):
+    return client.post(f"/api/perdas/ordens/{oid}/{acao}", json=corpo) if corpo else client.post(f"/api/perdas/ordens/{oid}/{acao}")
+
+
+def test_ordem_concluida_nao_aceita_nenhuma_acao():
+    oid = _nova_ordem()["id"]
+    assert _acao(oid, "iniciar").json()["status"] == "EM_CAMPO"
+    repetida = _acao(oid, "iniciar")
+    assert repetida.status_code == 409 and "PENDENTES" in repetida.json()["detail"] and "EM_CAMPO" in repetida.json()["detail"]
+    assert _acao(oid, "resultado", {"tipo": "nenhuma"}).json()["status"] == "CONCLUIDA"
+    for acao, corpo in (("iniciar", None), ("resultado", {"tipo": "fraude"}), ("cancelar", None)):
+        r = _acao(oid, acao, corpo)
+        assert r.status_code == 409, acao
+        assert f"ordem {oid}" in r.json()["detail"] and "CONCLUIDA" in r.json()["detail"], acao
+
+
+def test_ordem_cancelada_nao_aceita_nenhuma_acao():
+    oid = _nova_ordem(1)["id"]
+    assert _acao(oid, "cancelar").json()["status"] == "CANCELADA"
+    for acao, corpo in (("iniciar", None), ("resultado", {"tipo": "fraude"}), ("cancelar", None)):
+        r = _acao(oid, acao, corpo)
+        assert r.status_code == 409 and "CANCELADA" in r.json()["detail"], acao
+
+
+def test_ordem_pode_ser_cancelada_ou_concluida_direto_de_pendente_e_em_campo():
+    a = _nova_ordem(2)["id"]
+    assert _acao(a, "resultado", {"tipo": "erro_cadastro", "energia_recuperada_kwh": 10}).json()["status"] == "CONCLUIDA"
+    b = _nova_ordem(2)["id"]
+    _acao(b, "iniciar")
+    assert _acao(b, "cancelar").json()["status"] == "CANCELADA"
+
+
+def test_acoes_em_ordem_inexistente_retornam_404():
+    for acao, corpo in (("iniciar", None), ("resultado", {"tipo": "nenhuma"}), ("cancelar", None)):
+        r = _acao(999999, acao, corpo)
+        assert r.status_code == 404 and "999999" in r.json()["detail"], acao
+
+
+def test_ordem_duplicada_na_mesma_uc_retorna_409_e_resultado_invalido_retorna_422():
+    o = _nova_ordem(3)
+    dup = client.post("/api/perdas/ordens", json={"uc_id": o["uc_id"]})
+    assert dup.status_code == 409 and "ativa" in dup.json()["detail"]
+    assert _acao(o["id"], "resultado", {"tipo": "invalido"}).status_code == 422
+    assert _acao(o["id"], "resultado", {"tipo": "fraude", "energia_recuperada_kwh": -5}).status_code == 422
+    assert client.get(f"/api/perdas/ordens/{o['id']}").json()["status"] == "PENDENTE"
+    _acao(o["id"], "cancelar")

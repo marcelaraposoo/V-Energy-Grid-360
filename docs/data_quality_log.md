@@ -19,9 +19,9 @@ Este arquivo alimenta o dicionário de dados e a seção de suposições do READ
 | `O` | ocorrencias_rede | A | Aimê |
 | `L` | leituras | B | Marcela |
 | `F` | faturas | B | Marcela |
-| `A` | atendimentos | C | Maria |
-| `I` | inspecoes | C | Maria |
-| `X` | cruzamentos entre tabelas | C | Maria |
+| `A` | atendimentos | C | Marcela |
+| `I` | inspecoes | C | Aimê |
+| `X` | cruzamentos entre tabelas | C | Aimê e Marcela |
 
 - Cada seção tem: **resumo** (tabela com uma linha por problema), **a investigar** (achados ainda sem contagem) e, quando necessário, **detalhes** (problema, decisão, alternativas, impacto na Gold).
 - Ao confirmar um achado, mova-o de "a investigar" para o resumo da tabela com um código.
@@ -466,40 +466,44 @@ Exploração: `exploracao_atendimentos.ipynb`. Silver: `02_silver_atendimentos.i
 ---
 ## `inspecoes` (I)
 
+Fonte: `bronze.inspecoes` (`inspecoes.xlsx`, 3 abas unidas na Bronze com a coluna `aba_origem`). 1.389 linhas na Bronze e na Silver (nenhuma removida): `ago-set` 511, `out-nov` 495 e `dez` 383.
+Exploração: `exploracao_inspecoes.ipynb`. Silver: `02_silver_inspecoes.ipynb`.
+**Decisões tomadas por Aimê**, responsável pela tabela, com a autonomia combinada com o grupo. Registro em 26/10/2026.
+
 ### Resumo
 
 | ID | Coluna | Problema | Linhas afetadas | Decisão | Justificativa |
 |---|---|---|---|---|---|
-| | | | | | |
+| I1 | data | 4 formatos: ISO (1.256), `MM-dd-yyyy` (46), `dd.MM.yyyy` (44) e `dd/MM/yyyy` (43) | 133 fora do ISO | Converter cada padrão com o seu formato e gravar como `date` | A convenção do projeto converte 100%; a ordem trocada deixa sem converter de 26 a 33 linhas em cada padrão |
+| I2 | data | Data fora do período da aba | 107 (7,7%), todas na aba `dez` | Manter a data + flag `data_fora_da_aba` | A aba indica o mês de lançamento: são inspeções de ago a nov lançadas em dezembro. Nenhuma ordem de leitura as coloca em dezembro |
+| I3 | resultado | 8 grafias (4 textos com variações de maiúsculas) para 2 significados: `IRREGULARIDADE CONFIRMADA`, `CONFIRMADA`, `SEM IRREGULARIDADE` e `NADA CONSTA` | 164 fora dos 2 valores padrão | Mapa explícito, valor a valor, para `IRREGULARIDADE CONFIRMADA` e `SEM IRREGULARIDADE` + flag `irregularidade_confirmada` | `NADA CONSTA` tem tipo vazio e energia zero, igual a `SEM IRREGULARIDADE`. O mapa explícito evita que "NÃO CONFIRMADA" vire confirmada |
+| I4 | tipo_irregularidade | Ausente em 2 formas: nulo real (441) e `-` (77) | 518 | Converter para nulo real | São exatamente as 518 inspeções sem irregularidade |
+| I5 | kwh_recuperado | Vírgula decimal (`1313,70`) misturada com ponto (`838.10`) | 125 (9,0%) | Trocar vírgula por ponto e converter para `decimal(12,2)` | Um `cast` simples anularia esses valores |
 
-### A investigar
+### Detalhes
 
-| Coluna | Observação |
+#### I2. Data fora do período da aba
+- **Gabarito:** cada aba corresponde a um período (`ago-set`, `out-nov`, `dez`). As 1.256 datas ISO caem todas na própria aba.
+- **Problema:** 107 datas não ISO estão na aba `dez`, mas são de agosto (24), setembro (23), outubro (34) e novembro (26). Nenhuma ordem dia/mês as coloca em dezembro.
+- **Interpretação:** a aba `dez` recebeu também inspeções feitas nos meses anteriores e lançadas em dezembro. A data registrada é a da inspeção.
+- **Decisão:** manter a data e marcar `data_fora_da_aba = true`. A checagem da Silver garante que isso só acontece na aba `dez`.
+- **Alternativa considerada:** trocar a data para dezembro. Descartada: a data escrita é a da inspeção, e nenhuma leitura do formato a coloca em dezembro.
+- **Impacto na Gold:** análises por mês usam `data_inspecao`, e não `aba_origem`.
+
+#### I3. Mapa do resultado
+
+| Resultado na Silver | Grafias na Bronze (linhas) |
 |---|---|
-| data | Formatos misturados (`2025-08-01`, `14.08.2025`, `09-01-2025`) |
-| resultado | Mesmo valor escrito de formas diferentes (`CONFIRMADA`, `IRREGULARIDADE CONFIRMADA`, `irregularidade confirmada`) |
-| kwh_recuperado | Decimal com vírgula e com ponto na mesma coluna (`1313,70` e `838.10`) |
-| tipo_irregularidade | `"-"` usado no lugar de nulo |
-| inspetor | Espaços sobrando (`" INSP-006"`) |
-| id_uc | Procurar órfãs com id fora do padrão (`UC` com 7 dígitos) |
+| `IRREGULARIDADE CONFIRMADA` (871) | `IRREGULARIDADE CONFIRMADA` (777), `Irregularidade Confirmada` (32), `irregularidade confirmada` (27), `CONFIRMADA` (35) |
+| `SEM IRREGULARIDADE` (518) | `SEM IRREGULARIDADE` (448), `sem irregularidade` (33), `Sem Irregularidade` (15), `NADA CONSTA` (22) |
+
+- **Taxa de acerto:** 871 de 1.389 = **62,7%**, compatível com o "pouco mais da metade" do Rafael. É a referência para calibrar a `fila_inspecao`.
+- **Por que mapa explícito:** uma regra por expressão regular (ex.: "contém CONFIRMADA") marcaria `IRREGULARIDADE NAO CONFIRMADA` como confirmada. Com o mapa, uma grafia nova vira nulo e a checagem falha.
 
 ### Verificado e sem problema
-- Sem linha de cabeçalho repetida (`id_inspecao = 'id_inspecao'`: 0 linhas na Bronze, nas 3 abas).
-
-## Cruzamentos entre tabelas (X)
-
-### Resumo
-
-| ID | Tabelas | Problema | Linhas afetadas | Decisão | Justificativa |
-|---|---|---|---|---|---|
-| | | | | | |
-
-### A investigar
-
-| Tabelas | Observação |
-|---|---|
-| unidades_consumidoras / medidores / leituras | **200 UCs fantasmas:** status `ATIVA` no cadastro, sem medidor ativo e sem nenhuma leitura. As outras 45.000 UCs têm exatamente 1 medidor ativo. Decidir em grupo: manter com flag (ex.: `possui_medidor_ativo`) ou excluir das métricas. Possível erro de cadastro ou UC ligada sem medição (interesse para a fila de perdas) |
-| faturas / leituras | Verificar se as órfãs das duas tabelas correspondem às mesmas UCs ou meses (pendência de F2) |
-
-### Verificado e sem problema
-- **medidores / leituras:** depois de deduplicar `medidores`, todos os 51.299 ids continuam existindo e todos aparecem em `silver.leituras`. A regra de órfãs de L2 não muda.
+- Sem cabeçalho repetido e sem cópias: 1.389 linhas e 1.389 `id_inspecao` distintos; a mesma inspeção não aparece em duas abas.
+- Todos os `id_uc` no padrão e existentes na Silver de UCs; nenhuma inspeção em UC de teste nem órfã com 7 dígitos.
+- 40 inspetores, todos no padrão `INSP-000`. Alguns vêm com espaços sobrando (`" INSP-006"`); a Silver aplica `upper(trim)`, sem mudar nenhum código.
+- **Tipo preenchido se e somente se a irregularidade foi confirmada.** 5 tipos sem variações: `DESVIO DIRETO` (182), `BY-PASS` (181), `MEDIDOR ADULTERADO` (180), `LACRE VIOLADO` (164) e `LIGACAO CLANDESTINA` (164).
+- **Energia recuperada positiva em 100% das confirmadas** (mediana de ~1.072 kWh; máximo de 15.609) **e zero em 100% das sem irregularidade.**
+- Todas as inspeções entre agosto e dezembro de 2025.

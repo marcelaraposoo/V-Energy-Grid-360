@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 # =========================================================
@@ -128,3 +129,130 @@ class SQLGuardrailResult(BaseModel):
     reason: SQLGuardrailReason | None = None
     retryable: bool = False
     original_sql: str
+
+# =========================================================
+# EXECUÇÃO SQL — ETAPA 4.3 (contrato provisório)
+# =========================================================
+class QueryExecutionResult(BaseModel):
+    """
+    Resultado da execução do SQL produzido pela camada 4.3.
+    Contrato provisório, mudar se a 4.3 definir outro formato.
+    """
+
+    columns: list[str]
+    rows: list[list[Any]]
+    row_count: int
+    truncated: bool = False
+
+    @model_validator(mode="after")
+    def validate_result(self):
+        if self.row_count < 0:
+            raise ValueError(
+                "row_count não pode ser negativo."
+            )
+
+        if len(self.rows) > self.row_count:
+            raise ValueError(
+                "rows não pode ter mais linhas que row_count."
+            )
+
+        if not self.truncated and len(self.rows) != self.row_count:
+            raise ValueError(
+                "Sem truncamento, row_count deve ser igual "
+                "ao número de linhas em rows."
+            )
+
+        for row in self.rows:
+            if len(row) != len(self.columns):
+                raise ValueError(
+                    "Toda linha deve ter o mesmo número "
+                    "de valores que columns."
+                )
+
+        return self
+
+
+# =========================================================
+# SÍNTESE DA RESPOSTA — ETAPA 4.4
+# =========================================================
+
+
+class SynthesisStatus(str, Enum):
+    ANSWERED = "answered"
+    NO_DATA = "no_data"
+
+
+class SynthesisResult(BaseModel):
+    status: SynthesisStatus
+    answer: str
+    assumptions: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_result(self):
+        if not self.answer or not self.answer.strip():
+            raise ValueError(
+                "answer é obrigatório."
+            )
+
+        return self
+
+# =========================================================
+# GUARDRAIL DE SAÍDA — CAMADA 5
+# =========================================================
+
+
+class OutputGuardrailDecision(str, Enum):
+    ALLOW = "allow"
+    BLOCK = "block"
+
+
+class OutputGuardrailReason(str, Enum):
+    EMPTY_ANSWER = "empty_answer"
+    ANSWER_TOO_LONG = "answer_too_long"
+    UNSUPPORTED_NUMBER = "unsupported_number"
+    URL_IN_ANSWER = "url_in_answer"
+    SQL_IN_ANSWER = "sql_in_answer"
+    PROMPT_LEAK = "prompt_leak"
+    PROVIDER_DISCLOSURE = "provider_disclosure"
+    TECHNICAL_ERROR_LEAK = "technical_error_leak"
+    GUARDRAIL_INTERNAL_ERROR = "guardrail_internal_error"
+
+
+class OutputGuardrailResult(BaseModel):
+    decision: OutputGuardrailDecision
+    reason: OutputGuardrailReason | None = None
+    retryable: bool = False
+    original_answer: str
+    unsupported_values: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_result(self):
+        if self.decision == OutputGuardrailDecision.ALLOW:
+            if (
+                self.reason is not None
+                or self.retryable
+                or self.unsupported_values
+            ):
+                raise ValueError(
+                    "ALLOW não pode ter reason, retryable "
+                    "nem unsupported_values."
+                )
+
+            return self
+
+        if self.reason is None:
+            raise ValueError(
+                "reason é obrigatório quando a decisão é BLOCK."
+            )
+
+        if (
+            self.unsupported_values
+            and self.reason
+            != OutputGuardrailReason.UNSUPPORTED_NUMBER
+        ):
+            raise ValueError(
+                "unsupported_values só é válido com "
+                "UNSUPPORTED_NUMBER."
+            )
+
+        return self

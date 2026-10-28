@@ -1,12 +1,14 @@
 from types import SimpleNamespace
 
 import pytest
+from pydantic_ai import PromptedOutput
 from pydantic_ai.exceptions import ModelAPIError
 
 from app.agent.providers import openrouter
 from app.agent.schemas import (
     ProviderErrorType,
     ProviderName,
+    SQLGenerationResult,
 )
 
 
@@ -487,3 +489,77 @@ def test_generic_model_api_error_is_recoverable():
             .PROVIDER_UNAVAILABLE
         )
     )
+
+
+def _patch_openrouter_to_record_output_type(monkeypatch):
+    recorded = []
+
+    class RecordingAgent:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def run(
+            self,
+            prompt,
+            instructions=None,
+            output_type=None,
+        ):
+            recorded.append(output_type)
+
+            return SimpleNamespace(output="resposta simulada")
+
+    monkeypatch.setattr(
+        openrouter,
+        "settings",
+        make_settings(),
+    )
+    monkeypatch.setattr(
+        openrouter,
+        "Agent",
+        RecordingAgent,
+    )
+    monkeypatch.setattr(
+        openrouter,
+        "_build_model",
+        lambda model_name: object(),
+    )
+    monkeypatch.setattr(
+        openrouter,
+        "register_request_attempt",
+        lambda: None,
+    )
+
+    return recorded
+
+
+@pytest.mark.anyio
+async def test_structured_output_uses_prompted_output(
+    monkeypatch,
+):
+    recorded = _patch_openrouter_to_record_output_type(
+        monkeypatch
+    )
+
+    output, attempt = await openrouter.run_openrouter(
+        "modelo-teste",
+        "Qual foi o consumo?",
+        output_type=SQLGenerationResult,
+    )
+
+    assert attempt.success is True
+    assert len(recorded) == 1
+    assert isinstance(recorded[0], PromptedOutput)
+
+
+@pytest.mark.anyio
+async def test_text_output_stays_plain_str(monkeypatch):
+    recorded = _patch_openrouter_to_record_output_type(
+        monkeypatch
+    )
+
+    await openrouter.run_openrouter(
+        "modelo-teste",
+        "Qual foi o consumo?",
+    )
+
+    assert recorded == [str]

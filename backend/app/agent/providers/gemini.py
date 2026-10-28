@@ -30,7 +30,9 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-def _build_model() -> GoogleModel:
+def _build_model(
+    model_name: str | None = None,
+) -> GoogleModel:
     if not settings.gemini_api_key:
         raise ValueError(
             "GEMINI_API_KEY não configurada."
@@ -41,7 +43,7 @@ def _build_model() -> GoogleModel:
     )
 
     return GoogleModel(
-        settings.gemini_model,
+        model_name or settings.gemini_model,
         provider=provider,
     )
 
@@ -104,14 +106,16 @@ async def run_gemini(
     output_type: Any = str,
     instructions: str | None = None,
     attempt: int = 1,
+    model_name: str | None = None,
 ) -> tuple[Any | None, ProviderAttempt]:
+    resolved_model = model_name or settings.gemini_model
     started_at = datetime.now(timezone.utc)
     start = perf_counter()
 
     if not settings.gemini_api_key:
         provider_attempt = ProviderAttempt(
             provider=ProviderName.GEMINI,
-            model=settings.gemini_model,
+            model=resolved_model,
             attempt=attempt,
             started_at=started_at,
             success=False,
@@ -122,7 +126,11 @@ async def run_gemini(
         return None, provider_attempt
 
     try:
-        model = _build_model()
+        model = (
+            _build_model()
+            if model_name is None
+            else _build_model(model_name)
+        )
 
         agent = Agent(
             model=model,
@@ -156,7 +164,7 @@ async def run_gemini(
 
         provider_attempt = ProviderAttempt(
             provider=ProviderName.GEMINI,
-            model=settings.gemini_model,
+            model=resolved_model,
             attempt=attempt,
             started_at=started_at,
             success=True,
@@ -189,7 +197,7 @@ async def run_gemini(
 
         provider_attempt = ProviderAttempt(
             provider=ProviderName.GEMINI,
-            model=settings.gemini_model,
+            model=resolved_model,
             attempt=attempt,
             started_at=started_at,
             success=False,

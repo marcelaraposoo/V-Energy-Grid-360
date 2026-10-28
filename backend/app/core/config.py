@@ -83,7 +83,7 @@ class Settings:
     )
 
     openrouter_models = (
-        "google/gemma-4-31b-it:free",
+        "cohere/north-mini-code:free",
         "nvidia/nemotron-3-ultra-550b-a55b:free",
     )
 

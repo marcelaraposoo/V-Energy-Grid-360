@@ -1,7 +1,7 @@
 :root {
   font-family: 'Inter', system-ui, sans-serif;
-  color: #f5f6f7;
-  background: #0f1115;
+  color: var(--text-primary);
+  background: var(--background);
   color-scheme: dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -20,11 +20,61 @@
   --text-secondary: #a8afb9;
   --text-muted: #8a929f;
   --accent: #ffd43b;
+  --chart-current: #ffd43b;
+  --brand: #ffd43b;
+  --accent-hover: #ffe77f;
   --accent-foreground: #0f1115;
   --success: #3dd68c;
   --info: #60a5fa;
+  --warning: #fb923c;
+  --danger: #f87171;
+  --surface-sidebar: #12151a;
+  --surface-header: #111418;
+  --surface-field: #111419;
+  --surface-field-compact: #1a1d23;
+  --nav-text: #bbc1cb;
+  --hover-overlay: #ffffff06;
+  --subtle-overlay: #ffffff03;
+  --badge-overlay: #ffffff05;
+  --shadow-tooltip: 0 4px 16px #0005;
+  --shadow-popover: 0 12px 32px #0006;
   --scrollbar-thumb: #48515e;
   --scrollbar-thumb-hover: #687384;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --background: #f4f6f8;
+  --surface: #ffffff;
+  --surface-elevated: #eef1f5;
+  --border: #cbd2dc;
+  --border-subtle: #dce1e8;
+  --text-primary: #1c2533;
+  --text-secondary: #475569;
+  --text-muted: #606d7e;
+  --accent: #805500;
+  --chart-current: #e0b000;
+  --accent-hover: #704b00;
+  --accent-selected-bg: #f4e4b8;
+  --accent-selected-strong-bg: #eed79e;
+  --accent-hover-bg: #f9edcf;
+  --accent-selected-border: #b58614;
+  --success: #167246;
+  --info: #2563eb;
+  --warning: #a14408;
+  --danger: #b42318;
+  --surface-sidebar: #ffffff;
+  --surface-header: #ffffff;
+  --surface-field: #ffffff;
+  --surface-field-compact: #eef1f5;
+  --nav-text: #475569;
+  --hover-overlay: #00000006;
+  --subtle-overlay: #00000003;
+  --badge-overlay: #00000005;
+  --shadow-tooltip: 0 4px 16px #0f172a1a;
+  --shadow-popover: 0 12px 32px #0f172a1a;
+  --scrollbar-thumb: #8b97a7;
+  --scrollbar-thumb-hover: #64748b;
 }
 
 * {
@@ -140,8 +190,8 @@ svg {
   vertical-align: middle;
 }
 ::selection {
-  background: #ffd43b33;
-  color: #fff;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--text-primary);
 }
 .sr-only {
   position: absolute;

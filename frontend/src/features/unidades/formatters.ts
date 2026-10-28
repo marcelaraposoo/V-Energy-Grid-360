@@ -3,6 +3,12 @@ const moeda = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
 })
+const precoKwh = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  minimumFractionDigits: 4,
+  maximumFractionDigits: 4,
+})
 const percentual = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
@@ -19,6 +25,10 @@ export function formatarNumero(valor: number | null | undefined): string {
 
 export function formatarMoeda(valor: number | null | undefined): string {
   return valor == null ? 'Não disponível' : moeda.format(valor)
+}
+
+export function formatarPrecoKwh(valor: number | null | undefined): string {
+  return valor == null ? 'Não disponível' : precoKwh.format(valor)
 }
 
 export function formatarPercentual(valor: number | null): string {

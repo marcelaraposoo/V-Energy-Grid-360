@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.core.errors import ConflitoDeEstado, NaoEncontrado
+from app.core.errors import ConflitoDeEstado, NaoDisponivelNaGold, NaoEncontrado
 from app.routers import catalogos, continuidade, dashboard, ia, perdas, unidades
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
@@ -23,6 +23,11 @@ async def _404(_: Request, exc: NaoEncontrado):
 @app.exception_handler(ConflitoDeEstado)
 async def _409(_: Request, exc: ConflitoDeEstado):
     return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+@app.exception_handler(NaoDisponivelNaGold)
+async def _501(_: Request, exc: NaoDisponivelNaGold):
+    return JSONResponse(status_code=501, content={"detail": str(exc)})
 
 
 @app.get("/api/health", tags=["infra"])

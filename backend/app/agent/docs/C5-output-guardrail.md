@@ -71,7 +71,8 @@ O texto da resposta e as suposições são verificados juntos.
 O leitor interpreta o formato brasileiro (`4.820`, `1.234,56`, `12,5%`).
 
 - Números ambíguos (`4.820` pode ser 4820 ou 4,82) guardam as duas interpretações; basta uma bater.
-- Datas, marcadores de lista e identificadores (`B1`, `A4`) são ignorados.
+- Marcadores de lista e identificadores (`B1`, `A4`) são ignorados.
+- Datas (`2026-06`, `2026-06-15`, `15/03/2026`, `03/2026`) são lidas como datas e validadas contra as datas permitidas, em vez de ignoradas. Datas em formatos diferentes são normalizadas; ano de dois dígitos é lido como 20xx.
 - O sinal é ignorado.
 - Formatos inválidos (`1.2.3`) são tratados como números sem origem.
 
@@ -82,6 +83,7 @@ O leitor interpreta o formato brasileiro (`4.820`, `1.234,56`, `12,5%`).
 | Valores das linhas retornadas | Sempre (até 50 linhas, o que o modelo viu) |
 | Números dentro de textos das células | Sempre |
 | Números e datas do **SQL executado** | Sempre (gerado a partir do filtro real) |
+| Datas do SQL executado e dos textos das células, e os limites de `PRIMEIRO_ANO` e `ULTIMOS_12M` quando esses nomes aparecem no SQL ou no resultado | Sempre. Um mês é aceito se houver qualquer data daquele mês; um dia só é aceito se aquele dia exato for permitido |
 | Números e datas da pergunta do usuário | **Nunca**: o usuário pode afirmar qualquer valor, e isso não é evidência do resultado |
 | Ano e mês de datas | Sempre |
 | `row_count`, linhas enviadas e posições | Sempre |
@@ -154,6 +156,8 @@ O orquestrador expõe `SynthesisFlowResult.approved`: a resposta só pode ser ex
 - Respostas fiéis podem ser bloqueadas por regras de texto agressivas (falso positivo). A afinação depende de testes com o modelo real.
 - Números presentes no SQL (como `possui_gd = 1` ou `LIMIT 5`) são aceitos como contexto. Se o usuário forçar um valor que a 4.1 coloque no SQL, a resposta com esse valor passa, mas nesse caso o resultado tende a vir vazio e cai em `NO_DATA`.
 - Contagens de período ("12 meses") que não estejam no SQL nem no resultado são bloqueadas; o prompt orienta a descrever o período pelo nome ou pela data.
+- Meses por extenso ("junho de 2026") não são lidos como datas; só o ano é verificado, como número.
+- Se o SQL filtrar por `ano` e `mes` separados e a resposta citar `2026-06`, a data é bloqueada, porque não consta no SQL nem no resultado. O prompt orienta citar só datas dessas fontes.
 
 ---
 

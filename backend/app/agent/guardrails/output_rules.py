@@ -3,19 +3,18 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 
-# Datas são removidas antes da extração: vêm da pergunta
-# e do SQL, não são valores do resultado.
-_DATE_PATTERNS = (
-    re.compile(
-        r"\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])(?:-\d{2})?\b"
-    ),
-    re.compile(
-        r"\b(?:0?[1-9]|[12]\d|3[01])/"
-        r"(?:0?[1-9]|1[0-2])/(?:\d{4}|\d{2})\b"
-    ),
-    re.compile(
-        r"\b(?:0?[1-9]|1[0-2])/(?:19|20)\d{2}\b"
-    ),
+# Datas (ISO e brasileiro). São extraídas como datas próprias, para
+# serem validadas, e removidas do texto antes da extração de números,
+# para não virarem números soltos. A extração e a remoção usam o mesmo
+# código (_scan_dates), então nenhuma data some sem ser verificada.
+_ISO_DATE_PATTERN = re.compile(
+    r"\b((?:19|20)\d{2})-(0[1-9]|1[0-2])(?:-(\d{2}))?\b"
+)
+_FULL_DATE_PATTERN = re.compile(
+    r"\b(0?[1-9]|[12]\d|3[01])/(0?[1-9]|1[0-2])/(\d{4}|\d{2})\b"
+)
+_MONTH_YEAR_PATTERN = re.compile(
+    r"\b(0?[1-9]|1[0-2])/((?:19|20)\d{2})\b"
 )
 
 # Numeração de listas no início da linha ("1. ", "2) ").
@@ -35,6 +34,84 @@ class ExtractedNumber:
     # Interpretações possíveis do valor. Vazio = formato
     # inválido, que a verificação trata como não suportado.
     candidates: tuple[Decimal, ...]
+
+
+@dataclass(frozen=True)
+class ExtractedDate:
+    raw: str
+    year: int
+    month: int
+    day: int | None
+
+    @property
+    def key(self) -> tuple[int, int, int | None]:
+        return (self.year, self.month, self.day)
+
+
+def _from_iso(match) -> ExtractedDate:
+    year, month, day = match.groups()
+
+    return ExtractedDate(
+        raw=match.group(),
+        year=int(year),
+        month=int(month),
+        day=int(day) if day else None,
+    )
+
+
+def _from_full_date(match) -> ExtractedDate:
+    day, month, year = match.groups()
+
+    # Ano de dois dígitos é lido como 20xx.
+    full_year = int(year) + (2000 if len(year) == 2 else 0)
+
+    return ExtractedDate(
+        raw=match.group(),
+        year=full_year,
+        month=int(month),
+        day=int(day),
+    )
+
+
+def _from_month_year(match) -> ExtractedDate:
+    month, year = match.groups()
+
+    return ExtractedDate(
+        raw=match.group(),
+        year=int(year),
+        month=int(month),
+        day=None,
+    )
+
+
+# A ordem importa: uma data completa é consumida antes que o
+# "mês/ano" dentro dela possa ser lido de novo.
+_DATE_RULES = (
+    (_ISO_DATE_PATTERN, _from_iso),
+    (_FULL_DATE_PATTERN, _from_full_date),
+    (_MONTH_YEAR_PATTERN, _from_month_year),
+)
+
+
+def _scan_dates(text: str) -> tuple[list[ExtractedDate], str]:
+    """
+    Devolve as datas encontradas e o texto sem elas.
+    """
+
+    dates: list[ExtractedDate] = []
+    cleaned = text
+
+    for pattern, build in _DATE_RULES:
+        for match in pattern.finditer(cleaned):
+            dates.append(build(match))
+
+        cleaned = pattern.sub(" ", cleaned)
+
+    return dates, cleaned
+
+
+def extract_dates(text: str) -> list[ExtractedDate]:
+    return _scan_dates(text)[0]
 
 
 def _valid_thousands_groups(groups: list[str]) -> bool:
@@ -121,10 +198,9 @@ def parse_number_token(
 
 
 def _remove_non_numeric_noise(text: str) -> str:
-    for pattern in _DATE_PATTERNS:
-        text = pattern.sub(" ", text)
+    cleaned = _scan_dates(text)[1]
 
-    return _LIST_MARKER_PATTERN.sub("", text)
+    return _LIST_MARKER_PATTERN.sub("", cleaned)
 
 
 def extract_numbers(text: str) -> list[ExtractedNumber]:

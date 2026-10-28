@@ -55,3 +55,4 @@ def test_prompt_allows_simple_aggregations_only_when_complete():
     assert "estiver completo" in prompt
     assert "guardrail_feedback" in prompt
     assert "Números escritos na pergunta" in prompt
+    assert "datas que aparecem no SQL executado" in prompt

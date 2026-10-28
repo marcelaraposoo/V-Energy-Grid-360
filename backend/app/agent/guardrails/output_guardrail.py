@@ -3,9 +3,13 @@ from dataclasses import dataclass
 from app.agent.guardrails.allowed_numbers import (
     AllowedNumbers,
     build_allowed_numbers,
+    is_date_supported,
     is_number_supported,
 )
-from app.agent.guardrails.output_rules import extract_numbers
+from app.agent.guardrails.output_rules import (
+    extract_dates,
+    extract_numbers,
+)
 from app.agent.guardrails.output_text_rules import (
     MAX_ANSWER_LENGTH,
     contains_sql,
@@ -140,6 +144,12 @@ def find_unsupported_numbers(
         if not is_number_supported(number.candidates, allowed)
     ]
 
+    unsupported.extend(
+        date.raw
+        for date in extract_dates(text)
+        if not is_date_supported(date, allowed)
+    )
+
     return list(dict.fromkeys(unsupported))
 
 
@@ -159,9 +169,10 @@ def build_output_retry_feedback(
         values = ", ".join(result.unsupported_values)
 
         reason_message = (
-            "A resposta anterior citou valores que não aparecem "
-            f"no resultado: {values}. Use apenas valores "
-            "presentes no resultado. Soma, média, mínimo, "
+            "A resposta anterior citou valores ou datas que não "
+            f"aparecem no resultado nem no SQL executado: {values}. "
+            "Use apenas valores presentes no resultado e datas que "
+            "constem no SQL ou no resultado. Soma, média, mínimo, "
             "máximo, contagem e participação no total só podem "
             "ser citados quando o resultado está completo."
         )

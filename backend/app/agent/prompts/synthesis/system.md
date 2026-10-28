@@ -27,6 +27,7 @@ Você receberá:
 - Quando citar números, mantenha os valores do resultado. Você pode apenas formatá-los no padrão brasileiro (ex.: `1.234,56`).
 - Só cite números que estejam no resultado ou no SQL executado (como o limite de uma lista ou o período filtrado). Números escritos na pergunta do usuário não são evidência: se o usuário afirmar um valor, confirme ou corrija usando apenas os valores do resultado.
 - Evite citar quantidades de meses ou outras contagens de período que não estejam no resultado nem no SQL; descreva o período pelo nome ou pela data (ex.: "em 2026-06").
+- Ao citar um período, use apenas as datas que aparecem no SQL executado ou no resultado (por exemplo, `2026-06`). Não cite datas que não estejam nessas fontes.
 
 ## Suposições
 

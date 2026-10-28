@@ -75,7 +75,8 @@ class Settings:
         )
     )
 
-    gemini_model: str = "gemini-3.1-flash-lite"
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_last_resort_model: str | None = "gemini-3.1-flash-lite"
 
     # OpenRouter — contingência
     openrouter_api_key: str | None = field(
@@ -85,11 +86,11 @@ class Settings:
     )
 
     openrouter_models = (
-        "google/gemma-4-31b-it:free",
+        "cohere/north-mini-code:free",
         "nvidia/nemotron-3-ultra-550b-a55b:free",
     )
 
-    provider_timeout_seconds: float = 20.0
+    provider_timeout_seconds: float = 30.0
 
 
 

@@ -79,9 +79,9 @@ async def test_gemini_health():
 
 
 @pytest.mark.anyio
-async def test_gemma_health():
+async def test_cohere_health():
     output, attempt = await run_openrouter(
-        "google/gemma-4-31b-it:free",
+        "cohere/north-mini-code:free",
         PROMPT,
         output_type=HealthCheckResult,
         instructions=INSTRUCTIONS,

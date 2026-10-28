@@ -196,10 +196,22 @@ async def test_real_flow_does_not_invent_unavailable_calculation():
 
     flow = await _run(question, sql, result)
 
-    # O guardrail não pode aceitar um percentual inventado.
-    # Leia a resposta impressa: ela deve dizer que o resultado
-    # não traz o ano anterior.
-    if flow.approved:
-        _assert_approved_answer_is_faithful(
-            flow, question, sql, result
+    # Se o guardrail bloqueou, ele cumpriu o papel dele.
+    if not flow.approved:
+        assert (
+            flow.guardrail.decision
+            == OutputGuardrailDecision.BLOCK
         )
+
+        return
+
+    _assert_approved_answer_is_faithful(
+        flow, question, sql, result
+    )
+
+    text = "\n".join(
+        [flow.synthesis.answer, *flow.synthesis.assumptions]
+    )
+
+    assert "%" not in text
+    assert "não" in flow.synthesis.answer.lower()

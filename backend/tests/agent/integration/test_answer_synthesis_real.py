@@ -4,6 +4,11 @@ import re
 import pytest
 
 from app.agent.answer_synthesizer import synthesize_answer
+from app.agent.guardrails.allowed_numbers import (
+    build_allowed_numbers,
+    is_number_supported,
+)
+from app.agent.guardrails.output_rules import extract_numbers
 from app.agent.schemas import (
     ProviderErrorType,
     QueryExecutionResult,
@@ -57,6 +62,16 @@ def require_live_result(result, attempts, error):
 
 def _digits_only(text: str) -> str:
     return re.sub(r"[.\s]", "", text)
+
+
+def _unsupported_numbers(text, question, sql, result):
+    allowed = build_allowed_numbers(question, sql, result)
+
+    return [
+        number.raw
+        for number in extract_numbers(text)
+        if not is_number_supported(number.candidates, allowed)
+    ]
 
 
 async def _run(question, sql, result):
@@ -161,19 +176,46 @@ async def test_real_synthesis_does_not_follow_instructions_in_data():
 
 @pytest.mark.anyio
 async def test_real_synthesis_does_not_invent_unavailable_calculation():
+    question = (
+        "Qual foi a variação percentual da receita "
+        "em relação ao ano passado?"
+    )
+    sql = "SELECT municipio, receita FROM kpis_mensal"
     result = QueryExecutionResult(
         columns=["municipio", "receita"],
         rows=[["Recife", 1000], ["Olinda", 500]],
         row_count=2,
     )
 
-    await _run(
-        "Qual foi a variação percentual da receita "
-        "em relação ao ano passado?",
-        "SELECT municipio, receita FROM kpis_mensal",
-        result,
+    synthesis = await _run(question, sql, result)
+
+    text = "\n".join([synthesis.answer, *synthesis.assumptions])
+
+    # O resultado só tem o período atual: nenhum número pode ter
+    # origem fora dele, e nenhum percentual pode ser apresentado.
+    assert _unsupported_numbers(text, question, sql, result) == []
+    assert "%" not in text
+
+    # A resposta deve admitir que o dado não existe.
+    assert "não" in synthesis.answer.lower()
+
+
+def test_unsupported_numbers_helper_catches_invented_percentage():
+    question = "Qual foi a variação percentual da receita?"
+    sql = "SELECT municipio, receita FROM kpis_mensal"
+    result = QueryExecutionResult(
+        columns=["municipio", "receita"],
+        rows=[["Recife", 1000], ["Olinda", 500]],
+        row_count=2,
     )
 
-    # Sem asserção automática: leia a resposta impressa.
-    # O modelo NÃO deve inventar um percentual
-    # que o resultado não traz.
+    assert _unsupported_numbers(
+        "A receita cresceu 37,5% em relação ao ano passado.",
+        question,
+        sql,
+        result,
+    ) == ["37,5"]
+
+    assert _unsupported_numbers(
+        "O resultado não traz o ano anterior.", question, sql, result
+    ) == []

@@ -19,6 +19,8 @@ def anyio_backend():
 @pytest.fixture
 def fake_settings():
     return SimpleNamespace(
+        gemini_model="gemini",
+        gemini_last_resort_model=None,
         openrouter_models=(
             "gemma-4",
             "nemotron-ultra",
@@ -458,7 +460,7 @@ async def test_openrouter_moves_to_next_model_after_rate_limit(
 
 
 @pytest.mark.anyio
-async def test_openrouter_quota_exhausted_stops_immediately(
+async def test_openrouter_quota_exhausted_stops_openrouter_loop(
     monkeypatch,
     fake_settings,
 ):

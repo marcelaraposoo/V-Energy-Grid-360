@@ -71,17 +71,16 @@ async def run_with_fallback(
     # 2. OPENROUTER
     # =====================================================
 
-    for attempt_number, model_name in enumerate(
-        settings.openrouter_models,
-        start=2,
-    ):
+    final_error = ProviderErrorType.PROVIDER_UNAVAILABLE
+
+    for model_name in settings.openrouter_models:
         output, provider_attempt = (
             await run_openrouter(
                 model_name,
                 prompt,
                 output_type=output_type,
                 instructions=instructions,
-                attempt=attempt_number,
+                attempt=len(attempts) + 1,
             )
         )
 
@@ -104,11 +103,11 @@ async def run_with_fallback(
             error_type
             == ProviderErrorType.QUOTA_EXHAUSTED
         ):
-            return (
-                None,
-                attempts,
-                ProviderErrorType.QUOTA_EXHAUSTED,
-            )
+            # A conta do OpenRouter esgotou: trocar de modelo
+            # nele não resolve, mas o último recurso é outro
+            # provedor.
+            final_error = ProviderErrorType.QUOTA_EXHAUSTED
+            break
 
         if (
             error_type
@@ -120,8 +119,34 @@ async def run_with_fallback(
                 error_type,
             )
 
+    # =====================================================
+    # 3. ÚLTIMO RECURSO (Gemini)
+    # =====================================================
+
+    last_resort = settings.gemini_last_resort_model
+
+    if last_resort and last_resort != settings.gemini_model:
+        output, last_attempt = await run_gemini(
+            prompt,
+            output_type=output_type,
+            instructions=instructions,
+            attempt=len(attempts) + 1,
+            model_name=last_resort,
+        )
+
+        attempts.append(
+            last_attempt
+        )
+
+        if last_attempt.success:
+            return (
+                output,
+                attempts,
+                None,
+            )
+
     return (
         None,
         attempts,
-        ProviderErrorType.PROVIDER_UNAVAILABLE,
+        final_error,
     )

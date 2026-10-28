@@ -252,8 +252,11 @@ class SqliteRepository:
     def atendimentos_uc(self, uc_id):
         raise _sem_gold("Atendimentos da UC", "fato_atendimento")
 
-    def ocorrencias(self, inicio, fim, alimentador_id=None, municipio=None):
-        raise _sem_gold("Ocorrências de rede (DEC/FEC)", "fato_interrupcao")
+    def ocorrencias(self, inicio, fim, alimentador_id=None, municipio=None, uc_id=None):
+        raise _sem_gold("Ocorrências de rede", "fato_interrupcao")
+
+    def indicadores_continuidade(self, inicio, fim, alimentador_id=None, municipio=None):
+        raise _sem_gold("Indicadores de continuidade (DEC/FEC)", "dec_fec_alimentador_mensal")
 
     def suspeitas(self):
         raise _sem_gold("Fila de suspeitas de perdas", "fila_inspecao")

@@ -1,9 +1,11 @@
 """SqliteRepository (etapa 1): o que sai da dim_uc, o que ainda não existe na Gold e as garantias de leitura."""
+import inspect
 import sqlite3
 
 import pytest
 
 from app.core.errors import NaoDisponivelNaGold
+from app.repositories.base import Repository
 from app.repositories.ordens_store import MemoriaOrdensStore
 from app.repositories.sqlite_repo import SqliteRepository
 from tests.gold_fixture import COLUNAS, criar_gold_db
@@ -12,6 +14,26 @@ from tests.gold_fixture import COLUNAS, criar_gold_db
 @pytest.fixture
 def repo(tmp_path):
     return SqliteRepository(criar_gold_db(tmp_path / "gold.db"), ordens=MemoriaOrdensStore())
+
+
+# ---------- contrato ----------
+def test_cumpre_o_contrato_do_repository():
+    """Todo método de `Repository` (base.py) existe no SqliteRepository com os mesmos parâmetros, na mesma ordem
+    (parâmetros opcionais a mais no fim são aceitos). Sem isso, um método novo no contrato vira erro 500 em vez de 501."""
+    faltam, incompativeis = [], []
+    for nome, contrato in inspect.getmembers(Repository, inspect.isfunction):
+        if nome.startswith("_"):
+            continue
+        implementacao = getattr(SqliteRepository, nome, None)
+        if implementacao is None:
+            faltam.append(nome)
+            continue
+        esperado = list(inspect.signature(contrato).parameters)
+        atual = list(inspect.signature(implementacao).parameters)
+        if atual[:len(esperado)] != esperado:
+            incompativeis.append(f"{nome}: contrato {esperado[1:]} x repositório {atual[1:]}")
+    assert not faltam, f"métodos do contrato que faltam no SqliteRepository: {faltam}"
+    assert not incompativeis, f"assinaturas diferentes do contrato: {incompativeis}"
 
 
 # ---------- abertura do banco ----------
@@ -159,7 +181,11 @@ def test_dados_sem_tabela_na_gold_levantam_erro_claro_em_vez_de_lista_vazia(repo
             lambda: repo.faturas_uc("UC00001"),
         ],
         "fato_atendimento": [lambda: repo.atendimentos_uc("UC00001")],
-        "fato_interrupcao": [lambda: repo.ocorrencias("2025-07", "2026-06")],
+        "fato_interrupcao": [
+            lambda: repo.ocorrencias("2025-07", "2026-06"),
+            lambda: repo.ocorrencias("2025-07", "2026-06", uc_id="UC00001"),
+        ],
+        "dec_fec_alimentador_mensal": [lambda: repo.indicadores_continuidade("2025-07", "2026-06")],
         "fila_inspecao": [lambda: repo.suspeitas()],
     }
     for tabela, funcoes in chamadas.items():

@@ -38,9 +38,11 @@ class Settings:
     )
 
     sqlite_path: str = field(
-        default_factory=lambda: os.getenv(
-            "SQLITE_PATH",
-            "data/gold.db",
+        default_factory=lambda: _caminho_no_backend(
+            os.getenv(
+                "SQLITE_PATH",
+                "data/gold.db",
+            )
         )
     )
 

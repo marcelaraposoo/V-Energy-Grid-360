@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Menu, Search, Sparkles, Zap } from 'lucide-react'
+import { Menu, Search, Sparkles } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { UnitSearch } from '../ui/UnitSearch'
 import { ThemeToggle } from '../ui/ThemeToggle'
@@ -60,20 +60,6 @@ function Navigation({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
-function SidebarFooter() {
-  return (
-    <footer className="sidebar-footer">
-      <span className="sidebar-footer-symbol">
-        <Zap size={18} strokeWidth={1.5} aria-hidden="true" />
-      </span>
-      <div>
-        <p>Uma visão. Mais possibilidades.</p>
-        <small>V-Energy Grid 360</small>
-      </div>
-    </footer>
-  )
-}
-
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const mobileMenu = useRef<HTMLDialogElement>(null)
@@ -119,7 +105,6 @@ export function AppShell() {
       </a>
       <aside className="sidebar">
         <Navigation />
-        <SidebarFooter />
       </aside>
 
       <dialog
@@ -144,7 +129,6 @@ export function AppShell() {
             </button>
           </div>
           <Navigation onNavigate={() => mobileMenu.current?.close()} />
-          <SidebarFooter />
         </div>
       </dialog>
 

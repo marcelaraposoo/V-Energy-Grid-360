@@ -78,6 +78,20 @@
 .field input:disabled {
   opacity: 0.5;
 }
+.field-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.field-search svg {
+  position: absolute;
+  left: 10px;
+  pointer-events: none;
+}
+.field-search input {
+  width: 100%;
+  padding-left: 34px;
+}
 .field-hint {
   font-size: 11px;
   font-weight: 400;

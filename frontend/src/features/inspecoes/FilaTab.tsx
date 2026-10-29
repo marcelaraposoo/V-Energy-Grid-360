@@ -101,10 +101,13 @@ export function FilaTab({ onOrdemCriada }: Props) {
         <form className="filters" onSubmit={buscar} role="search">
           <label className="field" style={{ flex: '1 1 220px' }}>
             <span>Buscar por UC ou titular</span>
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} maxLength={100} placeholder="UC100000 ou nome" />
+            <span className="field-search">
+              <Search size={16} aria-hidden="true" />
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} maxLength={100} placeholder="UC100000 ou nome" />
+            </span>
           </label>
-          <button type="submit" className="button button--secondary">
-            <Search size={16} aria-hidden="true" /> Buscar
+          <button type="submit" className="button button--primary">
+            Buscar
           </button>
           <SelectField
             label="Município"

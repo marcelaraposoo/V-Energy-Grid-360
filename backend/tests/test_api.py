@@ -211,8 +211,45 @@ def test_continuidade_ranking_ordenado():
     assert client.get("/api/continuidade/alimentadores/AL999/serie").status_code == 404
 
 
+def test_ia_perguntar_usa_o_agente(monkeypatch):
+    from app.agent.pipeline import PipelineResult, PipelineStage, PipelineStatus
+
+    async def agente_falso(pergunta, **kwargs):
+        return PipelineResult(
+            status=PipelineStatus.ANSWERED,
+            message="Resposta de teste.",
+            stage=PipelineStage.DONE,
+            sql="SELECT 1",
+        )
+
+    monkeypatch.setattr("app.agent.pipeline.answer_question", agente_falso)
+
+    r = client.post("/api/ia/perguntar", json={"pergunta": "teste de pergunta"}).json()
+
+    assert r["status"] == "ok"
+    assert r["resposta"] == "Resposta de teste."
+    assert r["sql_executado"] == "SELECT 1"
+
+
+def test_ia_perguntar_sem_resposta_devolve_nao_sei(monkeypatch):
+    from app.agent.pipeline import PipelineResult, PipelineStage, PipelineStatus
+
+    async def agente_falso(pergunta, **kwargs):
+        return PipelineResult(
+            status=PipelineStatus.NO_ANSWER,
+            message="Não tenho os dados necessários.",
+            stage=PipelineStage.SQL_GENERATION,
+        )
+
+    monkeypatch.setattr("app.agent.pipeline.answer_question", agente_falso)
+
+    r = client.post("/api/ia/perguntar", json={"pergunta": "teste de pergunta"}).json()
+
+    assert r["status"] == "nao_sei"
+    assert r["sql_executado"] is None
+
+
 def test_ia_stub_e_insights():
-    assert client.post("/api/ia/perguntar", json={"pergunta": "teste de pergunta"}).json()["status"] == "nao_implementado"
     assert len(client.get("/api/ia/insights?tela=receita").json()) == 2
 
 

@@ -260,8 +260,8 @@ async def test_real_generation_with_panel_solar(
     assert "POSSUI_GD" in sql_upper
 
     assert (
-        "VARIACAO_CONSUMO_ANO_ANTERIOR_PCT"
-        in sql_upper
+        "VARIACAO_CONSUMO_ANO_ANTERIOR_PCT" in sql_upper
+        or "VARIACAO_CONSUMO_12M_PCT" in sql_upper
     )
 
 

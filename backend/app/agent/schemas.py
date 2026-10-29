@@ -1,7 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
-
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -256,3 +255,51 @@ class OutputGuardrailResult(BaseModel):
             )
 
         return self
+
+# =========================================================
+# Auditoria,cache e finalizer — CAMADA 7
+# =========================================================
+class AgentOutcome(str, Enum):
+    ANSWERED = "answered"
+    NO_DATA = "no_data"
+
+    NEEDS_CLARIFICATION = "needs_clarification"
+    OUT_OF_SCOPE = "out_of_scope"
+    INSUFFICIENT_CONTEXT = "insufficient_context"
+    REQUEST_REJECTED = "request_rejected"
+
+    INPUT_BLOCKED = "input_blocked"
+    SQL_BLOCKED = "sql_blocked"
+    OUTPUT_BLOCKED = "output_blocked"
+
+    PROVIDER_ERROR = "provider_error"
+    EXECUTION_ERROR = "execution_error"
+    INTERNAL_ERROR = "internal_error"
+
+class AuditRecord(BaseModel):
+    request_id: str
+    session_id: str | None = None
+
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+    question: str
+    outcome: AgentOutcome
+
+    cache_hit: bool = False
+
+    sql: str | None = None
+    row_count: int | None = None
+    truncated: bool | None = None
+
+    provider_error: ProviderErrorType | None = None
+    regenerations: int = 0
+
+    final_answer: str | None = None
+
+class MemoryEntry(BaseModel):
+    question: str
+    answer: str
+    outcome: AgentOutcome
+

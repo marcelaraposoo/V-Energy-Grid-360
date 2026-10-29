@@ -257,6 +257,83 @@ class OutputGuardrailResult(BaseModel):
         return self
 
 # =========================================================
+# PÓS-PROCESSAMENTO — CAMADA 6
+# =========================================================
+
+
+class VisualizationType(str, Enum):
+    LINE = "line"
+    BAR = "bar"
+
+
+class VisualizationPoint(BaseModel):
+    """
+    Um ponto utilizado pelo frontend para renderizar
+    uma visualização analítica.
+    """
+
+    label: str
+    value: float
+
+
+class VisualizationSpec(BaseModel):
+    """
+    Especificação de visualização produzida pela Camada 6.
+
+    O backend não renderiza o gráfico. Ele apenas informa
+    ao frontend qual visualização pode ser construída e
+    quais dados devem ser utilizados.
+    """
+
+    type: VisualizationType
+    title: str
+
+    x_label: str | None = None
+    y_label: str | None = None
+    unit: str | None = None
+
+    points: list[VisualizationPoint]
+
+    @model_validator(mode="after")
+    def validate_visualization(self):
+        if not self.title or not self.title.strip():
+            raise ValueError(
+                "title é obrigatório para uma visualização."
+            )
+
+        if not self.points:
+            raise ValueError(
+                "Uma visualização precisa possuir ao menos um ponto."
+            )
+
+        return self
+
+
+class PostProcessingResult(BaseModel):
+    """
+    Resultado final da Camada 6.
+
+    `answer` e `assumptions` vêm da síntese já aprovada
+    pelo Output Guardrail.
+
+    `visualization` é opcional e é construída exclusivamente
+    a partir do QueryExecutionResult.
+    """
+
+    answer: str
+    assumptions: list[str] = Field(default_factory=list)
+    visualization: VisualizationSpec | None = None
+
+    @model_validator(mode="after")
+    def validate_result(self):
+        if not self.answer or not self.answer.strip():
+            raise ValueError(
+                "answer é obrigatório."
+            )
+
+        return self
+
+# =========================================================
 # Auditoria,cache e finalizer — CAMADA 7
 # =========================================================
 class AgentOutcome(str, Enum):

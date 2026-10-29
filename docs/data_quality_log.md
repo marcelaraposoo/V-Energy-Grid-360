@@ -508,3 +508,15 @@ Exploração: `exploracao_inspecoes.ipynb`. Silver: `02_silver_inspecoes.ipynb`.
 - **Tipo preenchido se e somente se a irregularidade foi confirmada.** 5 tipos sem variações: `DESVIO DIRETO` (182), `BY-PASS` (181), `MEDIDOR ADULTERADO` (180), `LACRE VIOLADO` (164) e `LIGACAO CLANDESTINA` (164).
 - **Energia recuperada positiva em 100% das confirmadas** (mediana de ~1.072 kWh; máximo de 15.609) **e zero em 100% das sem irregularidade.**
 - Todas as inspeções entre agosto e dezembro de 2025.
+
+---
+
+## Cruzamentos entre tabelas (X)
+
+**Responsáveis:** Aimê e Marcela. Problemas que só aparecem ao juntar duas tabelas.
+
+### Resumo
+
+| ID | Tabelas | Problema | Linhas afetadas | Decisão | Justificativa |
+|---|---|---|---|---|---|
+| X1 | ocorrencias_rede × unidades_consumidoras | Interrupção registrada em mês anterior à ligação da UC (de 1 a 42 meses antes) | 584 ocorrências, 218 UCs | Manter; registrar | Nenhuma é de UC com ligação estimada (U9). As leituras e faturas confirmam a data de ligação (a UC é faturada a partir do mês seguinte), então a inconsistência está nas ocorrências; sem saber qual dado está errado, removê-las seria apagar interrupções. Efeito: ~0,3% das ocorrências entram no DEC/FEC sem a UC no denominador (no pior alimentador, `ALM-JAB-015`, ~2%) |

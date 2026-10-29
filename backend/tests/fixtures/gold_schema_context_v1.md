@@ -23,6 +23,10 @@ Quando uma pergunta envolver um bairro específico, utilize `municipio` junto co
 
 Não trate `bairro` isoladamente como identificador global.
 
+### Nomes de municípios
+
+Os nomes de municípios têm acentuação e usam capitalização normal (por exemplo `Jaboatão dos Guararapes`, `São Lourenço da Mata`, `Araçoiaba`). Use exatamente essa grafia nos filtros.
+
 ### Períodos do diagnóstico
 
 Quando a pergunta utilizar os períodos definidos pelo diagnóstico:
@@ -65,6 +69,10 @@ Pode ser utilizada para filtros por:
 - medidor;
 - alimentador.
 
+## Atenção: energia injetada
+
+Ao somar, calcular média ou comparar `energia_injetada_media_kwh`, ignore as UCs com `energia_injetada_atipica = 1` (o valor não é confiável). Para apenas contar ou listar UCs com painel solar, `possui_gd` basta e não precisa desse filtro.
+
 ## Colunas
 
 - `id_uc` — texto — identificador da unidade consumidora
@@ -96,8 +104,16 @@ Pode ser utilizada para filtros por:
 - `data_conexao_gd` — data
 - `modalidade_gd` — texto
 - `energia_injetada_media_kwh` — decimal
+- `energia_injetada_atipica` — booleano — sinaliza que `energia_injetada_media_kwh` está fora do padrão e **não deve ser usada como medida**. Nunca é nula (`false` para UCs sem GD)
 - `primeiro_mes_leitura` — texto
 - `ultimo_mes_leitura` — texto
+- `consumo_medio_12m_kwh` — decimal — média mensal de `consumo_kwh` de `2025-07` a `2026-06`
+- `consumo_medio_12m_anterior_kwh` — decimal — média mensal de `consumo_kwh` de `2024-07` a `2025-06`
+- `variacao_consumo_12m_pct` — decimal — `((consumo_medio_12m_kwh / consumo_medio_12m_anterior_kwh) - 1) * 100`, arredondada a 2 casas; nula se a média anterior não for maior que zero
+
+`variacao_consumo_12m_pct` compara as médias de dois períodos de 12 meses por UC. Para comparar um mês com o mesmo mês do ano anterior, use `variacao_consumo_ano_anterior_pct` em `fato_consumo_faturamento`.
+
+Em perguntas sobre queda ou aumento de consumo por UC, ignore as UCs com `variacao_consumo_12m_pct` nula (sem histórico no período anterior).
 
 ---
 
@@ -128,6 +144,7 @@ Principal tabela para perguntas sobre:
 - `classe` — texto
 - `bairro` — texto
 - `municipio` — texto
+- `possui_gd_no_mes` — booleano — se a UC tinha geração distribuída naquele mês
 - `id_medidor` — texto
 - `data_leitura` — data
 - `tipo_leitura` — texto — `REAL` ou `ESTIMADA`
@@ -148,6 +165,7 @@ Principal tabela para perguntas sobre:
 - `status_fatura` — texto — `PAGA` ou `EM ABERTO`
 - `em_aberto` — booleano
 - `dias_atraso` — inteiro
+- `faixa_atraso` — texto — `EM DIA`, `ATE 30 DIAS`, `31 A 90 DIAS` ou `MAIS DE 90 DIAS`
 - `preco_medio_kwh` — decimal — `valor_energia / consumo_kwh`
 
 ---
@@ -182,6 +200,10 @@ Utilize para perguntas sobre:
 - `qtd_ucs_periodo_1` — inteiro
 - `volume_kwh_0` — decimal
 - `volume_kwh_1` — decimal
+- `volume_kwh_ucs_com_gd_0` — decimal
+- `volume_kwh_ucs_com_gd_1` — decimal
+- `pct_faturas_bandeira_nao_verde_0` — decimal
+- `pct_faturas_bandeira_nao_verde_1` — decimal
 - `receita_0` — decimal
 - `receita_1` — decimal
 - `preco_medio_0` — decimal
@@ -278,7 +300,18 @@ Perguntas sobre:
 
 ## Grão
 
-1 linha = 1 ocorrência de interrupção em 1 UC.
+1 linha = 1 UC afetada por 1 interrupção. Não é 1 queda.
+
+Uma queda de 2 horas que atinge 100 UCs gera 100 linhas, cada uma com `duracao_min` = 120.
+
+## Como interpretar (importante)
+
+- `duracao_min` é o tempo que **aquela UC** ficou sem energia.
+- Somar `duracao_min` não dá a duração de uma queda: dá o impacto acumulado em **tempo-cliente** (no exemplo, 100 UCs x 120 min = 12.000 minutos-cliente, ou 200 horas-cliente). Use a soma apenas quando a pergunta for sobre impacto total. **Respeite a unidade pedida na pergunta**: se pedir minutos, devolva `SUM(duracao_min)` sem converter; só divida por 60 se a pergunta pedir horas.
+- "Quanto tempo durou a falta de luz": use a duração de cada interrupção (média, mínimo ou máximo de `duracao_min`), nunca a soma, e deixe claro que o valor é por UC afetada.
+- "Quantas UCs ficaram sem luz": use `COUNT(DISTINCT id_uc)`, nunca `COUNT(*)`, porque uma UC pode aparecer em várias interrupções.
+- "Quantas quedas houve": este contrato não identifica a queda com segurança. Não use `COUNT(*)` como número de quedas e não presuma que `id_ocorrencia` agrupa as UCs da mesma queda. Se a pergunta exigir isso, use `INSUFFICIENT_CONTEXT`.
+- Para DEC e FEC e para o ranking de alimentadores, prefira `dec_fec_alimentador_mensal`, que já está calculada.
 
 ## Uso
 
@@ -330,10 +363,13 @@ Perguntas sobre:
 - `protocolo` — texto
 - `id_uc` — texto
 - `canal` — texto
+- `municipio` — texto — município da UC
+- `bairro` — texto — bairro da UC
+- `classe` — texto — classe da UC
 - `assunto` — texto
 - `subassunto` — texto
-- `data_abertura` — data
-- `data_fechamento` — data
+- `data_hora_abertura` — data e hora (`yyyy-MM-dd HH:mm:ss`)
+- `data_hora_fechamento` — data e hora (`yyyy-MM-dd HH:mm:ss`)
 - `mes_referencia` — texto — `yyyy-MM`
 - `aberto` — booleano
 - `tempo_resolucao_horas` — decimal
@@ -361,20 +397,6 @@ Para análises já agregadas por município, bairro e classe, prefira utilizar d
 ---
 
 # Limitações conhecidas deste contrato
-
-## Variação de consumo por UC em dois períodos de 12 meses
-
-O contrato atual ainda não possui diretamente, na `dim_uc`:
-
-- `consumo_medio_12m_kwh`;
-- `consumo_medio_12m_anterior_kwh`;
-- `variacao_consumo_12m_pct`.
-
-Portanto, perguntas que dependam especificamente desses campos não devem assumir que eles existem.
-
-Utilize dados existentes somente quando a comparação puder ser construída com segurança a partir de `fato_consumo_faturamento`.
-
-Caso contrário, utilize `INSUFFICIENT_CONTEXT`.
 
 ## Manutenção preventiva
 

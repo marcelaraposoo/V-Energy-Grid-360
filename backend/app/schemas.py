@@ -262,6 +262,19 @@ class Ordem(BaseModel):
     resultado: dict | None
 
 
+class RejeicaoImportacao(BaseModel):
+    linha: int = Field(description="Linha do arquivo (o cabeçalho é a linha 1).")
+    ordem_id: int | None = None
+    erro: str
+
+
+class ResumoImportacao(BaseModel):
+    total: int = Field(description="Linhas preenchidas que foram avaliadas (aceitas + rejeitadas).")
+    aceitas: int
+    ignoradas: int = Field(description="Linhas do modelo ainda sem preenchimento.")
+    rejeitadas: list[RejeicaoImportacao]
+
+
 # ---------- continuidade ----------
 class AlimentadorDecFec(BaseModel):
     alimentador_id: str

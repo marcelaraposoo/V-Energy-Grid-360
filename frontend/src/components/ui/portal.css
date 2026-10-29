@@ -25,7 +25,8 @@
 .panel.panel--filters {
   overflow: visible;
 }
-.panel--filters .table-wrap {
+.panel--filters .table-wrap,
+.ordens-panel .table-wrap {
   position: relative;
 }
 .filters {
@@ -97,26 +98,24 @@
   font-weight: 400;
 }
 .segmented {
-  display: inline-flex;
+  display: flex;
   flex-wrap: wrap;
-  padding: 3px;
-  background: var(--surface-field);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  gap: 4px;
+}
+.ordens-panel .panel-header {
+  flex-wrap: wrap;
 }
 .segmented button {
-  padding: 6px 12px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-color: transparent;
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 0;
-  border-radius: 6px;
 }
 .segmented button[aria-pressed='true'] {
-  color: var(--text-primary);
-  background: var(--surface-elevated);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  border-color: var(--accent-selected-border, color-mix(in srgb, var(--accent) 20%, transparent));
+  background: var(--accent-selected-bg, color-mix(in srgb, var(--accent) 5%, transparent));
+  color: var(--accent);
 }
 
 /* Estados de carregamento e erro */

@@ -96,12 +96,19 @@ export function OrdensTab({ versao }: Props) {
       )}
 
       <Panel
+        className="ordens-panel"
         title="Ordens de inspeção"
         description="Acompanhe cada ordem da fila até o resultado de campo."
         actions={
           <div className="segmented" role="group" aria-label="Filtrar por status">
             {FILTROS.map((f) => (
-              <button key={f.valor} type="button" aria-pressed={filtro === f.valor} onClick={() => setFiltro(f.valor)}>
+              <button
+                key={f.valor}
+                type="button"
+                className="button button--secondary"
+                aria-pressed={filtro === f.valor}
+                onClick={() => setFiltro(f.valor)}
+              >
                 {f.rotulo} ({contagem(f.valor)})
               </button>
             ))}

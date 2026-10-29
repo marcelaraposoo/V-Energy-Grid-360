@@ -1,0 +1,96 @@
+name: CI
+
+# Roda a cada PR e a cada push na main. Falhou aqui, não deve entrar na main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Um push novo no mesmo PR cancela a execução anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  guarda:
+    name: Arquivos e segredos
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bloqueia arquivos locais e chaves de API
+        run: |
+          # ambientes, dependências e bancos locais não vão para o repositório (veja o .gitignore)
+          proibidos=$(git ls-files | grep -E '(^|/)\.env$|(^|/)\.venv/|(^|/)node_modules/|\.db$' || true)
+          if [ -n "$proibidos" ]; then
+            echo "::error::Arquivos que não devem ser versionados:"
+            echo "$proibidos"
+            exit 1
+          fi
+          # só mostra arquivo e linha, nunca o trecho, para a chave não vazar no log
+          chaves=$(git grep -nIE 'AIza[0-9A-Za-z_-]{35}|sk-or-v1-[0-9a-f]{20,}|sk-[A-Za-z0-9]{32,}' | cut -d: -f1,2 || true)
+          if [ -n "$chaves" ]; then
+            echo "::error::Possível chave de API no código (arquivo:linha):"
+            echo "$chaves"
+            exit 1
+          fi
+
+      - name: Avisa sobre dados brutos (regra do AGENTS.md)
+        run: |
+          dados=$(git ls-files | grep -E '\.(csv|xlsx|parquet|zip|pdf)$' || true)
+          if [ -n "$dados" ]; then
+            echo "::warning::Confira se estes arquivos podem ser versionados (dados brutos e o PDF do case não podem):"
+            echo "$dados"
+          fi
+
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instala as dependências
+        run: pip install -r requirements.txt
+
+      # Sem chave de API no CI, os testes que chamam o Gemini/OpenRouter de verdade são pulados.
+      - name: Testes
+        run: python -m pytest -q
+
+  frontend:
+    name: Frontend (lint e build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instala as dependências
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (tsc + vite)
+        run: npm run build

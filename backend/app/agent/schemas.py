@@ -230,6 +230,25 @@ class SQLExecutionOutcome(BaseModel):
 
         return self
 
+
+class SQLExecutionFlowResult(BaseModel):
+    """Resultado do fluxo completo 4.1 a 4.3."""
+
+    generation_status: SQLGenerationStatus | None = None
+    generation_reason: str | None = None
+    sql: str | None = None
+    guardrail_reason: SQLGuardrailReason | None = None
+    outcome: SQLExecutionOutcome | None = None
+    provider_error: ProviderErrorType | None = None
+    regenerations: int = 0
+
+    @property
+    def executed(self) -> bool:
+        return (
+            self.outcome is not None
+            and self.outcome.status == SQLExecutionStatus.SUCCESS
+        )
+
 # =========================================================
 # SÍNTESE DA RESPOSTA — ETAPA 4.4
 # =========================================================

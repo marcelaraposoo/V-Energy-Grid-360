@@ -4,7 +4,7 @@ expor o SQL executado (auditoria) e ignorar tentativas de prompt injection."""
 from __future__ import annotations
 
 from app.schemas import Filtros, Insight, RespostaOut
-from app.services import continuidade, dashboard, receita
+from app.services import continuidade, dashboard, perdas, receita
 
 
 def perguntar(pergunta: str, sessao_id: str | None = None) -> RespostaOut:
@@ -32,6 +32,8 @@ def insights(repo, tela: str) -> list[Insight]:
             Insight(tipo="alerta", dados=pior.model_dump(),
                     texto=f"{pior.chave} teve o pior efeito-volume (R$ {pior.efeito_volume:,.0f}; energia {pior.variacao_energia_pct}%)."),
         ]
+    if tela == "perdas":
+        return perdas.insights_fila(repo)
     if tela == "continuidade":
         r = continuidade.ranking_alimentadores(repo, atual)
         return [Insight(tipo="alerta", dados=r[0].model_dump(),

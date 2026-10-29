@@ -26,5 +26,5 @@ def limpar_sessao(sessao_id: str):
 
 @router.get("/insights", response_model=list[Insight])
 def insights(tela: Tela, repo=Depends(repo_dep)):
-    """Implementado para receita e continuidade. As demais telas devolvem lista vazia por enquanto."""
+    """Implementado para receita, continuidade e perdas. As demais telas devolvem lista vazia por enquanto."""
     return ia.insights(repo, tela)

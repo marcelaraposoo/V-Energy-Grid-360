@@ -21,7 +21,7 @@ export const navigation = [
     group: 'Operações',
     items: [
       {
-        title: 'Ordens de Inspeção',
+        title: 'Fila e Ordens de Inspeção',
         to: '/inspecoes/ordens',
         icon: ClipboardList,
       },

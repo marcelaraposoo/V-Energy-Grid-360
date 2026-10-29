@@ -232,7 +232,7 @@ def test_periodo_invalido_retorna_422():
 
 def test_ia_insights_tela_invalida_e_tela_sem_insight():
     assert client.get("/api/ia/insights?tela=xyz").status_code == 422
-    assert client.get("/api/ia/insights?tela=perdas").json() == []
+    assert client.get("/api/ia/insights?tela=dashboard").json() == []
 
 
 def test_ia_limpar_sessao():

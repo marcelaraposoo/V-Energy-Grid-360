@@ -27,6 +27,7 @@ from app.repositories.base import OrdensStore
 from app.repositories.ordens_store import MemoriaOrdensStore
 
 TABELA_UC = "dim_uc"
+TABELA_FILA = "fila_inspecao"
 COLUNAS_OBRIGATORIAS = ("id_uc", "nome_titular_mascarado", "municipio", "bairro", "classe", "alimentador")
 
 DESCRICAO_CLASSE = {
@@ -61,6 +62,13 @@ def _num(valor) -> float | None:
         return float(str(valor).replace(",", "."))
     except ValueError:
         return None
+
+
+def _motivos(texto) -> list[str]:
+    """A Gold guarda os motivos numa frase só, separados por ';' (ex.: 'consumo caiu 60% ...; medidor com 22 anos')."""
+    if texto is None:
+        return []
+    return [parte.strip() for parte in str(texto).split(";") if parte.strip()]
 
 
 def _meses(inicio: str, fim: str) -> list[str]:
@@ -259,7 +267,37 @@ class SqliteRepository:
         raise _sem_gold("Indicadores de continuidade (DEC/FEC)", "dec_fec_alimentador_mensal")
 
     def suspeitas(self):
-        raise _sem_gold("Fila de suspeitas de perdas", "fila_inspecao")
+        """Fila de suspeitas da Gold (`fila_inspecao`, 1 linha = 1 UC), no formato que o serviço de perdas usa.
+
+        - `prioridade` e `score` vêm prontos da Gold (regra versionada pelo time de Dados): o serviço respeita
+          essa ordem em vez de recalcular.
+        - SUPOSIÇÃO: o contrato da API tem `probabilidade` (0 a 1) e a Gold entrega `score` (0 a 100, "pontuação
+          de suspeita"). Usamos score / 100 como probabilidade relativa até o time de Dados confirmar se o score
+          é calibrado como probabilidade de irregularidade.
+        - Linhas sem UC, score ou energia estimada são descartadas (não dá para ordenar nem priorizar).
+        """
+        with closing(self._conectar()) as con:
+            existe = con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (TABELA_FILA,)
+            ).fetchone()
+            if not existe:
+                raise _sem_gold("Fila de suspeitas de perdas", TABELA_FILA)
+            linhas = [dict(r) for r in con.execute(f"SELECT * FROM {TABELA_FILA}")]
+        saida = []
+        for d in linhas:
+            score, kwh = _num(d.get("score")), _num(d.get("kwh_estimado_recuperar_mes"))
+            if d.get("id_uc") in (None, "") or score is None or kwh is None:
+                continue
+            prioridade = _num(d.get("prioridade"))
+            saida.append({
+                "uc_id": str(d["id_uc"]).strip(),
+                "motivos": _motivos(d.get("motivo")),
+                "probabilidade": min(1.0, max(0.0, score / 100)),
+                "energia_recuperavel_kwh_mes": max(0.0, kwh),
+                "score": score,
+                "prioridade": int(prioridade) if prioridade is not None else None,
+            })
+        return saida
 
     # ---------- ordens de inspeção: tabela do PORTAL (portal.db), não da Gold ----------
     def criar_ordem(self, dados):

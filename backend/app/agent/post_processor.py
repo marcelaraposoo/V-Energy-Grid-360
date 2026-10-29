@@ -17,8 +17,20 @@ from app.agent.schemas import (
 
 MAX_VISUALIZATION_POINTS = 30
 
+COLUMN_LABELS = {
+    "mes_referencia": "Mês de referência",
+    "municipio": "Município",
+}
+
 _TEMPORAL_PATTERN = re.compile(
     r"^\d{4}-(?:0[1-9]|1[0-2])(?:-\d{2})?$"
+)
+
+_UNSAFE_VISUALIZATION_TEXT = re.compile(
+    r"(?i)"
+    r"(https?://|www\.)"
+    r"|(\bselect\b|\binsert\b|\bupdate\b|\bdelete\b|\bdrop\b)"
+    r"|(\bopenrouter\b|\bgemini\b|\bprovider\b)"
 )
 
 _CURRENCY_TERMS = (
@@ -35,7 +47,6 @@ _ENERGY_TERMS = (
 
 
 def _is_number(value: Any) -> bool:
-
     if isinstance(value, bool):
         return False
 
@@ -49,37 +60,71 @@ def _is_number(value: Any) -> bool:
 
 
 def _is_temporal(value: Any) -> bool:
-
     if not isinstance(value, str):
         return False
 
     return bool(_TEMPORAL_PATTERN.fullmatch(value.strip()))
 
 
-def _humanize_column(column: str) -> str:
+def _is_safe_visualization_text(value: str) -> bool:
+    text = value.strip()
 
+    if not text:
+        return False
+
+    if len(text) > 200:
+        return False
+
+    if _UNSAFE_VISUALIZATION_TEXT.search(text):
+        return False
+
+    return True
+
+
+def _humanize_column(column: str) -> str:
+    normalized = column.strip().lower()
+
+    if normalized in COLUMN_LABELS:
+        return COLUMN_LABELS[normalized]
 
     return column.replace("_", " ").strip().capitalize()
 
 
 def _infer_unit(metric_column: str) -> str | None:
-
     name = metric_column.lower()
 
-    if any(term in name for term in _CURRENCY_TERMS):
-        return "R$"
-
-    if any(term in name for term in _ENERGY_TERMS):
-        return "kWh"
-
-    if "percent" in name or "percentual" in name or name.endswith("_pct"):
+    if (
+        "percent" in name
+        or "percentual" in name
+        or name.endswith("_pct")
+    ):
         return "%"
 
-    if "dec" in name or "duracao_h" in name or "horas" in name:
+    if "preco" in name and "kwh" in name:
+        return "R$/kWh"
+
+    if (
+        "ranking" in name
+        or "qtd" in name
+        or "quantidade" in name
+    ):
+        return None
+
+    if (
+        "dec" in name
+        or "duracao_h" in name
+        or "horas" in name
+    ):
         return "h"
 
     if "fec" in name:
         return "vezes"
+
+    if any(term in name for term in _ENERGY_TERMS):
+        return "kWh"
+
+    if any(term in name for term in _CURRENCY_TERMS):
+        return "R$"
 
     return None
 
@@ -93,7 +138,10 @@ def _build_title(
     label = _humanize_column(label_column)
 
     if visualization_type == VisualizationType.LINE:
-        return f"Evolução de {metric.lower()} por {label.lower()}"
+        return (
+            f"Evolução de {metric.lower()} "
+            f"por {label.lower()}"
+        )
 
     return f"{metric} por {label.lower()}"
 
@@ -101,7 +149,6 @@ def _build_title(
 def _build_visualization(
     result: QueryExecutionResult,
 ) -> VisualizationSpec | None:
-
     if result.truncated:
         return None
 
@@ -119,6 +166,12 @@ def _build_visualization(
 
     label_column, metric_column = result.columns
 
+    if not _is_safe_visualization_text(label_column):
+        return None
+
+    if not _is_safe_visualization_text(metric_column):
+        return None
+
     labels: list[str] = []
     values: list[float] = []
 
@@ -131,13 +184,21 @@ def _build_visualization(
         if label is None or not _is_number(value):
             return None
 
-        labels.append(str(label))
+        label_text = str(label)
+
+        if not _is_safe_visualization_text(label_text):
+            return None
+
+        labels.append(label_text)
         values.append(float(value))
 
     if not labels:
         return None
 
-    all_temporal = all(_is_temporal(label) for label in labels)
+    all_temporal = all(
+        _is_temporal(label)
+        for label in labels
+    )
 
     visualization_type = (
         VisualizationType.LINE
@@ -145,12 +206,23 @@ def _build_visualization(
         else VisualizationType.BAR
     )
 
+    pairs = list(
+        zip(
+            labels,
+            values,
+            strict=True,
+        )
+    )
+
+    if visualization_type == VisualizationType.LINE:
+        pairs.sort(key=lambda item: item[0])
+
     points = [
         VisualizationPoint(
             label=label,
             value=value,
         )
-        for label, value in zip(labels, values, strict=True)
+        for label, value in pairs
     ]
 
     return VisualizationSpec(
@@ -171,7 +243,6 @@ def post_process(
     synthesis: SynthesisResult,
     result: QueryExecutionResult,
 ) -> PostProcessingResult:
-
     visualization = _build_visualization(result)
 
     return PostProcessingResult(

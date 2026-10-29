@@ -1,6 +1,8 @@
 from app.agent.post_processor import (
     MAX_VISUALIZATION_POINTS,
+    _humanize_column,
     post_process,
+    _infer_unit,
 )
 from app.agent.schemas import (
     QueryExecutionResult,
@@ -297,3 +299,18 @@ def test_unknown_metric_has_no_unit():
 
     assert result.visualization is not None
     assert result.visualization.unit is None
+
+def test_humanize_known_columns_with_accents():
+    assert _humanize_column("mes_referencia") == "Mês de referência"
+    assert _humanize_column("municipio") == "Município"
+
+def test_infer_unit_prioritizes_percentage():
+    assert _infer_unit("variacao_receita_ano_anterior_pct") == "%"
+
+
+def test_infer_unit_recognizes_price_per_kwh():
+    assert _infer_unit("preco_medio_kwh") == "R$/kWh"
+
+
+def test_infer_unit_ranking_has_no_unit():
+    assert _infer_unit("ranking_dec_mes") is None

@@ -56,3 +56,18 @@ Baseado em `docs/data_quality_log.md` (itens ainda em investigação podem mudar
 6. Qual o nome e o local do arquivo SQLite gerado pelo `04_export_banco_local` (o backend espera `data/gold.db`)?
 
 `ordens_inspecao` é do portal (não da Gold): fica em `data/portal.db`, criada sozinha no startup. É um arquivo separado do `gold.db`, para a exportação da Gold não sobrescrevê-la.
+
+## 5. Mapeamento `dim_uc` → nomes lógicos do portal (implementado em `sqlite_repo.py`)
+
+| Portal (mock) | `dim_uc` | Observação |
+|---|---|---|
+| `uc_id` | `id_uc` | busca ignora caixa; chave comum às fatos |
+| `titular` | `nome_titular_mascarado` | só mascarado (LGPD); a busca por nome acha só o primeiro nome e as iniciais |
+| `classe` | `classe` | valores reais: `RESIDENCIAL`, `RURAL`, `COMERCIAL`, `PODER PUBLICO`, `INDUSTRIAL` (o mock usa `B1`, `B2`...) |
+| `alimentador_id` | `alimentador` | `ucs_total` = contagem de UCs do alimentador; se atender mais de um município, vale o de mais UCs |
+| `medidor` | `id_medidor_ativo`, `tipo_medidor_ativo`, `modelo_medidor_ativo`, `data_instalacao_medidor`, `idade_medidor_anos`, `medidor_trocado_recentemente` | `None` se a UC não tem medidor ativo |
+| `geracao_distribuida` | `possui_gd`, `potencia_gd_kwp`, `data_conexao_gd`, `modalidade_gd`, `energia_injetada_media_kwh`, `energia_injetada_atipica` | `modalidade` substitui o `fonte` do mock; com `atipica = true` a energia injetada não é medida real (log G5) |
+| `competencias` | `primeiro_mes_leitura`, `ultimo_mes_leitura` | provisório: período coberto pelas leituras, até a fato de faturamento chegar |
+| (novo) tendência | `consumo_medio_12m_kwh`, `variacao_consumo_12m_pct` | já vão no cadastro da UC |
+
+Pendente de tabela (o repositório devolve 501): faturas, consumo e atendimentos da UC, ocorrências/DEC-FEC e fila de suspeitas.

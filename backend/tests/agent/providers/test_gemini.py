@@ -304,3 +304,138 @@ async def test_instructions_are_passed_to_agent(
     )
 
     assert attempt.success is True
+
+
+@pytest.mark.anyio
+async def test_model_name_is_used_for_the_call_and_the_attempt(
+    monkeypatch,
+):
+    built = []
+
+    def fake_build_model(model_name=None):
+        built.append(model_name)
+
+        return object()
+
+    monkeypatch.setattr(
+        gemini,
+        "settings",
+        make_settings(),
+    )
+
+    monkeypatch.setattr(
+        gemini,
+        "Agent",
+        SuccessfulAgent,
+    )
+
+    monkeypatch.setattr(
+        gemini,
+        "_build_model",
+        fake_build_model,
+    )
+
+    output, attempt = await gemini.run_gemini(
+        "Qual foi o consumo?",
+        model_name="gemini-ultimo-recurso",
+    )
+
+    assert output == "resposta simulada"
+    assert built == ["gemini-ultimo-recurso"]
+    assert attempt.model == "gemini-ultimo-recurso"
+    assert attempt.success is True
+
+
+@pytest.mark.anyio
+async def test_default_model_is_built_without_arguments(
+    monkeypatch,
+):
+    built = []
+
+    def fake_build_model(*args):
+        built.append(args)
+
+        return object()
+
+    monkeypatch.setattr(
+        gemini,
+        "settings",
+        make_settings(),
+    )
+
+    monkeypatch.setattr(
+        gemini,
+        "Agent",
+        SuccessfulAgent,
+    )
+
+    monkeypatch.setattr(
+        gemini,
+        "_build_model",
+        fake_build_model,
+    )
+
+    _, attempt = await gemini.run_gemini(
+        "Qual foi o consumo?",
+    )
+
+    # O caminho da primeira chamada não mudou: _build_model()
+    # sem argumento.
+    assert built == [()]
+    assert attempt.model == "gemini-3.1-flash-lite"
+
+
+@pytest.mark.anyio
+async def test_failed_call_reports_the_requested_model(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        gemini,
+        "settings",
+        make_settings(),
+    )
+
+    monkeypatch.setattr(
+        gemini,
+        "Agent",
+        FailingAgent,
+    )
+
+    monkeypatch.setattr(
+        gemini,
+        "_build_model",
+        lambda model_name=None: object(),
+    )
+
+    output, attempt = await gemini.run_gemini(
+        "teste",
+        model_name="gemini-ultimo-recurso",
+    )
+
+    assert output is None
+    assert attempt.success is False
+    assert attempt.model == "gemini-ultimo-recurso"
+    assert attempt.error_type == ProviderErrorType.UNKNOWN
+
+
+@pytest.mark.anyio
+async def test_missing_api_key_reports_the_requested_model(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        gemini,
+        "settings",
+        make_settings(api_key=None),
+    )
+
+    output, attempt = await gemini.run_gemini(
+        "teste",
+        model_name="gemini-ultimo-recurso",
+    )
+
+    assert output is None
+    assert attempt.model == "gemini-ultimo-recurso"
+    assert (
+        attempt.error_type
+        == ProviderErrorType.CONFIGURATION_ERROR
+    )

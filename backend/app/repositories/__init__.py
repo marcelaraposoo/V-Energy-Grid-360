@@ -15,6 +15,6 @@ def get_ordens_store() -> OrdensStore:
 def get_repo() -> Repository:
     if settings.data_source == "sqlite":
         from app.repositories.sqlite_repo import SqliteRepository
-        return SqliteRepository(settings.sqlite_path)
+        return SqliteRepository(settings.sqlite_path, ordens=get_ordens_store())
     from app.repositories.mock_repo import MockRepository
     return MockRepository(ordens=get_ordens_store())

@@ -7,24 +7,25 @@ A camada de acesso aos modelos de IA foi estruturada com **um provider principal
 Fluxo definido:
 
 ```text
+Gemini 3.5 Flash-Lite
+        ↓ erro recuperável
+OpenRouter: Cohere North Mini Code
+        ↓ erro recuperável
+OpenRouter: Nemotron 3 Ultra
+        ↓ erro recuperável
 Gemini 3.1 Flash-Lite
-        ↓ erro recuperável
-Nemotron 3 Super
-        ↓ erro recuperável
-Nemotron 3 Ultra
-        ↓ erro recuperável
-Gemma 4
-        ↓
+        ↓        
 PROVIDER_UNAVAILABLE
 ```
 
-O **Gemini 3.1 Flash-Lite**, acessado diretamente pela API do Google, foi definido como provider principal.
+O **Gemini 3.5 Flash-Lite**, acessado diretamente pela API do Google, foi definido como provider principal.
 
 O OpenRouter atua apenas como camada de contingência, utilizando, nesta ordem:
 
-1. Nemotron 3 Super
-2. Nemotron 3 Ultra
-3. Gemma 4
+1. Cohere North Mini Code (`cohere/north-mini-code:free`)
+2. Nemotron 3 Ultra (`nvidia/nemotron-3-ultra-550b-a55b:free`)
+
+Os modelos do OpenRouter usam `PromptedOutput`. O modo `tool` falhou em quase todas as chamadas dos health checks, então o modo prompted foi adotado para melhorar a confiabilidade da saída estruturada.
 
 O fallback é controlado pela própria aplicação através do `router.py`. Não utilizamos fallback automático do SDK ou do OpenRouter, permitindo maior controle sobre erros, tentativas e observabilidade.
 

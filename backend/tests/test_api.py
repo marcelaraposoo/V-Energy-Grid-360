@@ -40,6 +40,26 @@ def test_visao_360():
     assert client.get("/api/unidades/UC999999/visao-360").status_code == 404
 
 
+def test_visao_360_detalha_fatura_com_campos_da_gold(monkeypatch):
+    repo = get_repo()
+    original = max(
+        (f for f in repo.d["fato_consumo_faturamento"] if f["id_uc"] == "UC000001"),
+        key=lambda f: f["mes_referencia"],
+    )
+    monkeypatch.setitem(original, "tributos", 17.83)
+    monkeypatch.setitem(original, "preco_medio_kwh", 0.987654)
+
+    resposta = client.get("/api/unidades/UC000001/visao-360")
+
+    assert resposta.status_code == 200
+    fatura = resposta.json()["faturas"][0]
+    assert fatura["competencia"] == original["mes_referencia"]
+    assert fatura["tributos"] == 17.83
+    assert fatura["preco_medio_kwh"] == 0.987654
+    assert fatura["valor_energia"] == original["valor_energia"]
+    assert fatura["valor_total"] == original["valor_total"]
+
+
 def test_visao_360_atendimentos_da_gold():
     repo = get_repo()
     fato = next(a for a in repo.d["fato_atendimento"] if a["nota_satisfacao"] is None)
@@ -212,7 +232,7 @@ def test_periodo_invalido_retorna_422():
 
 def test_ia_insights_tela_invalida_e_tela_sem_insight():
     assert client.get("/api/ia/insights?tela=xyz").status_code == 422
-    assert client.get("/api/ia/insights?tela=perdas").json() == []
+    assert client.get("/api/ia/insights?tela=dashboard").json() == []
 
 
 def test_ia_limpar_sessao():

@@ -123,6 +123,10 @@ class FaturaUC(BaseModel):
     data_pagamento: date | None = None
     valor_energia: float | None = None
     valor_total: float | None = None
+    tributos: float | None = None
+    preco_medio_kwh: float | None = Field(
+        default=None, description="Valor da energia / consumo em kWh; inclui bandeira e exclui tributos.",
+    )
 
 
 class MedidorUC(BaseModel):
@@ -256,6 +260,19 @@ class Ordem(BaseModel):
     criada_em: str
     atualizada_em: str
     resultado: dict | None
+
+
+class RejeicaoImportacao(BaseModel):
+    linha: int = Field(description="Linha do arquivo (o cabeçalho é a linha 1).")
+    ordem_id: int | None = None
+    erro: str
+
+
+class ResumoImportacao(BaseModel):
+    total: int = Field(description="Linhas preenchidas que foram avaliadas (aceitas + rejeitadas).")
+    aceitas: int
+    ignoradas: int = Field(description="Linhas do modelo ainda sem preenchimento.")
+    rejeitadas: list[RejeicaoImportacao]
 
 
 # ---------- continuidade ----------

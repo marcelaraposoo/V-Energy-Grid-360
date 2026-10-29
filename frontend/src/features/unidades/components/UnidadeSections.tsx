@@ -6,6 +6,7 @@ import {
   formatarData,
   formatarDataHora,
   formatarMoeda,
+  formatarPrecoKwh,
   formatarNumero,
   formatarNotaSatisfacao,
 } from '../formatters'
@@ -17,6 +18,7 @@ import { FiltroPeriodoHistorico } from './FiltroPeriodoHistorico'
 import { UnidadeFields } from './UnidadeFields'
 
 type SectionProps = { dados: Visao360 }
+const situacoesFatura = { paga: 'Paga', aberta: 'Em aberto', atrasada: 'Atrasada' }
 type ConsumoSectionProps = SectionProps & {
   comparacao: SelecaoContaAlta
   onComparacaoChange: (value: SelecaoContaAlta) => void
@@ -29,10 +31,7 @@ export function ConsumoSection({
   dados,
   ...diagnosticoProps
 }: ConsumoSectionProps) {
-  const ultimo = dados.consumo.at(-1)
-  const fatura = dados.faturas.find(
-    (f) => f.competencia === ultimo?.competencia,
-  )
+  const fatura = dados.faturas[0]
 
   return (
     <div className="ucv-consumo-grid">
@@ -45,27 +44,58 @@ export function ConsumoSection({
           <ConsumoChart consumo={dados.consumo} />
         </Panel>
         <Panel
-          title="Valor faturado mais recente"
+          title="Detalhamento da última fatura"
+          className="ucv-fatura-detalhe"
           description={
-            ultimo
-              ? `Competência ${formatarCompetencia(ultimo.competencia)}`
-              : 'Sem competência de consumo disponível'
+            fatura
+              ? `Competência ${formatarCompetencia(fatura.competencia)}`
+              : 'Sem fatura disponível'
+          }
+          actions={
+            fatura && (
+              <span className={`badge ucv-fatura--${fatura.status}`}>
+                {situacoesFatura[fatura.status]}
+              </span>
+            )
           }
         >
-          <UnidadeFields
-            fields={[
-              {
-                label: 'Valor total da fatura',
-                value: formatarMoeda(
-                  ultimo?.valor_total ?? fatura?.valor_total,
-                ),
-              },
-              {
-                label: 'Mesmo mês do ano anterior',
-                value: formatarMoeda(ultimo?.valor_total_ano_anterior),
-              },
-            ]}
-          />
+          {fatura ? (
+            <>
+              <p className="ucv-fatura-total">
+                <span>Valor total da fatura</span>
+                <strong>{formatarMoeda(fatura.valor_total)}</strong>
+              </p>
+              <UnidadeFields
+                fields={[
+                  {
+                    label: 'Consumo faturado (kWh)',
+                    value: formatarNumero(fatura.consumo_kwh),
+                  },
+                  {
+                    label: 'Energia',
+                    value: formatarMoeda(fatura.valor_energia),
+                  },
+                  { label: 'Tributos', value: formatarMoeda(fatura.tributos) },
+                  {
+                    label: 'Preço médio por kWh',
+                    value: formatarPrecoKwh(fatura.preco_medio_kwh),
+                  },
+                  { label: 'Bandeira tarifária', value: fatura.bandeira },
+                  { label: 'Vencimento', value: formatarData(fatura.vencimento) },
+                ]}
+              />
+              <p className="ucv-fatura-note">
+                O valor da energia e o preço médio por kWh incluem o adicional
+                de bandeira e não incluem tributos.
+              </p>
+            </>
+          ) : (
+            <EmptyState
+              icon={FileText}
+              title="Sem fatura disponível"
+              description="Não há dados de faturamento para esta unidade."
+            />
+          )}
         </Panel>
       </div>
       <ContaAltaCard
@@ -85,7 +115,6 @@ export function FaturasSection({ dados }: SectionProps) {
       ]),
     ).values(),
   ].sort((a, b) => b.competencia.localeCompare(a.competencia))
-  const status = { paga: 'Paga', aberta: 'Em aberto', atrasada: 'Atrasada' }
 
   return (
     <Panel
@@ -117,7 +146,7 @@ export function FaturasSection({ dados }: SectionProps) {
             <td>{formatarData(fatura.data_pagamento)}</td>
             <td>
               <span className={`badge ucv-fatura--${fatura.status}`}>
-                {status[fatura.status]}
+                {situacoesFatura[fatura.status]}
               </span>
             </td>
           </tr>

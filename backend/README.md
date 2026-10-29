@@ -1,7 +1,7 @@
 # Backend — V-Energy Grid 360 (FastAPI)
 
-API do portal. Por enquanto roda com **dados mockados** (`DATA_SOURCE=mock`); quando a camada Gold estiver
-pronta, basta implementar `app/repositories/sqlite_repo.py` e trocar para `DATA_SOURCE=sqlite`.
+API do portal. Roda com **dados mockados** (`DATA_SOURCE=mock`, o padrão) ou, em parte, com a Gold local
+(`DATA_SOURCE=sqlite`): hoje só a `dim_uc` está pronta (ver "Usar a Gold local").
 
 ## Rodar
 ```bash
@@ -13,13 +13,22 @@ uvicorn app.main:app --reload --port 8000
 ```
 Docs interativas: http://localhost:8000/docs · Testes: `pytest`
 
+## Usar a Gold local (parcial)
+1. Coloque o `gold.db` exportado em `backend/data/` (ou aponte `SQLITE_PATH` no `.env`) e use `DATA_SOURCE=sqlite`.
+2. O arquivo precisa ter a tabela `dim_uc` (colunas do notebook `03_gold_dim_uc`). O banco é aberto só para leitura.
+3. O que responde com a Gold hoje: `/filtros` (municípios, bairros, classes, alimentadores e competências vêm da
+   `dim_uc`) e `/unidades?q=` (busca por UC ou pelo nome mascarado, sem diferenciar acento).
+4. O que depende de tabela que ainda não chegou devolve **501** com a tabela que falta no `detail`
+   (`fato_consumo_faturamento`, `fato_atendimento`, `fato_interrupcao`, `fila_inspecao`). Para essas telas, use `mock`.
+5. As ordens de inspeção continuam em `data/portal.db`, nos dois modos.
+
 ## Estrutura
 ```
 app/
   main.py            # app, CORS (front em :5173), handlers 404/409
   core/              # config (.env) e erros de domínio
   mock/              # gerador determinístico de dados fake
-  repositories/      # acesso a dados: base (contrato), mock_repo, sqlite_repo (TODO)
+  repositories/      # acesso a dados: base (contrato), mock_repo, sqlite_repo (parcial: dim_uc)
   services/          # regras de negócio (receita, dashboard, unidades, perdas, continuidade, ia)
   routers/           # endpoints finos que só chamam services
   schemas.py         # modelos Pydantic (contrato com o frontend)

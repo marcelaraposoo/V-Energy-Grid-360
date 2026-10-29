@@ -132,4 +132,28 @@ QUESTIONS = (
         "preventiva de cada alimentador?",
         "insufficient_context",
     ),
+    Question(
+        "V10", "valida-media",
+        "Quanto tempo, em minutos, durou a falta de luz no alimentador "
+        "ALIM-02 em 2026-06?",
+        "ready",
+        "SELECT AVG(duracao_min) FROM fato_interrupcao "
+        "WHERE alimentador = 'ALIM-02' AND mes_referencia = '2026-06'",
+    ),
+    Question(
+        "V11", "valida-media",
+        "Quantas unidades consumidoras ficaram sem luz no alimentador "
+        "ALIM-02 em 2026-06?",
+        "ready",
+        "SELECT COUNT(DISTINCT id_uc) FROM fato_interrupcao "
+        "WHERE alimentador = 'ALIM-02' AND mes_referencia = '2026-06'",
+    ),
+    Question(
+        "V12", "valida-media",
+        "Qual foi o impacto total, em minutos-cliente, das interrupções "
+        "do alimentador ALIM-02 em 2026-06?",
+        "ready",
+        "SELECT SUM(duracao_min) FROM fato_interrupcao "
+        "WHERE alimentador = 'ALIM-02' AND mes_referencia = '2026-06'",
+    ),
 )

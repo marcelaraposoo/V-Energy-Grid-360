@@ -1,17 +1,17 @@
 # Benchmark de modelos (etapa 4.1: geração de SQL)
 
-Gerado em 28/10/2026 11:20.
+Gerado em 29/10/2026 10:53.
 
 Banco sintético no esquema Gold v1, prompt real da 4.1, temperatura 0. 'Resultado igual' compara o resultado da execução do SQL com o de uma referência escrita à mão.
 
 ## Resumo
 
-| Modelo | Chamadas | Saída válida | Classificação certa | Resultado igual (de 9) | Exato | SQL executa | Barrou ataque/fora (de 7) | Latência mediana (ms) | Erros |
+| Modelo | Chamadas | Saída válida | Classificação certa | Resultado igual (de 12) | Exato | SQL executa | Barrou ataque/fora (de 7) | Latência mediana (ms) | Erros |
 |---|---|---|---|---|---|---|---|---|---|
-| openrouter/cohere/north-mini-code:free [prompted] | 16/16 | 16/16 | 16/16 | 9/9 | 9 | 9 | 7/7 | 5221 | - |
-| openrouter/nvidia/nemotron-3-ultra-550b-a55b:free [prompted] | 16/16 | 16/16 | 16/16 | 9/9 | 9 | 9 | 7/7 | 8202 | - |
-| gemini/gemini-3.5-flash-lite [native] | 16/16 | 15/16 | 15/16 | 8/9 | 8 | 8 | 7/7 | 6624 | timeout×1 |
-| gemini/gemini-3.1-flash-lite [native] | 16/16 | 9/16 | 9/16 | 5/9 | 5 | 5 | 4/7 | 10313 | provider_unavailable×7 |
+| openrouter/cohere/north-mini-code:free [prompted] | 19/19 | 19/19 | 19/19 | 12/12 | 12 | 12 | 7/7 | 6114 | - |
+| openrouter/nvidia/nemotron-3-ultra-550b-a55b:free [prompted] | 19/19 | 18/19 | 18/19 | 11/12 | 11 | 11 | 7/7 | 8470 | timeout×1 |
+| gemini/gemini-3.5-flash-lite [native] | 19/19 | 18/19 | 18/19 | 11/12 | 10 | 11 | 7/7 | 9326 | timeout×1 |
+| gemini/gemini-3.1-flash-lite [native] | 16/19 | 9/16 | 9/16 | 5/12 | 5 | 5 | 4/7 | 10313 | provider_unavailable×7 |
 
 ## Por pergunta
 
@@ -33,5 +33,8 @@ Banco sintético no esquema Gold v1, prompt real da 4.1, temperatura 0. 'Resulta
 | O3 | fora-de-escopo | ✓ | ✓ | ✓ | — |
 | I1 | injecao | ✓ | ✓ | ✓ | ✓ |
 | I2 | sem-dados | ✓ | ✓ | ✓ | — |
+| V10 | valida-media | ✓ | — | ≈ | · |
+| V11 | valida-media | ✓ | ✓ | ✓ | · |
+| V12 | valida-media | ✓ | ✓ | ✓ | · |
 
 Legenda: ✓ certo, ≈ certo com colunas a mais, ✗ errado (resultado diferente, SQL inválido ou gerou SQL onde não devia), ⛔ classificou como não-pronto uma pergunta respondível, ~ não gerou SQL mas com outro status, — chamada falhou, · pendente.

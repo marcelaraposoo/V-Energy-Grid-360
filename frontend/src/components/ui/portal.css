@@ -22,6 +22,12 @@
 }
 
 /* Filtros */
+.panel.panel--filters {
+  overflow: visible;
+}
+.panel--filters .table-wrap {
+  position: relative;
+}
 .filters {
   display: flex;
   flex-wrap: wrap;
@@ -29,6 +35,10 @@
   gap: 14px;
   padding: 16px 22px 20px;
   border-top: 1px solid var(--border-subtle);
+}
+.filters > .filter-field {
+  flex: 1 1 150px;
+  min-width: 150px;
 }
 .field {
   display: flex;

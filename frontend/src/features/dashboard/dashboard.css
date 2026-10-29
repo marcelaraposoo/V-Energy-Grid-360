@@ -15,48 +15,8 @@
 .panel.dashboard-filters {
   overflow: visible;
 }
-.dashboard-filter {
-  display: grid;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 11px;
-  min-width: 0;
-}
-.dashboard-filter-trigger {
-  width: 100%;
-  min-width: 0;
-  min-height: 38px;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-elevated);
-  color: var(--text-primary);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  transition: border-color 150ms, background-color 150ms;
-  cursor: pointer;
-}
-@media (hover: hover) {
-  .dashboard-filter-trigger:hover:not(:disabled) {
-    border-color: var(--accent-selected-border, color-mix(in srgb, var(--accent) 40%, transparent));
-    background: var(--accent-hover-bg, var(--surface));
-  }
-}
-.dashboard-period-picker,
-.dashboard-select-picker {
+.dashboard-period-picker {
   position: relative;
-}
-.dashboard-filter-trigger {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-align: left;
-}
-.dashboard-filter-trigger span {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .dashboard-period-popover {
   position: absolute;
@@ -113,53 +73,6 @@
   color: var(--text-secondary);
   font-size: 11px;
   line-height: 1.6;
-}
-.dashboard-filter-trigger:disabled {
-  color: var(--text-muted);
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.dashboard-filter-trigger:focus-visible {
-  outline: none;
-}
-.dashboard-filter-list {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 10;
-  width: 100%;
-  max-width: calc(100vw - 68px);
-  max-height: 240px;
-  overflow-y: auto;
-  margin: 0;
-  padding: 6px;
-  list-style: none;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-elevated);
-  box-shadow: var(--shadow-popover);
-}
-.dashboard-filter-list [role='option'] {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 38px;
-  padding: 10px 12px;
-  border-radius: 5px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
-.dashboard-filter-list [role='option']:hover,
-.dashboard-filter-list [role='option']:focus-visible {
-  background: var(--accent-hover-bg, var(--surface));
-  color: var(--text-primary);
-  outline-offset: -2px;
-}
-.dashboard-filter-list [role='option'][aria-selected='true'] {
-  background: var(--accent-selected-bg, color-mix(in srgb, var(--accent) 5%, transparent));
-  color: var(--accent);
 }
 .dashboard-filters .button {
   min-height: 38px;

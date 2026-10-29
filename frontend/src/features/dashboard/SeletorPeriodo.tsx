@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
+import '../../components/ui/controls.css'
 
 const meses = [
   'Janeiro',
@@ -100,7 +101,7 @@ export function SeletorPeriodo({
 
   return (
     <div
-      className="dashboard-filter dashboard-period-picker"
+      className="filter-field dashboard-period-picker"
       ref={containerRef}
       onKeyDown={(event) => {
         if (aberto && event.key === 'Escape') {
@@ -117,7 +118,7 @@ export function SeletorPeriodo({
         id={id}
         ref={botaoRef}
         type="button"
-        className="dashboard-filter-trigger"
+        className="filter-trigger"
         aria-labelledby={`${id}-label ${id}-value`}
         aria-haspopup="dialog"
         aria-expanded={aberto}

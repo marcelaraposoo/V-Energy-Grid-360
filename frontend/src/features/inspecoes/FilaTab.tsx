@@ -89,6 +89,7 @@ export function FilaTab({ onOrdemCriada }: Props) {
         </p>
       )}
       <Panel
+        className="panel--filters"
         title="Unidades suspeitas"
         description="Da mais promissora para a menos promissora: prioridade = probabilidade × energia recuperável."
         actions={

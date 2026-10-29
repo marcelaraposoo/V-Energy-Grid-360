@@ -293,6 +293,7 @@ def test_read_only_uri_encodes_spaces():
         "PRAGMA table_info(municipios)",
         "PRAGMA writable_schema = ON",
         "VACUUM",
+        "ATTACH DATABASE 'data/portal.db' AS outro",
     ],
 )
 def test_authorizer_denies_pragma_and_maintenance(db_path, sql):

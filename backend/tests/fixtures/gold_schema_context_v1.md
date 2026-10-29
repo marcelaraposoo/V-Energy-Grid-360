@@ -285,7 +285,7 @@ Uma queda de 2 horas que atinge 100 UCs gera 100 linhas, cada uma com `duracao_m
 ## Como interpretar (importante)
 
 - `duracao_min` é o tempo que **aquela UC** ficou sem energia.
-- Somar `duracao_min` não dá a duração de uma queda: dá o impacto acumulado em **horas-cliente** (no exemplo, 100 UCs x 2 h = 200 horas-cliente). Use a soma apenas quando a pergunta for sobre impacto total, e chame o resultado de horas-cliente.
+- Somar `duracao_min` não dá a duração de uma queda: dá o impacto acumulado em **tempo-cliente** (no exemplo, 100 UCs x 120 min = 12.000 minutos-cliente, ou 200 horas-cliente). Use a soma apenas quando a pergunta for sobre impacto total. **Respeite a unidade pedida na pergunta**: se pedir minutos, devolva `SUM(duracao_min)` sem converter; só divida por 60 se a pergunta pedir horas.
 - "Quanto tempo durou a falta de luz": use a duração de cada interrupção (média, mínimo ou máximo de `duracao_min`), nunca a soma, e deixe claro que o valor é por UC afetada.
 - "Quantas UCs ficaram sem luz": use `COUNT(DISTINCT id_uc)`, nunca `COUNT(*)`, porque uma UC pode aparecer em várias interrupções.
 - "Quantas quedas houve": este contrato não identifica a queda com segurança. Não use `COUNT(*)` como número de quedas e não presuma que `id_ocorrencia` agrupa as UCs da mesma queda. Se a pergunta exigir isso, use `INSUFFICIENT_CONTEXT`.

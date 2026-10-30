@@ -228,7 +228,7 @@ def test_ia_perguntar_usa_o_agente(monkeypatch):
 
     assert r["status"] == "ok"
     assert r["resposta"] == "Resposta de teste."
-    assert r["sql_executado"] == "SELECT 1"
+    assert r["sql_executado"] is None
 
 
 def test_ia_perguntar_sem_resposta_devolve_nao_sei(monkeypatch):

@@ -4,9 +4,12 @@ expor o SQL executado (auditoria) e ignorar tentativas de prompt injection."""
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from app.schemas import Filtros, Insight, RespostaOut
 from app.services import continuidade, dashboard, perdas, receita
+
+logger = logging.getLogger(__name__)
 
 
 def perguntar(pergunta: str, sessao_id: str | None = None) -> RespostaOut:
@@ -15,10 +18,11 @@ def perguntar(pergunta: str, sessao_id: str | None = None) -> RespostaOut:
     resultado = asyncio.run(answer_question(pergunta))
 
     if resultado.status == PipelineStatus.ANSWERED:
+        logger.info("Pergunta respondida. sql=%s", resultado.sql)
         return RespostaOut(
             status="ok",
             resposta=resultado.message,
-            sql_executado=resultado.sql,
+            sql_executado=None,
             fontes=[],
             visualizacao=(
                 resultado.visualization.model_dump(mode="json")

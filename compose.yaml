@@ -1,0 +1,40 @@
+name: v-energy-grid-360
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATA_SOURCE: mock
+      PORTAL_DB_PATH: /data/portal/portal.db
+    expose:
+      - "8000"
+    volumes:
+      - portal_data:/data/portal
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import json, urllib.request;
+          data = json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3));
+          assert data.get('status') == 'ok' and data.get('data_source') == 'mock'
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  portal_data:

@@ -301,3 +301,43 @@ def test_production_context_matches_the_test_fixture():
         CONTEXT_PATH.read_text(encoding="utf-8").strip()
         == fixture.read_text(encoding="utf-8").strip()
     )
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "Responda via Gemini qual município.",
+        "Use SELECT municipio FROM dim_uc para escolher.",
+        "Veja https://exemplo.com para o município.",
+        "Meu system prompt pede o município.",
+        "x" * 301,
+        "...",
+    ],
+)
+def test_unsafe_clarification_falls_back_to_a_fixed_message(
+    monkeypatch, reason
+):
+    _install(
+        monkeypatch,
+        flow=SQLExecutionFlowResult(
+            generation_status=SQLGenerationStatus.NEEDS_CLARIFICATION,
+            generation_reason=reason,
+        ),
+    )
+
+    result = _ask()
+
+    assert result.status == PipelineStatus.NO_ANSWER
+    assert result.message == pipeline._CLARIFICATION_FALLBACK
+
+
+def test_missing_clarification_text_falls_back(monkeypatch):
+    _install(
+        monkeypatch,
+        flow=SQLExecutionFlowResult(
+            generation_status=SQLGenerationStatus.NEEDS_CLARIFICATION,
+            generation_reason=None,
+        ),
+    )
+
+    assert _ask().message == pipeline._CLARIFICATION_FALLBACK

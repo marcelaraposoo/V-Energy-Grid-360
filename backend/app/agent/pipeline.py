@@ -4,6 +4,14 @@ from enum import Enum
 from app.agent.context.loader import load_database_context
 from app.agent.execution_responses import get_execution_message
 from app.agent.guardrails.input_guardrail import validate_input
+from app.agent.guardrails.output_text_rules import (
+    contains_sql,
+    contains_technical_error,
+    contains_url,
+    lacks_useful_content,
+    leaks_prompt,
+    mentions_provider_or_model,
+)
 from app.agent.output_responses import get_output_guardrail_message
 from app.agent.post_processing_orchestrator import (
     process_approved_response,
@@ -75,6 +83,27 @@ _GENERATION_BLOCKED_MESSAGE = (
     "Não consegui montar uma consulta segura para essa pergunta. "
     "Tente reformulá-la."
 )
+_CLARIFICATION_MAX_LENGTH = 300
+_CLARIFICATION_FALLBACK = (
+    "Preciso de mais detalhes para responder. Pode reformular a "
+    "pergunta com mais informações, como período, município ou classe?"
+)
+
+
+def _is_safe_clarification(text: str | None) -> bool:
+    if not text or lacks_useful_content(text):
+        return False
+
+    if len(text) > _CLARIFICATION_MAX_LENGTH:
+        return False
+
+    return not (
+        leaks_prompt(text)
+        or mentions_provider_or_model(text)
+        or contains_technical_error(text)
+        or contains_sql(text)
+        or contains_url(text)
+    )
 
 
 def _no_answer(
@@ -102,8 +131,15 @@ def _generation_message(flow) -> str:
     if status == SQLGenerationStatus.INSUFFICIENT_CONTEXT:
         return _INSUFFICIENT_MESSAGE
 
-    # NEEDS_CLARIFICATION: a própria pergunta de volta ao usuário.
-    return flow.generation_reason or _INSUFFICIENT_MESSAGE
+    if status == SQLGenerationStatus.NEEDS_CLARIFICATION:
+        reason = flow.generation_reason
+
+        if _is_safe_clarification(reason):
+            return reason
+
+        return _CLARIFICATION_FALLBACK
+
+    return _INSUFFICIENT_MESSAGE
 
 
 async def answer_question(

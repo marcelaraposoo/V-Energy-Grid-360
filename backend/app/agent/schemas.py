@@ -171,6 +171,83 @@ class QueryExecutionResult(BaseModel):
 
         return self
 
+# =========================================================
+# EXECUÇÃO SQL — ETAPA 4.3
+# =========================================================
+
+
+class SQLExecutionStatus(str, Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
+class SQLExecutionErrorType(str, Enum):
+    TABLE_NOT_FOUND = "table_not_found"
+    COLUMN_NOT_FOUND = "column_not_found"
+    TIMEOUT = "timeout"
+    DATABASE_UNAVAILABLE = "database_unavailable"
+    EXECUTION_ERROR = "execution_error"
+
+
+class SQLExecutionOutcome(BaseModel):
+    """
+    Resultado da execução do SQL.
+
+    O texto original do erro do banco fica em `error_detail`,
+    só para log técnico. Ele nunca vai ao usuário.
+    """
+
+    status: SQLExecutionStatus
+    result: QueryExecutionResult | None = None
+    error_type: SQLExecutionErrorType | None = None
+    error_detail: str | None = None
+    elapsed_ms: float = 0.0
+
+    @model_validator(mode="after")
+    def validate_outcome(self):
+        if self.status == SQLExecutionStatus.SUCCESS:
+            if self.result is None:
+                raise ValueError(
+                    "result é obrigatório quando o status é SUCCESS."
+                )
+
+            if self.error_type is not None:
+                raise ValueError(
+                    "error_type deve ser None quando o status é SUCCESS."
+                )
+
+            return self
+
+        if self.result is not None:
+            raise ValueError(
+                "result deve ser None quando o status é FAILED."
+            )
+
+        if self.error_type is None:
+            raise ValueError(
+                "error_type é obrigatório quando o status é FAILED."
+            )
+
+        return self
+
+
+class SQLExecutionFlowResult(BaseModel):
+    """Resultado do fluxo completo 4.1 a 4.3."""
+
+    generation_status: SQLGenerationStatus | None = None
+    generation_reason: str | None = None
+    sql: str | None = None
+    guardrail_reason: SQLGuardrailReason | None = None
+    outcome: SQLExecutionOutcome | None = None
+    provider_error: ProviderErrorType | None = None
+    regenerations: int = 0
+
+    @property
+    def executed(self) -> bool:
+        return (
+            self.outcome is not None
+            and self.outcome.status == SQLExecutionStatus.SUCCESS
+        )
 
 # =========================================================
 # SÍNTESE DA RESPOSTA — ETAPA 4.4

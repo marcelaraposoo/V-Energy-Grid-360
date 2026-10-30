@@ -3,15 +3,39 @@ Requisitos do case: só SELECT (conexão read-only), dizer "não sei" quando nã
 expor o SQL executado (auditoria) e ignorar tentativas de prompt injection."""
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from app.schemas import Filtros, Insight, RespostaOut
 from app.services import continuidade, dashboard, perdas, receita
 
+logger = logging.getLogger(__name__)
+
 
 def perguntar(pergunta: str, sessao_id: str | None = None) -> RespostaOut:
+    from app.agent.pipeline import PipelineStatus, answer_question
+
+    resultado = asyncio.run(answer_question(pergunta))
+
+    if resultado.status == PipelineStatus.ANSWERED:
+        logger.info("Pergunta respondida. sql=%s", resultado.sql)
+        return RespostaOut(
+            status="ok",
+            resposta=resultado.message,
+            sql_executado=None,
+            fontes=[],
+            visualizacao=(
+                resultado.visualization.model_dump(mode="json")
+                if resultado.visualization
+                else None
+            ),
+        )
+
     return RespostaOut(
-        status="nao_implementado",
-        resposta="O agente de IA ainda não foi conectado ao backend. Esta é uma resposta de teste.",
-        sql_executado=None, fontes=[],
+        status="nao_sei",
+        resposta=resultado.message,
+        sql_executado=None,
+        fontes=[],
     )
 
 

@@ -299,6 +299,7 @@ class RespostaOut(BaseModel):
     resposta: str
     sql_executado: str | None = None
     fontes: list[str] = []
+    visualizacao: dict | None = None
 
 
 class Insight(BaseModel):

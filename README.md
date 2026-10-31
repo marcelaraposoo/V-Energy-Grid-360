@@ -67,8 +67,9 @@ uvicorn app.main:app --reload --port 8000
 
 Documentação interativa da API: http://localhost:8000/docs. Testes: `python -m pytest -q`.
 
-**Atenção:** enquanto a camada Gold não estiver pronta, o backend responde com **dados fictícios**
-(`DATA_SOURCE=mock`). Nenhum número exibido por ele vem do dado real da V-Energy.
+O backend usa **dados fictícios** por padrão (`DATA_SOURCE=mock`). Com `DATA_SOURCE=sqlite`,
+lê o arquivo Gold configurado; a leitura dos blocos da Visão 360 está implementada,
+mas ainda depende de homologação com a exportação oficial.
 Detalhes no [README do backend](backend/README.md).
 
 ### Frontend e backend juntos
@@ -95,10 +96,10 @@ O CORS do backend já aceita o frontend nesse endereço.
 ## Decisões e suposições
 
 - Stack básica, só frontend e backend, sem cache externo (como o Redis).
-- O backend usa dados mockados até a Gold ficar pronta; a leitura do banco real entra depois, sem mudar as rotas.
-- DEC e FEC são simplificados, como no enunciado: servem para comparar alimentadores e períodos.
+- Mock e SQLite compartilham o contrato da API. Os campos e limites da integração estão no [mapeamento da Gold](backend/docs/contrato-gold.md).
+- Na Visão 360, DEC/FEC usam os indicadores mensais da Gold e apresentam o contexto do alimentador; o histórico de interrupções descreve a própria UC.
 - O efeito-preço da variação de receita inclui reajuste, bandeira tarifária e mudança de mix entre classes.
-- As ordens de inspeção ficam em memória por enquanto (somem ao reiniciar o servidor).
+- As ordens de inspeção persistem em `portal.db`, separado da Gold, e sobrevivem a reinícios.
 
 > Cada frente acrescenta aqui as suas decisões e suposições.
 

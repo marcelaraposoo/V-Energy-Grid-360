@@ -11,6 +11,16 @@ nova: é `fetch` puro, com tipos TypeScript que espelham o `backend/app/schemas.
 | `http.ts` | `fetch` com tratamento de erro (`ApiError`) |
 | `useApi.ts` | Hook que carrega dados de uma tela (loading, erro, cancelamento e `reload`) |
 
+Os tipos da Visão 360 têm uma única definição em `types.ts`, também reexportada por
+`features/unidades/types.ts`. Os nomes anteriores, como `UnidadeConsumidora` e `Atendimento`,
+são aliases desses tipos atuais. O contrato inclui diagnóstico por dois meses, faturas
+paginadas, trocas de medidor, contexto de continuidade e atendimentos conforme a B1.
+
+A tela da Visão 360 usa o adaptador `features/unidades/api.ts`, que compartilha esses tipos.
+Ele solicita todos os atendimentos e usa a rota própria de faturas; o cliente genérico
+`api.unidades.visao360(ucId, signal)` mantém os padrões do endpoint, inclusive 12 meses
+para atendimentos.
+
 ## Configuração
 
 Em desenvolvimento não precisa configurar nada: o padrão é `http://localhost:8000`.
@@ -88,9 +98,11 @@ Toda resposta que não for 2xx vira um `ApiError` com `status` e `detail` (texto
 - Os nomes de campos e de parâmetros são os **mesmos da API** (snake_case), para conferir com `http://localhost:8000/docs`.
 - Todas as funções aceitam um `AbortSignal` como último argumento; o `useApi` já o repassa.
 - No `useApi`, a lista `deps` deve ter valores simples (ids, textos, números): eles são comparados como JSON.
-- `ucId` aceita `uc00001` ou `UC00001`, mas **não** só o número. Na busca global, consulte
-  `api.unidades.buscar({ q })` antes de abrir a visão 360.
-- Enquanto a camada Gold não estiver pronta, **todos os números são fictícios** (`api.health()` mostra `data_source: "mock"`).
+- As buscas da Visão 360 e do cabeçalho aceitam `000001` ou `UC000001` e convertem para
+  `UC000001` antes de consultar a API. O cliente `api.unidades.visao360(ucId, signal)`
+  recebe o identificador completo; essa conversão é feita pela interface.
+- `api.health()` informa a fonte configurada: `mock` usa dados fictícios; `sqlite` lê o arquivo
+  configurado no backend. A homologação da exportação oficial é separada dos testes com SQLite fictício.
 
 ## Testar a integração
 
@@ -105,5 +117,6 @@ Ele chama todas as rotas pelo mesmo cliente e mostra `ok` ou `FALHA` em cada uma
 
 ## Quando o backend mudar
 
-`types.ts` é mantido à mão a partir do `schemas.py`. Se uma rota ganhar ou perder campos, atualize o tipo
-e rode `npm run build` (o TypeScript acusa as telas afetadas) e o `smoke-api.ts`.
+`types.ts` é mantido à mão a partir do `schemas.py`. Se uma rota ganhar ou perder campos, atualize
+essa definição única e rode `npm run build` e `npm run lint`. O `smoke-api.ts` verifica as rotas
+do cliente compartilhado com o backend disponível; não substitui a validação do adaptador da tela.

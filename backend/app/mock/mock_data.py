@@ -2,7 +2,7 @@
 
 Cadastro, consumo/faturas, trocas de medidor, interrupções e atendimentos seguem dim_uc,
 fato_consumo_faturamento, fato_troca_medidor, fato_interrupcao e fato_atendimento da Gold consolidada
-(v4, arquivo gold_contrato_v3.md).
+(contrato consolidado da frente de Dados).
 Premissas da simulação:
 - 48 competências (2022-07 a 2026-06), 400 UCs, 14 municípios, 2 alimentadores por município.
 - Nomes mascarados, endereços e coordenadas fictícios. Toda UC possui um medidor ativo.

@@ -20,6 +20,7 @@ from app.agent.provider_responses import get_provider_message
 from app.agent.responses import get_guardrail_message
 from app.agent.schemas import (
     GuardrailDecision,
+    GuardrailReason,
     PostProcessingResult,
     SQLGenerationStatus,
     SynthesisStatus,
@@ -63,6 +64,8 @@ class PipelineResult:
     sql: str | None = None
     assumptions: tuple[str, ...] = ()
     visualization: VisualizationSpec | None = None
+    # Metadado interno para o futuro mapeamento central de outcomes/auditoria.
+    input_guardrail_reason: GuardrailReason | None = None
 
 
 # Mensagens de perguntas que o agente decide não responder.
@@ -110,12 +113,15 @@ def _no_answer(
     message: str,
     stage: PipelineStage,
     sql: str | None = None,
+    *,
+    input_guardrail_reason: GuardrailReason | None = None,
 ) -> PipelineResult:
     return PipelineResult(
         status=PipelineStatus.NO_ANSWER,
         message=message,
         stage=stage,
         sql=sql,
+        input_guardrail_reason=input_guardrail_reason,
     )
 
 
@@ -165,6 +171,7 @@ async def answer_question(
         return _no_answer(
             get_guardrail_message(entry.reason),
             PipelineStage.INPUT_GUARDRAIL,
+            input_guardrail_reason=entry.reason,
         )
 
     clean_question = entry.normalized_input or question

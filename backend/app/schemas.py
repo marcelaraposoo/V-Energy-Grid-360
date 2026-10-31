@@ -289,8 +289,12 @@ class AlimentadorDecFec(BaseModel):
 
 
 # ---------- IA ----------
+MAX_RAW_QUESTION_LENGTH = 16_384
+
+
 class PerguntaIn(BaseModel):
-    pergunta: str = Field(min_length=3, max_length=500)
+    # Teto técnico do texto bruto; conteúdo e limite funcional pertencem à C1.
+    pergunta: str = Field(max_length=MAX_RAW_QUESTION_LENGTH)
     sessao_id: str | None = None
 
 

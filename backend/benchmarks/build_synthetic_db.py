@@ -1,4 +1,5 @@
 import argparse
+import json
 import math
 import random
 import sqlite3
@@ -15,10 +16,10 @@ DB_PATH = Path(__file__).resolve().parent / "data" / "gold_synthetic.db"
 
 
 # ---------------------------------------------------------------
-# Esquema Gold v1 (colunas na ordem do contrato)
+# Campos produzidos pelas funções sintéticas (ordem dos valores nas tuplas)
 # ---------------------------------------------------------------
 
-TABLES = {
+GENERATED_COLUMNS = {
     "dim_uc": [
         ("id_uc", "TEXT"), ("nome_titular_mascarado", "TEXT"),
         ("documento_mascarado", "TEXT"), ("tipo_pessoa", "TEXT"),
@@ -85,7 +86,7 @@ TABLES = {
     ],
     "dec_fec_alimentador_mensal": [
         ("alimentador", "TEXT"), ("municipio", "TEXT"),
-        ("mes_referencia", "TEXT"), ("qtd_ucs_alimentador", "INTEGER"),
+        ("mes_referencia", "TEXT"), ("qtd_ucs_alimentador_mes", "INTEGER"),
         ("qtd_interrupcoes", "INTEGER"),
         ("horas_interrompidas", "REAL"), ("dec_horas", "REAL"),
         ("fec", "REAL"), ("causa_principal", "TEXT"),
@@ -95,18 +96,27 @@ TABLES = {
         ("id_ocorrencia", "TEXT"), ("id_uc", "TEXT"),
         ("alimentador", "TEXT"), ("bairro", "TEXT"),
         ("municipio", "TEXT"), ("tipo", "TEXT"), ("causa", "TEXT"),
-        ("data_inicio", "TEXT"), ("data_fim", "TEXT"),
+        ("data_hora_inicio", "TEXT"), ("data_hora_fim", "TEXT"),
         ("mes_referencia", "TEXT"), ("duracao_min", "INTEGER"),
     ],
     "fato_atendimento": [
         ("protocolo", "TEXT"), ("id_uc", "TEXT"), ("canal", "TEXT"),
         ("assunto", "TEXT"), ("subassunto", "TEXT"),
-        ("data_abertura", "TEXT"), ("data_fechamento", "TEXT"),
+        ("data_hora_abertura", "TEXT"), ("data_hora_fechamento", "TEXT"),
         ("mes_referencia", "TEXT"), ("aberto", "INTEGER"),
         ("tempo_resolucao_horas", "REAL"),
         ("qtd_tratativas", "INTEGER"), ("ultima_acao", "TEXT"),
         ("nota_satisfacao", "REAL"),
     ],
+}
+
+
+# Metadados versionados, sem dados reais. As colunas derivadas são preenchidas
+# em complete_contract(), após inserir os campos gerados nas tuplas acima.
+CONTRACT_PATH = Path(__file__).resolve().parents[1] / "tests/fixtures/gold_agent_contract.json"
+TABLES = {
+    name: list(table["columns"].items())
+    for name, table in json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))["tables"].items()
 }
 
 
@@ -636,23 +646,23 @@ def build_facts(rng, ucs, hit):
 
             if assunto:
                 protocolo += 1
-                abertura = month_start(label) + timedelta(days=rng.randint(0, 27))
+                abertura = datetime.combine(month_start(label), datetime.min.time()) + timedelta(days=rng.randint(0, 27))
                 still_open = label >= "2026-05" and rng.random() < 0.2
 
                 if still_open:
                     fechamento = horas = nota = None
-                    ultima = "EM ANALISE"
+                    ultima = "ANALISE"
                 else:
                     horas = round(rng.lognormvariate(math.log(24), 0.8), 1)
                     fechamento = (
-                        abertura + timedelta(days=int(horas // 24))
-                    ).isoformat()
+                        abertura + timedelta(hours=horas)
+                    ).isoformat(sep=" ", timespec="seconds")
                     nota = (
                         float(rng.choice([1, 2, 3, 3, 4]))
                         if assunto == "FALTA DE ENERGIA"
                         else float(rng.randint(1, 5))
                     ) if rng.random() < 0.6 else None
-                    ultima = "ENCERRADO"
+                    ultima = "ENCERRAMENTO"
 
                 att_count[label] += 1
 
@@ -664,7 +674,7 @@ def build_facts(rng, ucs, hit):
                         f"PR-{protocolo:07d}", uc["id_uc"],
                         rng.choice(CANAIS), assunto,
                         rng.choice(SUBASSUNTOS[assunto]),
-                        abertura.isoformat(), fechamento, label,
+                        abertura.isoformat(sep=" "), fechamento, label,
                         int(still_open), horas, rng.randint(1, 5),
                         ultima, nota,
                     )
@@ -695,7 +705,7 @@ def build_receita_decomposicao(acc):
                 round(r1 - r0, 2), round((r1 - r0) / r0 * 100, 2),
                 round((v1 - v0) / v0 * 100, 2),
                 round((p1 - p0) * v1, 2), round((v1 - v0) * p0, 2),
-                round(v0 / a["months"][0], 2), round(v1 / a["months"][1], 2),
+                round(v0 / len(a["ucs"][0]), 2), round(v1 / len(a["ucs"][1]), 2),
                 len(a["gd"]), a["trocas"],
             )
         )
@@ -747,13 +757,122 @@ def create_tables(conn):
 
 
 def insert(conn, table, rows):
-    names = [name for name, _ in TABLES[table]]
+    names = [name for name, _ in GENERATED_COLUMNS.get(table, TABLES[table])]
     placeholders = ", ".join("?" for _ in names)
 
     conn.executemany(
         f"INSERT INTO {table} ({', '.join(names)}) VALUES ({placeholders})",
         rows,
     )
+
+
+def complete_contract(conn):
+    """Completa o schema de teste a partir dos próprios dados artificiais.
+
+    Não reproduz/calibra a regra real de score nem acessa a Gold local.
+    """
+    conn.executescript("""
+        CREATE INDEX ix_synthetic_fato_uc ON fato_consumo_faturamento(id_uc, mes_referencia);
+        CREATE UNIQUE INDEX ux_synthetic_dim_uc ON dim_uc(id_uc);
+
+        UPDATE fato_consumo_faturamento AS f SET
+            possui_gd_no_mes = EXISTS (
+                SELECT 1 FROM dim_uc u WHERE u.id_uc=f.id_uc
+                AND u.possui_gd=1 AND substr(u.data_conexao_gd,1,7)<=f.mes_referencia
+            ),
+            faixa_atraso = CASE WHEN dias_atraso=0 THEN 'EM DIA'
+                WHEN dias_atraso<=30 THEN 'ATE 30 DIAS'
+                WHEN dias_atraso<=90 THEN '31 A 90 DIAS' ELSE 'MAIS DE 90 DIAS' END;
+
+        UPDATE dim_uc AS u SET
+            energia_injetada_atipica=0,
+            consumo_medio_12m_kwh=(SELECT AVG(f.consumo_kwh)
+                FROM fato_consumo_faturamento f WHERE f.id_uc=u.id_uc
+                AND f.mes_referencia BETWEEN '2025-07' AND '2026-06'),
+            consumo_medio_12m_anterior_kwh=(SELECT AVG(f.consumo_kwh)
+                FROM fato_consumo_faturamento f WHERE f.id_uc=u.id_uc
+                AND f.mes_referencia BETWEEN '2024-07' AND '2025-06');
+        UPDATE dim_uc SET variacao_consumo_12m_pct=
+            ROUND((consumo_medio_12m_kwh/NULLIF(consumo_medio_12m_anterior_kwh,0)-1)*100,2);
+
+        UPDATE fato_interrupcao AS i SET
+            classe=(SELECT u.classe FROM dim_uc u WHERE u.id_uc=i.id_uc),
+            causa_evitavel=causa IN ('VEGETACAO','FALHA DE EQUIPAMENTO','SOBRECARGA');
+        UPDATE fato_atendimento AS a SET
+            municipio=(SELECT u.municipio FROM dim_uc u WHERE u.id_uc=a.id_uc),
+            bairro=(SELECT u.bairro FROM dim_uc u WHERE u.id_uc=a.id_uc),
+            classe=(SELECT u.classe FROM dim_uc u WHERE u.id_uc=a.id_uc);
+
+        UPDATE kpis_mensal AS k SET
+            qtd_ucs_cadastradas=(SELECT COUNT(*) FROM dim_uc u
+                WHERE u.data_ligacao<=date(k.mes_referencia||'-01','+1 month','-1 day')),
+            pct_faturas_bandeira_nao_verde=CASE WHEN bandeira_predominante='VERDE' THEN 0.0 ELSE 100.0 END,
+            valor_em_aberto_mais_90_dias=(SELECT COALESCE(SUM(f.valor_total),0)
+                FROM fato_consumo_faturamento f WHERE f.mes_referencia=k.mes_referencia
+                AND f.em_aberto=1 AND f.dias_atraso>90),
+            inadimplencia_pct=(SELECT 100.0*SUM(CASE WHEN f.em_aberto=1 THEN f.valor_total ELSE 0 END)
+                /NULLIF(SUM(f.valor_total),0) FROM fato_consumo_faturamento f
+                WHERE f.mes_referencia=k.mes_referencia),
+            qtd_interrupcoes=(SELECT COUNT(*) FROM fato_interrupcao i
+                WHERE i.mes_referencia=k.mes_referencia);
+
+        UPDATE dec_fec_alimentador_mensal AS d SET
+            qtd_interrupcoes_evitaveis=(SELECT COUNT(*) FROM fato_interrupcao i
+                WHERE i.alimentador=d.alimentador AND i.mes_referencia=d.mes_referencia AND i.causa_evitavel=1),
+            horas_causas_evitaveis=(SELECT COALESCE(SUM(i.duracao_min)/60.0,0)
+                FROM fato_interrupcao i WHERE i.alimentador=d.alimentador
+                AND i.mes_referencia=d.mes_referencia AND i.causa_evitavel=1),
+            dec_12m_horas=(SELECT CASE WHEN COUNT(*)=12 THEN SUM(h.dec_horas) END
+                FROM dec_fec_alimentador_mensal h WHERE h.alimentador=d.alimentador
+                AND h.mes_referencia BETWEEN strftime('%Y-%m',date(d.mes_referencia||'-01','-11 months')) AND d.mes_referencia),
+            fec_12m=(SELECT CASE WHEN COUNT(*)=12 THEN SUM(h.fec) END
+                FROM dec_fec_alimentador_mensal h WHERE h.alimentador=d.alimentador
+                AND h.mes_referencia BETWEEN strftime('%Y-%m',date(d.mes_referencia||'-01','-11 months')) AND d.mes_referencia);
+
+        UPDATE receita_decomposicao AS r SET
+            volume_kwh_ucs_com_gd_0=(SELECT COALESCE(SUM(f.consumo_kwh),0)
+                FROM fato_consumo_faturamento f JOIN dim_uc u ON u.id_uc=f.id_uc
+                WHERE u.possui_gd=1 AND f.periodo_diagnostico='PRIMEIRO_ANO'
+                AND f.municipio=r.municipio AND f.bairro=r.bairro AND f.classe=r.classe),
+            volume_kwh_ucs_com_gd_1=(SELECT COALESCE(SUM(f.consumo_kwh),0)
+                FROM fato_consumo_faturamento f JOIN dim_uc u ON u.id_uc=f.id_uc
+                WHERE u.possui_gd=1 AND f.periodo_diagnostico='ULTIMOS_12M'
+                AND f.municipio=r.municipio AND f.bairro=r.bairro AND f.classe=r.classe),
+            pct_faturas_bandeira_nao_verde_0=(SELECT 100.0*SUM(f.bandeira_tarifaria<>'VERDE')/COUNT(*)
+                FROM fato_consumo_faturamento f WHERE f.periodo_diagnostico='PRIMEIRO_ANO'
+                AND f.municipio=r.municipio AND f.bairro=r.bairro AND f.classe=r.classe),
+            pct_faturas_bandeira_nao_verde_1=(SELECT 100.0*SUM(f.bandeira_tarifaria<>'VERDE')/COUNT(*)
+                FROM fato_consumo_faturamento f WHERE f.periodo_diagnostico='ULTIMOS_12M'
+                AND f.municipio=r.municipio AND f.bairro=r.bairro AND f.classe=r.classe);
+
+        INSERT INTO fato_troca_medidor
+        (id_uc,mes_troca,id_medidor_antigo,tipo_medidor_antigo,idade_medidor_antigo_anos,
+         id_medidor_novo,tipo_medidor_novo,classe,municipio,bairro)
+        SELECT id_uc,substr(data_instalacao_medidor,1,7),id_medidor_ativo||'-A',
+            'ELETROMECANICO',10.0,id_medidor_ativo,tipo_medidor_ativo,classe,municipio,bairro
+        FROM dim_uc WHERE medidor_trocado_recentemente=1;
+        UPDATE fato_troca_medidor AS t SET
+            consumo_medio_6m_antes=(SELECT AVG(f.consumo_kwh) FROM fato_consumo_faturamento f
+                WHERE f.id_uc=t.id_uc AND f.mes_referencia>=strftime('%Y-%m',date(t.mes_troca||'-01','-6 months'))
+                AND f.mes_referencia<t.mes_troca),
+            consumo_medio_6m_depois=(SELECT AVG(f.consumo_kwh) FROM fato_consumo_faturamento f
+                WHERE f.id_uc=t.id_uc AND f.mes_referencia>t.mes_troca
+                AND f.mes_referencia<=strftime('%Y-%m',date(t.mes_troca||'-01','+6 months')));
+        UPDATE fato_troca_medidor SET variacao_consumo_pct=
+            ROUND((consumo_medio_6m_depois/NULLIF(consumo_medio_6m_antes,0)-1)*100,2);
+
+        INSERT INTO fila_inspecao
+        (id_uc,prioridade,score,motivo,kwh_estimado_recuperar_mes,queda_consumo_pct,
+         consumo_vs_pares_pct,tipo_medidor,idade_medidor_anos,possui_gd,queda_explicada_por_gd,
+         energia_injetada_atipica,qtd_inspecoes_anteriores,municipio,bairro,classe,
+         data_referencia_score,versao_regra_score)
+        SELECT id_uc,ROW_NUMBER() OVER (ORDER BY variacao_consumo_12m_pct,id_uc),
+            MIN(100.0,-variacao_consumo_12m_pct),'Sinal artificial para benchmark',
+            MAX(0,consumo_medio_12m_anterior_kwh-consumo_medio_12m_kwh),-variacao_consumo_12m_pct,
+            NULL,tipo_medidor_ativo,idade_medidor_anos,possui_gd,0,energia_injetada_atipica,0,
+            municipio,bairro,classe,'2026-06-30','synthetic-v1'
+        FROM dim_uc WHERE variacao_consumo_12m_pct<-20 AND possui_gd=0;
+    """)
 
 
 def verify(conn):
@@ -819,6 +938,7 @@ def main(n_ucs: int, seed: int, output: Path):
     insert(conn, "dec_fec_alimentador_mensal", dec_fec)
     insert(conn, "fato_interrupcao", interruptions)
     insert(conn, "fato_atendimento", atendimentos)
+    complete_contract(conn)
     conn.commit()
 
     verify(conn)

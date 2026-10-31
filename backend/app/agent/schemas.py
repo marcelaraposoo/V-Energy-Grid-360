@@ -100,6 +100,9 @@ class SQLGenerationResult(BaseModel):
                     "sql é obrigatório quando o status é READY."
                 )
 
+            if self.reason is not None:
+                raise ValueError("reason deve ser None quando o status é READY.")
+
             return self
 
         if self.sql is not None:

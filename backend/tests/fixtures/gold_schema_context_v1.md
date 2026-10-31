@@ -1,6 +1,6 @@
-# V-Energy Grid 360 — Contexto Gold v1 para o Agente
+# V-Energy Grid 360 — Contexto Gold para o Agente
 
-Este documento representa o contrato de dados Gold v1 utilizado pelo agente para geração de SQL.
+Este documento descreve o recorte do schema físico Gold utilizado pelo agente para geração de SQL, com semântica do dicionário oficial da Gold.
 
 Utilize exclusivamente as tabelas, colunas, relacionamentos e definições descritos abaixo.
 
@@ -12,6 +12,17 @@ Não invente tabelas, colunas, métricas ou relacionamentos ausentes deste conte
 - Nomes de tabelas e colunas: `snake_case`
 - `mes_referencia`: texto no formato `yyyy-MM`
 - Datas seguem os campos explicitamente definidos em cada tabela
+- No SQLite, datas e timestamps são `TEXT`, booleanos são `INTEGER` (0/1) e decimais são `REAL`.
+- A janela de competências disponível neste snapshot é `2022-07` a `2026-06`; não use a data atual como fim automático da base.
+
+### Datas e timestamps
+
+Datas usam `yyyy-MM-dd`; timestamps locais, sem fuso, usam `yyyy-MM-dd HH:mm:ss`.
+Para um mês de timestamps, prefira intervalo semiaberto:
+`campo >= '2026-06-01 00:00:00' AND campo < '2026-07-01 00:00:00'`.
+Evite `campo <= '2026-06-30'`, que excluiria registros com horário nesse dia.
+Competência (`mes_referencia`) não é emissão, vencimento nem pagamento.
+Uma data de pagamento pode ser posterior à última competência; faturamento não é automaticamente caixa/arrecadação.
 
 ## Regras semânticas importantes
 
@@ -54,11 +65,11 @@ Considere equivalências semânticas como:
 
 ## Grão
 
-1 linha = 1 unidade consumidora.
+1 linha = 1 unidade consumidora, cadastro atual.
 
 ## Uso
 
-Informações cadastrais e características atuais da UC.
+Informações cadastrais e características atuais da UC; não trate atributos atuais como histórico mensal.
 
 Pode ser utilizada para filtros por:
 
@@ -123,6 +134,8 @@ Em perguntas sobre queda ou aumento de consumo por UC, ignore as UCs com `variac
 
 1 linha = 1 UC em 1 mês de referência.
 
+`COUNT(*)` conta registros UC-mês; para UCs distintas em vários meses use `COUNT(DISTINCT id_uc)`.
+
 ## Uso
 
 Principal tabela para perguntas sobre:
@@ -158,15 +171,23 @@ Principal tabela para perguntas sobre:
 - `data_emissao` — data
 - `data_vencimento` — data
 - `data_pagamento` — data
-- `valor_energia` — decimal — valor da energia sem tributos
+- `valor_energia` — decimal — R$, energia sem tributos, com adicional de bandeira embutido; receita do diagnóstico
 - `tributos` — decimal
-- `valor_total` — decimal — valor total da fatura
+- `valor_total` — decimal — R$, total da fatura com tributos; não confundir com receita de energia
 - `bandeira_tarifaria` — texto
 - `status_fatura` — texto — `PAGA` ou `EM ABERTO`
-- `em_aberto` — booleano
-- `dias_atraso` — inteiro
+- `em_aberto` — booleano — fatura não paga no snapshot
+- `dias_atraso` — inteiro — até pagamento ou até `2026-06-30` se em aberto; atraso de fatura paga não é dívida atual
 - `faixa_atraso` — texto — `EM DIA`, `ATE 30 DIAS`, `31 A 90 DIAS` ou `MAIS DE 90 DIAS`
 - `preco_medio_kwh` — decimal — `valor_energia / consumo_kwh`
+
+### Inadimplência
+
+O percentual financeiro por competência é
+`100.0 * SUM(CASE WHEN em_aberto = 1 THEN valor_total ELSE 0 END) / NULLIF(SUM(valor_total), 0)`.
+O percentual de faturas em aberto usa contagem de faturas, não valor financeiro.
+Não use qualquer `dias_atraso > 0` como inadimplência atual, nem misture dívida antiga com percentual da competência.
+Se a pergunta não distinguir estoque de dívida, histórico de atraso ou percentual financeiro/de faturas quando isso for necessário, use `NEEDS_CLARIFICATION`.
 
 ---
 
@@ -225,11 +246,19 @@ Utilize para perguntas sobre:
 
 A soma dos efeitos representa a variação da receita.
 
+Os efeitos de cada linha NÃO são aditivos entre segmentos. Acima do grão
+município/bairro/classe (município, classe ou empresa), some primeiro `receita_0`,
+`receita_1`, `volume_kwh_0` e `volume_kwh_1`; recalcule `P0 = R0 / V0` e
+`P1 = R1 / V1`; então aplique as fórmulas aos totais, protegendo divisão por zero
+com `NULLIF`. Não use `SUM(efeito_preco)`/`SUM(efeito_volume)` para representar os efeitos do conjunto.
+Variações percentuais e preços médios também devem ser recalculados das bases.
+
 ## Atenção
 
-A definição definitiva de receita utilizada pelo negócio ainda pode depender de decisão entre `valor_energia` e `valor_total`.
-
-Não invente uma definição caso a pergunta exija essa distinção e o contexto não a resolva.
+`receita_0` e `receita_1` são somas de `valor_energia`, conforme o dicionário oficial:
+energia sem tributos e com bandeira embutida. `efeito_preco` mistura tarifa e bandeira;
+o adicional não vem separado e não permite atribuir todo o efeito apenas à tarifa.
+`consumo_medio_uc_0/1` mede kWh por UC no período de 12 meses, não média mensal.
 
 ---
 
@@ -246,21 +275,29 @@ Indicadores gerais do negócio e comparações mensais.
 ## Colunas
 
 - `mes_referencia` — texto — `yyyy-MM`
+- `qtd_ucs_cadastradas` — inteiro — UCs ligadas até o fim do mês; base do DEC/FEC geral
 - `qtd_ucs_faturadas` — inteiro
 - `consumo_total_kwh` — decimal
-- `receita_energia` — decimal
-- `receita_total` — decimal
+- `receita_energia` — decimal — R$, soma de `valor_energia` (receita do diagnóstico)
+- `receita_total` — decimal — R$, soma de `valor_total`, com tributos
 - `preco_medio_kwh` — decimal
 - `bandeira_predominante` — texto
+- `pct_faturas_bandeira_nao_verde` — decimal — percentual das faturas do mês
 - `qtd_faturas_em_aberto` — inteiro
-- `inadimplencia_pct` — decimal
+- `inadimplencia_pct` — decimal — percentual do valor total da competência ainda em aberto, não percentual de faturas
+- `valor_em_aberto_mais_90_dias` — decimal — R$, desta competência em aberto há mais de 90 dias
 - `qtd_ucs_com_gd` — inteiro
-- `dec_horas` — decimal
-- `fec` — decimal
+- `qtd_interrupcoes` — inteiro — ocorrências-UC, não eventos coletivos
+- `dec_horas` — decimal — horas/UC no mês
+- `fec` — decimal — interrupções/UC no mês
 - `qtd_atendimentos` — inteiro
 - `nota_satisfacao_media` — decimal
 - `variacao_consumo_ano_anterior_pct` — decimal
 - `variacao_receita_ano_anterior_pct` — decimal
+
+Não some preços, percentuais ou médias mensais. Para preço de um período,
+use `SUM(receita_energia) / NULLIF(SUM(consumo_total_kwh), 0)`.
+Não some contagens mensais de UCs como se fossem UCs distintas do período.
 
 ---
 
@@ -286,13 +323,27 @@ Perguntas sobre:
 - `alimentador` — texto
 - `municipio` — texto
 - `mes_referencia` — texto — `yyyy-MM`
-- `qtd_ucs_alimentador` — inteiro
+- `qtd_ucs_alimentador_mes` — inteiro — UCs ligadas até o fim do mês; denominador mensal
 - `qtd_interrupcoes` — inteiro
-- `horas_interrompidas` — decimal
-- `dec_horas` — decimal
-- `fec` — decimal
+- `horas_interrompidas` — decimal — horas-cliente (soma das durações por UC em horas)
+- `qtd_interrupcoes_evitaveis` — inteiro — ocorrências-UC com causa evitável
+- `horas_causas_evitaveis` — decimal — horas-cliente de causas evitáveis; não é retorno financeiro da manutenção
+- `dec_horas` — decimal — horas/UC no mês
+- `fec` — decimal — interrupções/UC no mês
+- `dec_12m_horas` — decimal — soma dos DECs mensais nos 12 meses até este mês; nula antes de `2023-06`
+- `fec_12m` — decimal — soma dos FECs mensais nos 12 meses até este mês; nula antes de `2023-06`
 - `causa_principal` — texto
 - `ranking_dec_mes` — inteiro — `1` representa o pior DEC do mês
+
+### Agregação de DEC/FEC
+
+Para um conjunto de alimentadores no mesmo mês:
+`DEC = SUM(horas_interrompidas) / NULLIF(SUM(qtd_ucs_alimentador_mes), 0)`;
+`FEC = 1.0 * SUM(qtd_interrupcoes) / NULLIF(SUM(qtd_ucs_alimentador_mes), 0)`.
+Não use média simples entre alimentadores nem soma direta de indicadores para agregar regiões.
+Para acumular um período, calcule o indicador ponderado em cada mês e depois some os indicadores mensais;
+o quociente de numeradores/denominadores somados entre meses representa média mensal ponderada, não DEC/FEC acumulado.
+Não some janelas móveis de 12 meses sobrepostas. Não atribua DEC do alimentador a cada bairro.
 
 ---
 
@@ -334,8 +385,10 @@ Perguntas sobre:
 - `municipio` — texto
 - `tipo` — texto
 - `causa` — texto
-- `data_inicio` — data
-- `data_fim` — data
+- `classe` — texto
+- `causa_evitavel` — booleano — vegetação, falha de equipamento ou sobrecarga; causa nula conta como não evitável, um piso de evitabilidade
+- `data_hora_inicio` — data e hora — `yyyy-MM-dd HH:mm:ss`, horário local
+- `data_hora_fim` — data e hora — `yyyy-MM-dd HH:mm:ss`, horário local
 - `mes_referencia` — texto — `yyyy-MM`
 - `duracao_min` — inteiro
 
@@ -377,18 +430,91 @@ Perguntas sobre:
 - `ultima_acao` — texto
 - `nota_satisfacao` — decimal
 
+`mes_referencia` é o mês da abertura. A situação vem de `aberto`, não de
+`ultima_acao`; neste snapshot todos estão fechados. Médias de satisfação ignoram notas nulas.
+
+---
+
+# 8. `fila_inspecao`
+
+## Grão
+
+1 linha = 1 UC no snapshot da fila.
+
+## Uso e limites
+
+Priorizar suspeitas de perdas e estimar recuperação mensal. É um snapshot da Gold,
+não histórico operacional completo nem ordens criadas no portal. Use `data_referencia_score`
+(neste snapshot, `2026-06-30`) e `versao_regra_score` para situar a análise.
+Score não é necessariamente probabilidade calibrada; estimativa de recuperação não significa perda confirmada
+nem energia efetivamente recuperada. Não invente taxa geral de perdas a partir da fila.
+
+## Colunas
+
+- `id_uc` — texto — UC suspeita
+- `prioridade` — inteiro — posição, 1 = mais prioritária
+- `score` — decimal — pontuação de suspeita, de 0 a 100
+- `motivo` — texto — justificativa da suspeita
+- `kwh_estimado_recuperar_mes` — decimal — estimativa de kWh/mês, não perda medida
+- `queda_consumo_pct` — decimal — queda em relação ao histórico da própria UC
+- `consumo_vs_pares_pct` — decimal — negativo quando abaixo dos pares da mesma classe/município/bairro
+- `tipo_medidor` — texto
+- `idade_medidor_anos` — decimal
+- `possui_gd` — booleano
+- `queda_explicada_por_gd` — booleano — sinal usado na priorização
+- `energia_injetada_atipica` — booleano
+- `qtd_inspecoes_anteriores` — inteiro — histórico resumido da Silver, sem inspeções registradas no portal
+- `resultado_ultima_inspecao` — texto — `IRREGULARIDADE CONFIRMADA`, `SEM IRREGULARIDADE` ou nulo
+- `data_ultima_inspecao` — data — nula se nunca inspecionada
+- `municipio` — texto
+- `bairro` — texto
+- `classe` — texto
+- `data_referencia_score` — data — referência do snapshot
+- `versao_regra_score` — texto
+
+---
+
+# 9. `fato_troca_medidor`
+
+## Grão
+
+1 linha = 1 troca de medidor.
+
+## Uso e limites
+
+Histórico de substituição e comparação de consumo antes/depois. Neste snapshot há
+uma troca por UC, entre `2025-09` e `2026-03`; não assuma no máximo uma troca por UC em snapshots futuros.
+Antes/depois não prova causalidade da troca: sazonalidade, GD e outros fatores podem afetar o consumo.
+O mês da troca fica fora das duas médias; a janela posterior pode ter menos de seis meses.
+
+## Colunas
+
+- `id_uc` — texto
+- `mes_troca` — texto — `yyyy-MM`
+- `id_medidor_antigo` — texto
+- `tipo_medidor_antigo` — texto
+- `idade_medidor_antigo_anos` — decimal — idade na retirada
+- `id_medidor_novo` — texto
+- `tipo_medidor_novo` — texto
+- `consumo_medio_6m_antes` — decimal — média mensal em kWh dos até seis meses anteriores
+- `consumo_medio_6m_depois` — decimal — média mensal em kWh dos até seis meses seguintes
+- `variacao_consumo_pct` — decimal — `(depois / antes - 1) * 100`, não efeito causal
+- `classe` — texto
+- `municipio` — texto
+- `bairro` — texto
+
 ---
 
 # Relacionamentos disponíveis
 
-Quando for necessário relacionar informações por unidade consumidora, utilize `id_uc` somente entre tabelas que possuam esse campo.
-
-Principais tabelas com `id_uc`:
-
-- `dim_uc`
-- `fato_consumo_faturamento`
-- `fato_interrupcao`
-- `fato_atendimento`
+`dim_uc → fatos` por `id_uc` é 1:N: consumo mensal, interrupções, atendimentos e trocas.
+Cadastro → fila é 1:0..1 por snapshot. Não autorize JOIN apenas por nomes semelhantes.
+Consumo com interrupções ou atendimentos NÃO é 1:1: mesmo `id_uc + mês` pode ter
+múltiplas ocorrências ou protocolos. Quando precisar combinar fatos, pré-agregue cada lado
+no grão de ligação ou use `EXISTS` para filtrar sem multiplicar linhas.
+Não some indicadores agregados depois de JOIN com fatos detalhados, nem medidas do cadastro
+repetidas pelo JOIN. Relacionar indicadores de alimentador a detalhe exige alimentador/mês,
+não apenas alimentador, e não torna suas medidas aditivas nas linhas detalhadas.
 
 Não invente relacionamento entre tabelas agregadas quando o contrato não fornecer uma chave adequada.
 
@@ -415,7 +541,10 @@ Existem:
 - `receita_energia`;
 - `receita_total`.
 
-Se a pergunta depender de uma definição específica de receita e o contexto não permitir determinar qual definição o usuário deseja, utilize `NEEDS_CLARIFICATION`.
+Receita do diagnóstico é `valor_energia`/`receita_energia` (sem tributos, bandeira embutida).
+Faturamento com tributos usa `valor_total`/`receita_total`; nenhum deles significa automaticamente
+arrecadação/caixa. Se a pergunta exigir outra definição financeira ou temporal não resolvida,
+utilize `NEEDS_CLARIFICATION`, sem pedir esclarecimento sobre a definição já fixada do diagnóstico.
 
 ---
 

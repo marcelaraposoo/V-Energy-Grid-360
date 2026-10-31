@@ -261,6 +261,12 @@
 .ucv-chart-tooltip .ucv-chart-tooltip-current {
   color: var(--accent);
 }
+.ucv-chart-tooltip .ucv-chart-tooltip-note {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
 .ucv-chart-legend {
   display: flex;
   align-items: center;
@@ -438,9 +444,25 @@
   overflow-x: auto;
 }
 .ucv-interrupcoes,
+.ucv-medidores,
 .ucv-history-results {
   display: grid;
   gap: 20px;
+}
+.ucv-medidor-detail {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.ucv-troca-note {
+  padding: 16px 22px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.ucv-diagnostic-result > .ucv-troca-note {
+  padding: 12px 0;
 }
 .ucv-history-filter {
   display: flex;

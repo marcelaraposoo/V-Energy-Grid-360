@@ -41,7 +41,7 @@ def test_dim_uc_segue_contrato_gold(dados):
         assert uc["primeiro_mes_leitura"] == "2022-07"
         assert uc["ultimo_mes_leitura"] == "2026-06"
         assert uc["tipo_medidor_ativo"] in ("ELETRONICO", "ELETROMECANICO", "SMART")
-        assert uc["data_ligacao"] <= uc["data_instalacao_medidor"] <= "2022-07-01"
+        assert uc["data_ligacao"] <= uc["data_instalacao_medidor"] <= DATA_REFERENCIA.isoformat()
         assert uc["idade_medidor_anos"] >= 0
         assert isinstance(uc["possui_gd"], bool)
         if uc["possui_gd"]:
@@ -75,7 +75,10 @@ def test_fato_consumo_faturamento_segue_contrato_gold(dados):
         assert set(f) == campos
         uc = por_uc[f["id_uc"]]
         assert (f["classe"], f["municipio"], f["bairro"]) == (uc["classe"], uc["municipio"], uc["bairro"])
-        assert f["id_medidor"] == uc["id_medidor_ativo"]
+        troca = next((t for t in dados["fato_troca_medidor"] if t["id_uc"] == uc["id_uc"]), None)
+        antigo = troca is not None and f["mes_referencia"] < troca["mes_troca"]
+        assert f["id_medidor"] == (troca["id_medidor_antigo"] if antigo else uc["id_medidor_ativo"])
+        assert f["troca_medidor"] == (troca is not None and f["mes_referencia"] == troca["mes_troca"])
         assert type(f["consumo_kwh"]) is int
         assert f["mes_referencia"] == f"{f['ano']}-{f['mes']:02d}"
         assert Decimal(str(f["valor_total"])) == Decimal(str(f["valor_energia"])) + Decimal(str(f["tributos"]))

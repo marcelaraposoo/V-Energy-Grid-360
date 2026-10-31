@@ -181,6 +181,7 @@ def test_dados_sem_tabela_na_gold_levantam_erro_claro_em_vez_de_lista_vazia(repo
             lambda: repo.faturas_uc("UC00001"),
         ],
         "fato_atendimento": [lambda: repo.atendimentos_uc("UC00001")],
+        "fato_troca_medidor": [lambda: repo.trocas_medidor_uc("UC00001")],
         "fato_interrupcao": [
             lambda: repo.ocorrencias("2025-07", "2026-06"),
             lambda: repo.ocorrencias("2025-07", "2026-06", uc_id="UC00001"),

@@ -39,6 +39,7 @@ def isolar_demais_blocos(repo, monkeypatch):
     monkeypatch.setattr(repo, "ocorrencias", lambda *args, **kwargs: [])
     monkeypatch.setattr(repo, "indicadores_continuidade", lambda *args, **kwargs: [])
     monkeypatch.setattr(repo, "atendimentos_uc", lambda *args, **kwargs: [])
+    monkeypatch.setattr(repo, "trocas_medidor_uc", lambda *args, **kwargs: [])
 
 
 def test_leitura_filtra_uc_ordena_competencias_e_preserva_os_valores_da_gold(cenario, mock):

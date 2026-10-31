@@ -61,7 +61,7 @@ def cenario(tmp_path):
     mock._faturas_por_uc = {u["id_uc"]: [f for f in faturas if f["id_uc"] == u["id_uc"]] for u in ucs}
     path = criar_gold_db(tmp_path / "gold.db", ucs=ucs)
     with sqlite3.connect(path) as con:
-        for tabela in ("fato_interrupcao", "dec_fec_alimentador_mensal", "fato_consumo_faturamento"):
+        for tabela in ("fato_interrupcao", "dec_fec_alimentador_mensal", "fato_consumo_faturamento", "fato_troca_medidor"):
             linhas = mock.d[tabela]
             colunas = list(linhas[0])
             con.execute(f"CREATE TABLE {tabela} ({', '.join(colunas)})")

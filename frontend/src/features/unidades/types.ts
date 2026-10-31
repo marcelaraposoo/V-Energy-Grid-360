@@ -29,6 +29,8 @@ export interface ConsumoMensalUC {
   variacao_consumo_ano_anterior_pct: number | null
   valor_total: number | null
   valor_total_ano_anterior: number | null
+  troca_medidor: boolean | null
+  troca_medidor_ano_anterior: boolean | null
 }
 
 export type ClassificacaoVariacao =
@@ -52,6 +54,8 @@ export interface DiagnosticoContaAltaUC {
   competencia_atual: string | null
   /** Deve ser anterior ao mês analisado; padrão: competência anterior disponível. */
   competencia_referencia: string | null
+  troca_medidor_atual: boolean | null
+  troca_medidor_referencia: boolean | null
   /** Valores em kWh. */
   consumo: ComparacaoMetricaUC
   /** Valores em R$, calculados a partir de valor_total. */
@@ -109,6 +113,22 @@ export interface MedidorUC {
   tipo: string
   data_instalacao: string
   status: string
+}
+
+export interface TrocaMedidorUC {
+  id_uc: string
+  mes_troca: string
+  id_medidor_antigo: string
+  tipo_medidor_antigo: 'ELETRONICO' | 'ELETROMECANICO' | 'SMART'
+  idade_medidor_antigo_anos: number | null
+  id_medidor_novo: string
+  tipo_medidor_novo: 'ELETRONICO' | 'ELETROMECANICO' | 'SMART'
+  consumo_medio_6m_antes: number | null
+  consumo_medio_6m_depois: number | null
+  variacao_consumo_pct: number | null
+  classe: string
+  municipio: string
+  bairro: string
 }
 
 export interface GeracaoDistribuidaUC {
@@ -223,6 +243,7 @@ export interface Visao360 {
   faturas: FaturaUC[]
   resumo_faturas: ResumoFaturasUC
   medidor: MedidorUC | null
+  trocas_medidor: TrocaMedidorUC[]
   geracao_distribuida: GeracaoDistribuidaUC | null
   interrupcoes: InterrupcoesUC
   periodo_atendimentos: PeriodoHistoricoUC

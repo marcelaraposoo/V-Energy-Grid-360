@@ -105,9 +105,12 @@ def _diagnostico_conta_alta(
         mensagem += " A cobrança aumentou proporcionalmente menos que o consumo."
     else:
         mensagem += " O aumento da cobrança foi acompanhado de aumento do consumo na mesma proporção."
+    trocas = {s["competencia"]: s.get("troca_medidor") for s in serie}
     return DiagnosticoContaAltaUC(
         competencias_disponiveis=competencias,
         competencia_atual=competencia_atual, competencia_referencia=competencia_referencia,
+        troca_medidor_atual=trocas.get(competencia_atual),
+        troca_medidor_referencia=trocas.get(competencia_referencia),
         consumo=consumo, faturamento=faturamento, mensagem=mensagem,
     )
 
@@ -159,7 +162,8 @@ def visao_360(
             "pendencias_recentes": sum(f["status"] != "paga" and f["faixa_atraso"] in FAIXAS_RECENTES for f in faturas),
             "pendencias_antigas": sum(f["status"] != "paga" and f["faixa_atraso"] == FAIXA_ANTIGA for f in faturas),
         },
-        medidor=repo.medidor_uc(uc_id), geracao_distribuida=repo.gd_uc(uc_id),
+        medidor=repo.medidor_uc(uc_id), trocas_medidor=repo.trocas_medidor_uc(uc_id),
+        geracao_distribuida=repo.gd_uc(uc_id),
         interrupcoes={**periodo_oc.model_dump(), "alimentador_id": uc["alimentador_id"],
                       "qtd_ocorrencias": len(oc), "duracao_total_min": sum(o["duracao_min"] for o in oc),
                       "dec_horas": continuidade["dec_horas"] if mensais else None,

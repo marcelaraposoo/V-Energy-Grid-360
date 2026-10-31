@@ -1,7 +1,7 @@
 """Gerador de dados MOCKADOS (determinístico).
 
-Cadastro, consumo/faturas, interrupções e atendimentos seguem dim_uc,
-fato_consumo_faturamento, fato_interrupcao e fato_atendimento da Gold consolidada
+Cadastro, consumo/faturas, trocas de medidor, interrupções e atendimentos seguem dim_uc,
+fato_consumo_faturamento, fato_troca_medidor, fato_interrupcao e fato_atendimento da Gold consolidada
 (v4, arquivo gold_contrato_v3.md).
 Premissas da simulação:
 - 48 competências (2022-07 a 2026-06), 400 UCs, 14 municípios, 2 alimentadores por município.
@@ -202,6 +202,17 @@ def build_mock_data() -> dict:
             serie.append(round(max(v, 5)))
         consumo[u["uc_id"]] = serie
 
+    # Sete exemplos fictícios de troca: um em cada mês de 2025-09 a 2026-03.
+    # A série não recebe um efeito artificial atribuído à troca.
+    trocas = {}
+    for i, u in enumerate(ucs[:7]):
+        uc_id = u["uc_id"]
+        mes_troca = comps[38 + i]
+        antigo = medidores[uc_id].copy()
+        antigo["medidor_id"] = f"MD-ANT-{i + 1:06d}"
+        trocas[uc_id] = {"mes_troca": mes_troca, "antigo": antigo}
+        medidores[uc_id].update(tipo="SMART", data_instalacao=f"{mes_troca}-15")
+
     # Contrato A1: uma linha por UC. Campos de simulação (_base e _tend) ficam fora da Gold.
     dim_uc = []
     for i, u in enumerate(ucs):
@@ -238,7 +249,7 @@ def build_mock_data() -> dict:
             "modelo_medidor_ativo": MODELOS_MEDIDOR[medidor["tipo"]],
             "data_instalacao_medidor": medidor["data_instalacao"],
             "idade_medidor_anos": round((DATA_REFERENCIA - date.fromisoformat(medidor["data_instalacao"])).days / 365.25, 2),
-            "medidor_trocado_recentemente": False,
+            "medidor_trocado_recentemente": uc_id in trocas,
             "possui_gd": geracao is not None,
             "potencia_gd_kwp": geracao["potencia_kwp"] if geracao else None,
             "data_conexao_gd": f"{geracao['data_conexao']}-01" if geracao else None,
@@ -284,13 +295,14 @@ def build_mock_data() -> dict:
                 "bairro": cadastro["bairro"],
                 "municipio": cadastro["municipio"],
                 "possui_gd_no_mes": cadastro["possui_gd"] and comp >= cadastro["data_conexao_gd"][:7],
-                "id_medidor": cadastro["id_medidor_ativo"],
+                "id_medidor": trocas[u["uc_id"]]["antigo"]["medidor_id"]
+                if u["uc_id"] in trocas and comp < trocas[u["uc_id"]]["mes_troca"] else cadastro["id_medidor_ativo"],
                 "data_leitura": f"{comp}-20",
                 "tipo_leitura": "REAL",
                 "consumo_kwh": kwh,
                 "consumo_kwh_ano_anterior": anterior,
                 "variacao_consumo_ano_anterior_pct": round((kwh / anterior - 1) * 100, 2) if anterior else None,
-                "troca_medidor": False,
+                "troca_medidor": u["uc_id"] in trocas and comp == trocas[u["uc_id"]]["mes_troca"],
                 "consumo_corrigido": False,
                 "leitura_anterior_ausente": False,
                 "id_fatura": f"FAT-{u['uc_id']}-{ano}{mes:02d}",
@@ -307,6 +319,28 @@ def build_mock_data() -> dict:
                 "faixa_atraso": faixa_atraso,
                 "preco_medio_kwh": round(float(energia) / kwh, 6),
             })
+
+    # Contrato A6: médias excluem o mês da troca, como no notebook da Gold.
+    fato_troca_medidor = []
+    for uc in dim_uc:
+        troca = trocas.get(uc["id_uc"])
+        if troca is None:
+            continue
+        indice = comps.index(troca["mes_troca"])
+        serie = consumo[uc["id_uc"]]
+        antes = sum(serie[indice - 6:indice]) / 6
+        depois = serie[indice + 1:indice + 7]
+        media_depois = sum(depois) / len(depois)
+        antigo = troca["antigo"]
+        fato_troca_medidor.append({
+            "id_uc": uc["id_uc"], "mes_troca": troca["mes_troca"],
+            "id_medidor_antigo": antigo["medidor_id"], "tipo_medidor_antigo": antigo["tipo"],
+            "idade_medidor_antigo_anos": round((date.fromisoformat(uc["data_instalacao_medidor"]) - date.fromisoformat(antigo["data_instalacao"])).days / 365.25, 1),
+            "id_medidor_novo": uc["id_medidor_ativo"], "tipo_medidor_novo": uc["tipo_medidor_ativo"],
+            "consumo_medio_6m_antes": round(antes, 2), "consumo_medio_6m_depois": round(media_depois, 2),
+            "variacao_consumo_pct": round((media_depois / antes - 1) * 100, 2) if antes else None,
+            "classe": uc["classe"], "municipio": uc["municipio"], "bairro": uc["bairro"],
+        })
 
     # Contrato A7: uma ocorrência de interrupção em uma UC.
     ucs_por_alimentador = {}
@@ -387,6 +421,7 @@ def build_mock_data() -> dict:
     return {
         "competencias": comps, "alimentadores": alimentadores,
         "dim_uc": dim_uc, "fato_consumo_faturamento": fato_consumo_faturamento,
+        "fato_troca_medidor": fato_troca_medidor,
         "fato_interrupcao": fato_interrupcao, "fato_atendimento": fato_atendimento, "suspeitas": suspeitas,
         "dec_fec_alimentador_mensal": dec_fec_mensal,
     }

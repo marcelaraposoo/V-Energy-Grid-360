@@ -17,6 +17,8 @@ def consumo_publico(faturas: list[dict]) -> list[dict]:
             "variacao_consumo_ano_anterior_pct": f["variacao_consumo_ano_anterior_pct"],
             "valor_total": f["valor_total"],
             "valor_total_ano_anterior": anterior["valor_total"] if anterior else None,
+            "troca_medidor": f["troca_medidor"],
+            "troca_medidor_ano_anterior": anterior["troca_medidor"] if anterior else None,
         })
     return serie
 

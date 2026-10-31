@@ -8,6 +8,7 @@ import {
   formatarMoeda,
   formatarPrecoKwh,
   formatarNumero,
+  formatarPercentual,
   situacoesFatura,
 } from '../formatters'
 import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
@@ -104,34 +105,68 @@ export function ConsumoSection({
     </div>
   )
 }
+
 export function MedidorSection({ dados }: SectionProps) {
   const medidor = dados.medidor
   return (
-    <Panel
-      title="Medidor atual"
-      description="Equipamento instalado na unidade consumidora"
-      className="ucv-medidor"
-    >
-      {medidor ? (
-        <UnidadeFields
-          fields={[
-            { label: 'Identificador do medidor', value: medidor.medidor_id },
-            { label: 'Tipo do medidor', value: medidor.tipo },
-            {
-              label: 'Data de instalação',
-              value: formatarData(medidor.data_instalacao),
-            },
-            { label: 'Situação', value: medidor.status.toUpperCase() },
-          ]}
-        />
-      ) : (
-        <EmptyState
-          icon={Gauge}
-          title="Medidor não disponível"
-          description="Não há informações do medidor instalado nesta unidade."
-        />
-      )}
-    </Panel>
+    <div className="ucv-medidores">
+      <Panel
+        title="Medidor atual"
+        description="Equipamento instalado na unidade consumidora"
+        className="ucv-medidor"
+      >
+        {medidor ? (
+          <UnidadeFields
+            fields={[
+              { label: 'Identificador do medidor', value: medidor.medidor_id },
+              { label: 'Tipo do medidor', value: medidor.tipo },
+              {
+                label: 'Data de instalação',
+                value: formatarData(medidor.data_instalacao),
+              },
+              { label: 'Situação', value: medidor.status.toUpperCase() },
+            ]}
+          />
+        ) : (
+          <EmptyState
+            icon={Gauge}
+            title="Medidor não disponível"
+            description="Não há informações do medidor instalado nesta unidade."
+          />
+        )}
+      </Panel>
+      <Panel title="Histórico de trocas de medidor" description="Médias de consumo antes e depois de cada troca">
+        {dados.trocas_medidor.length ? (
+          <>
+            <HistoryTable title="Trocas de medidor da UC"
+              columns={['Competência', 'Medidor retirado', 'Medidor instalado', 'Média antes (kWh)', 'Média depois (kWh)', 'Variação']}
+              icon={Gauge} description="Não há trocas de medidor registradas para esta unidade." empty={false}>
+              {dados.trocas_medidor.map(troca => (
+                <tr key={`${troca.mes_troca}-${troca.id_medidor_novo}`}>
+                  <th scope="row">{formatarCompetencia(troca.mes_troca)}</th>
+                  <td>
+                    {troca.id_medidor_antigo}
+                    <small className="ucv-medidor-detail">{troca.tipo_medidor_antigo}</small>
+                    <small className="ucv-medidor-detail">
+                      Idade na retirada: {troca.idade_medidor_antigo_anos === null
+                        ? 'Não disponível' : `${formatarNumero(troca.idade_medidor_antigo_anos)} anos`}
+                    </small>
+                  </td>
+                  <td>
+                    {troca.id_medidor_novo}
+                    <small className="ucv-medidor-detail">{troca.tipo_medidor_novo}</small>
+                  </td>
+                  <td>{formatarNumero(troca.consumo_medio_6m_antes)}</td>
+                  <td>{formatarNumero(troca.consumo_medio_6m_depois)}</td>
+                  <td>{formatarPercentual(troca.variacao_consumo_pct)}</td>
+                </tr>
+              ))}
+            </HistoryTable>
+            <p className="ucv-troca-note">Médias dos seis meses anteriores e de até seis meses posteriores, sem incluir o mês da troca. </p>
+          </>
+        ) : <EmptyState compact icon={Gauge} title="Sem trocas de medidor" description="Não há trocas de medidor registradas para esta unidade." />}
+      </Panel>
+    </div>
   )
 }
 

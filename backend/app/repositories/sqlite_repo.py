@@ -1,7 +1,8 @@
 """Repositório sobre o SQLite exportado da camada Gold (`data/gold.db`).
 
 Cobre cadastro, catálogos, medidor e GD pela dim_uc; consumo e faturas da UC pela
-fato_consumo_faturamento; rede pelas A7/A8; atendimentos pela B1; fila de suspeitas pela fila_inspecao.
+fato_consumo_faturamento; trocas de medidor pela A6; rede pelas A7/A8; atendimentos pela B1;
+fila de suspeitas pela fila_inspecao.
 A consulta paginada de faturas
 faz contagens em SQL e usa LIMIT/OFFSET. Métodos ainda não integrados ou tabelas ausentes
 levantam `NaoDisponivelNaGold` (HTTP 501), sem apresentar indisponibilidade como histórico vazio.
@@ -239,6 +240,16 @@ class SqliteRepository:
             "trocado_recentemente": _bool(d.get("medidor_trocado_recentemente")),
         }
 
+    def trocas_medidor_uc(self, uc_id: str) -> list[dict]:
+        tabela = "fato_troca_medidor"
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Trocas de medidor da UC", tabela)
+            return [dict(r) for r in con.execute(f"""
+                SELECT * FROM {tabela} WHERE id_uc = ? COLLATE NOCASE
+                ORDER BY mes_troca DESC, id_medidor_novo DESC
+            """, (uc_id.strip(),))]
+
     def gd_uc(self, uc_id: str) -> dict | None:
         d = self._linha_uc(uc_id)
         if not d or not _bool(d.get("possui_gd")):
@@ -263,7 +274,10 @@ class SqliteRepository:
             """, (uc_id.strip(),))]
 
     def consumo_uc(self, uc_id):
-        return consumo_publico(self._faturamento_uc(uc_id))
+        return consumo_publico([
+            {**f, "troca_medidor": None if f["troca_medidor"] is None else _bool(f["troca_medidor"])}
+            for f in self._faturamento_uc(uc_id)
+        ])
 
     def faturas_uc(self, uc_id):
         linhas = self._faturamento_uc(uc_id)

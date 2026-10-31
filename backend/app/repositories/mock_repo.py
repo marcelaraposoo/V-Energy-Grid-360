@@ -114,6 +114,12 @@ class MockRepository:
             "data_instalacao": uc["data_instalacao_medidor"], "status": "ativo",
         }
 
+    def trocas_medidor_uc(self, uc_id):
+        return sorted(
+            [t for t in self.d["fato_troca_medidor"] if t["id_uc"] == uc_id.strip().upper()],
+            key=lambda t: t["mes_troca"], reverse=True,
+        )
+
     def gd_uc(self, uc_id):
         uc = self._ucs.get(uc_id.upper())
         if not uc or not uc["possui_gd"]:

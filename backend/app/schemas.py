@@ -86,6 +86,8 @@ class ConsumoMensalUC(BaseModel):
     variacao_consumo_ano_anterior_pct: float | None = None
     valor_total: float | None = None
     valor_total_ano_anterior: float | None = None
+    troca_medidor: bool | None = None
+    troca_medidor_ano_anterior: bool | None = None
 
 
 ClassificacaoVariacao = Literal["pequena", "moderada", "significativa", "reducao"]
@@ -103,6 +105,8 @@ class DiagnosticoContaAltaUC(BaseModel):
     competencias_disponiveis: list[Competencia]
     competencia_atual: Competencia | None
     competencia_referencia: Competencia | None
+    troca_medidor_atual: bool | None
+    troca_medidor_referencia: bool | None
     consumo: ComparacaoMetricaUC
     faturamento: ComparacaoMetricaUC
     mensagem: str
@@ -155,6 +159,22 @@ class MedidorUC(BaseModel):
     tipo: str
     data_instalacao: date
     status: str
+
+
+class TrocaMedidorUC(BaseModel):
+    id_uc: str
+    mes_troca: Competencia = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    id_medidor_antigo: str
+    tipo_medidor_antigo: Literal["ELETRONICO", "ELETROMECANICO", "SMART"]
+    idade_medidor_antigo_anos: float | None = Field(ge=0)
+    id_medidor_novo: str
+    tipo_medidor_novo: Literal["ELETRONICO", "ELETROMECANICO", "SMART"]
+    consumo_medio_6m_antes: float | None = Field(ge=0)
+    consumo_medio_6m_depois: float | None = Field(ge=0)
+    variacao_consumo_pct: float | None
+    classe: str
+    municipio: str
+    bairro: str
 
 
 class GeracaoDistribuidaUC(BaseModel):
@@ -240,6 +260,7 @@ class Visao360(BaseModel):
     faturas: list[FaturaUC]
     resumo_faturas: ResumoFaturasUC
     medidor: MedidorUC | None
+    trocas_medidor: list[TrocaMedidorUC]
     geracao_distribuida: GeracaoDistribuidaUC | None
     interrupcoes: InterrupcoesUC
     periodo_atendimentos: PeriodoHistoricoUC

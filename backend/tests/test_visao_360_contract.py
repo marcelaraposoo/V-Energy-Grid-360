@@ -26,6 +26,7 @@ def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
         resposta = visao_360(repo, uc_id).model_dump(mode="json")
         assert resposta["cadastro"] | repo.uc(uc_id) == resposta["cadastro"]
         assert resposta["medidor"] == repo.medidor_uc(uc_id)
+        assert resposta["trocas_medidor"] == repo.trocas_medidor_uc(uc_id)
         assert resposta["geracao_distribuida"] == repo.gd_uc(uc_id)
         if uc["possui_gd"]:
             assert resposta["geracao_distribuida"]["modalidade"] == uc["modalidade_gd"]
@@ -78,6 +79,7 @@ def test_contrato_aceita_historico_insuficiente_e_blocos_sem_registros(resposta)
         faturas=[],
         resumo_faturas={"pendencias_recentes": 0, "pendencias_antigas": 0},
         medidor=None,
+        trocas_medidor=[],
         geracao_distribuida=None,
         atendimentos=[],
     )

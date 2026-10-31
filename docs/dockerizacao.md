@@ -29,9 +29,52 @@ Invoke-RestMethod http://localhost:8080/api/health
 
 A resposta deve indicar `status=ok` e `data_source=mock`.
 
+## Execução com a Gold SQLite
+
+O override `compose.gold.yaml` usa o snapshot real, sem incluí-lo na imagem.
+Extraia o `gold.db` recebido para `data/gold/gold.db`: o diretório `data/`
+está coberto pelo `.gitignore`. Não versione o banco.
+
+```powershell
+# Validar a composição efetiva e subir os serviços em modo SQLite
+docker compose -f compose.yaml -f compose.gold.yaml config
+docker compose -f compose.yaml -f compose.gold.yaml up --detach --build --wait
+
+Invoke-RestMethod http://localhost:8080/api/health
+
+# Recriar os containers preservando a Gold e o volume operacional
+docker compose -f compose.yaml -f compose.gold.yaml up --detach --force-recreate --wait
+```
+
+O health check deve indicar `status=ok` e `data_source=sqlite`. Use os dois
+arquivos Compose em todos os comandos dessa execução, inclusive `logs`, `ps`
+e `down`, para manter a mesma configuração.
+
+- `DATA_SOURCE=sqlite` e `SQLITE_PATH=/data/gold/gold.db` no backend.
+- O diretório `./data/gold` é um bind mount **somente leitura** em `/data/gold`.
+  Para usar outro diretório local, defina `GOLD_DATA_DIR` antes dos comandos.
+  O diretório precisa existir; o Compose não cria um diretório vazio no lugar
+  de um caminho ausente.
+- `PORTAL_DB_PATH=/data/portal/portal.db` continua no mesmo volume nomeado
+  `portal_data`, com leitura e escrita. Não use `down --volumes`.
+- A Gold e o banco operacional permanecem em mounts separados. Os Dockerfiles
+  e os contextos de build não recebem o snapshot em `data/gold/`.
+- O backend atual suporta catálogos, busca/cadastro de UC, medidor/GD pelo
+  repositório e fila de inspeção. A rota de visão 360 depende também de leituras
+  ainda não implementadas; HTTP 501 nessas funcionalidades é uma limitação da
+  aplicação, mesmo quando as tabelas já existem na Gold.
+- Não existem rotas HTTP individuais para detalhe cadastral, medidor ou GD.
+  Esses métodos podem ser conferidos diretamente pelo repositório dentro do
+  container, sem implementar rotas novas nesta etapa.
+- Na validação com a Gold recebida, a fila sem filtro excedeu o timeout de
+  30 segundos do cliente. A fila com `prob_minima=1&tamanho=3` retornou HTTP 200.
+  O backend busca o cadastro de cada suspeita separadamente, e a consulta com
+  `COLLATE NOCASE` faz uma varredura da `dim_uc`; essa limitação de desempenho
+  permanece para uma etapa funcional posterior.
+
 ## Serviços e persistência
 
-- A composição atual utiliza explicitamente **`DATA_SOURCE=mock`**. Os dados
+- Sem o override Gold, a composição utiliza **`DATA_SOURCE=mock`**. Os dados
   analíticos exibidos são fictícios; não representam a Gold real.
 - O frontend é o único serviço publicado pela composição:
   `127.0.0.1:8080:80`. O Nginx serve a SPA e encaminha `/api/...` para
@@ -67,14 +110,13 @@ continuar na imagem backend.
 
 ## Limites e pendências
 
-- A integração com **`gold.db` real está pendente**, pois o snapshot ainda não
-  foi disponibilizado. Não há montagem Gold nesta composição, nem banco Gold
-  sintético substituto. A futura integração deverá validar o snapshot e montar
-  seu diretório em modo somente leitura, separado do volume operacional.
+- O modo padrão continua mock; o override `compose.gold.yaml` permite usar
+  a Gold real com montagem somente leitura, separada do volume operacional.
+  Isso não implementa as leituras da Gold ainda pendentes no backend.
 - **Redis será integrado posteriormente**, quando os adapters de cache e/ou
   memória estiverem prontos e as políticas de persistência forem definidas.
   Não há serviço Redis na composição atual.
-- O health check atual confirma a resposta HTTP e o modo mock; não verifica
+- O health check confirma a resposta HTTP e o modo escolhido; não verifica
   integridade do SQLite, capacidade de escrita, providers ou o fluxo da IA.
 - A conexão completa do agente ao chat, os adapters de estado e as leituras
   Gold ainda não implementadas são pendências da aplicação, não da Dockerização.

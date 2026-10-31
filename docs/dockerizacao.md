@@ -1,128 +1,325 @@
-# Dockerização
+# Dockerização — guia para desenvolvedores
 
-## Execução local
+## 1. Visão geral e decisões de arquitetura
 
-Pré-requisito: Docker Desktop em execução, usando containers Linux e Docker
-Compose v2 com suporte a `--wait`. Execute os comandos na raiz do repositório.
-A porta local 8080 precisa estar livre.
+A aplicação usa somente **dois containers**: `frontend` e `backend`, definidos
+no `compose.yaml` da raiz. O navegador acessa o frontend/Nginx; chamadas a
+`/api/...` seguem pelo proxy até o backend/FastAPI, que acessa dois bancos SQLite
+independentes: a Gold analítica somente leitura e o portal operacional com escrita.
+
+Essa organização mantém interface e API na mesma origem para o navegador,
+centraliza o acesso aos dados no backend e separa dados analíticos publicados
+pelo time de Dados dos registros criados pela aplicação. SQLite é acessado como
+arquivo pelo processo Python e não precisa de servidor próprio.
+
+Não há container separado para SQLite ou IA. Os componentes da IA estão no
+backend; a integração completa do chat ainda está em desenvolvimento. Redis
+não faz parte da composição atual.
+
+## 2. Responsabilidade de cada container
+
+| Container | Responsabilidades |
+|---|---|
+| `frontend` | O build em Node executa `npm ci` e compila o React com Vite. A imagem final usa Nginx para servir os arquivos estáticos, aplicar o fallback da SPA e encaminhar `/api/...` ao backend. O Node não permanece como servidor em execução. |
+| `backend` | Executa FastAPI com Uvicorn na porta interna 8000, acessa a Gold, mantém o banco operacional e incorpora os componentes e prompts da IA. |
+
+O fallback da SPA permite abrir diretamente uma rota como `/uc`: quando não há
+arquivo estático correspondente, o Nginx entrega `index.html` e o React resolve
+a rota. As chamadas `/api/...` usam uma localização própria no Nginx e seguem
+para a API.
+
+## 3. Comunicação entre navegador e serviços
+
+1. O navegador abre `http://localhost:8080`.
+2. O frontend usa URLs relativas como `/api/unidades?limite=1`.
+3. O Nginx encaminha essas chamadas para `http://backend:8000`, mantendo `/api`.
+4. O nome `backend` é resolvido pelo DNS da rede Docker da composição.
+
+`backend:8000` é um endereço interno dos containers, não uma URL para usar no
+navegador do host. Somente o frontend publica porta: `127.0.0.1:8080:80`.
+O backend possui `expose: 8000`, sem publicação de porta no host. Assim, o acesso
+local à API também passa pelo Nginx; não é necessário configurar CORS adicional
+para esse fluxo de mesma origem.
+
+O frontend aguarda o backend ficar saudável antes de iniciar. O Nginx utiliza
+o DNS interno do Docker para resolver novamente o backend quando ele é recriado.
+
+## 4. Bancos e caminhos
+
+| Característica | `gold.db` | `portal.db` |
+|---|---|---|
+| Finalidade | Banco analítico produzido pela camada de Dados; fonte para o portal e as consultas da IA | Banco operacional com registros criados pela aplicação, como ordens de inspeção |
+| Formato | SQLite | SQLite |
+| Origem | Arquivo no host: `data/gold/gold.db` | Volume Docker `portal_data` |
+| Caminho no backend | `/data/gold/gold.db` | `/data/portal/portal.db` |
+| Montagem | Diretório `./data/gold` → `/data/gold`, bind mount somente leitura | Volume `portal_data` → `/data/portal`, leitura e escrita |
+| Gestão | Snapshot publicado pelo time de Dados | Arquivo/tabelas inicializados pelo armazém operacional quando utilizado |
+
+A separação permite atualizar a Gold sem apagar ordens e impede o backend de
+alterar o snapshot analítico. O backend também abre suas conexões à Gold com
+`mode=ro`. O diretório operacional inteiro é gravável para permitir as operações
+do SQLite e seus arquivos auxiliares.
+
+A Gold **não é versionada**: `data/` está no `.gitignore`. Ela também não entra
+na imagem: os contextos de build são `backend/` e `frontend/`, enquanto o snapshot
+fica em `data/gold/`. Os arquivos `.dockerignore` excluem bancos e configurações
+locais dos contextos.
+
+Estas variáveis já estão configuradas no Compose; não precisam ser exportadas
+manualmente para executar a aplicação:
+
+```text
+DATA_SOURCE=sqlite
+SQLITE_PATH=/data/gold/gold.db
+PORTAL_DB_PATH=/data/portal/portal.db
+```
+
+## 5. Pré-requisitos e preparação
+
+- Docker Desktop instalado e em execução, com engine de containers Linux.
+- Docker Compose v2 com suporte a `--wait`.
+- Porta local 8080 disponível.
+- Repositório disponível e terminal aberto na sua raiz, onde está `compose.yaml`.
+- Snapshot real recebido do time de Dados em `data/gold/gold.db`.
+- Acesso aos registros de imagens e repositórios de dependências no primeiro build.
+
+Node e Python não precisam estar instalados no host para subir a composição:
+os builds e processos usam as imagens Docker. Não são necessárias credenciais
+de providers para abrir o portal e consultar as rotas Gold já suportadas.
+
+Se recebeu um ZIP, extraia o `gold.db` original para `data/gold/gold.db` antes
+de subir a aplicação. Não crie um banco vazio nem copie o snapshot para o código
+ou para as imagens. Confira os pré-requisitos em PowerShell:
 
 ```powershell
-# Construir e subir frontend e backend
-docker compose up --detach --build --wait
+docker version
+docker info --format '{{.OSType}}'
+docker compose version
 
-# Acompanhar logs (Ctrl+C encerra somente o acompanhamento)
+if (-not (Test-Path -LiteralPath data/gold/gold.db -PathType Leaf)) {
+    throw "Gold não encontrada em data/gold/gold.db"
+}
+
+git check-ignore -v data/gold/gold.db
+docker compose config
+```
+
+`docker version` deve mostrar cliente e servidor; `OSType` deve ser `linux`.
+O arquivo Gold deve existir e estar ignorado pelo Git. O Compose usa
+`create_host_path: false`: se `data/gold/` não existir, a montagem falha em vez
+de criar silenciosamente um diretório vazio.
+
+## 6. Primeira execução
+
+Na raiz do repositório:
+
+```powershell
+docker compose up --detach --build --wait
+```
+
+Abra:
+
+```text
+http://localhost:8080
+```
+
+Confira o estado:
+
+```powershell
+docker compose ps
+```
+
+O resultado esperado é `backend` com estado **healthy** e `frontend` em execução
+(**running**, normalmente mostrado como `Up`). O frontend não possui health check
+próprio; não espere a indicação `healthy` para ele.
+
+O comando constrói as imagens, cria a rede e o volume quando necessário e inicia
+os serviços em segundo plano. O health check do backend consulta `/api/health`
+e exige `status=ok` e `data_source=sqlite`. Isso verifica HTTP e configuração;
+não abre a Gold nem testa escrita no portal. Valide uma consulta real conforme
+a seção 12, mesmo quando o backend estiver saudável.
+
+## 7. Logs
+
+```powershell
+# Ambos os serviços; Ctrl+C encerra somente o acompanhamento
 docker compose logs --follow --tail 100
 
-# Consultar o estado dos serviços
-docker compose ps
+# Logs individuais
+docker compose logs --follow --tail 100 backend
+docker compose logs --follow --tail 100 frontend
 
-# Parar e remover os containers e a rede da composição
+# Últimas mensagens sem acompanhamento contínuo
+docker compose logs --tail 100 backend frontend
+```
+
+Use os logs do backend para erros de API, SQLite e exceções Python. Os logs do
+frontend mostram requisições ao Nginx e falhas de proxy, como respostas 502/504.
+
+## 8. Parada, atualização e reconstrução
+
+Para parar e remover os containers e a rede da composição:
+
+```powershell
 docker compose down
 ```
 
-Acesse o portal em [http://localhost:8080](http://localhost:8080).
-Para conferir o proxy da API:
+**Esse comando preserva o volume `portal_data` e o arquivo Gold no host.**
+Para reconstruir após mudanças e voltar a executar:
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/health
+docker compose up --detach --build --wait
 ```
 
-A resposta deve indicar `status=ok` e `data_source=mock`.
-
-## Execução com a Gold SQLite
-
-O override `compose.gold.yaml` usa o snapshot real, sem incluí-lo na imagem.
-Extraia o `gold.db` recebido para `data/gold/gold.db`: o diretório `data/`
-está coberto pelo `.gitignore`. Não versione o banco.
+Para recriar os containers sem solicitar um novo build:
 
 ```powershell
-# Validar a composição efetiva e subir os serviços em modo SQLite
-docker compose -f compose.yaml -f compose.gold.yaml config
-docker compose -f compose.yaml -f compose.gold.yaml up --detach --build --wait
-
-Invoke-RestMethod http://localhost:8080/api/health
-
-# Recriar os containers preservando a Gold e o volume operacional
-docker compose -f compose.yaml -f compose.gold.yaml up --detach --force-recreate --wait
+docker compose up --detach --force-recreate --wait
 ```
 
-O health check deve indicar `status=ok` e `data_source=sqlite`. Use os dois
-arquivos Compose em todos os comandos dessa execução, inclusive `logs`, `ps`
-e `down`, para manter a mesma configuração.
-
-- `DATA_SOURCE=sqlite` e `SQLITE_PATH=/data/gold/gold.db` no backend.
-- O diretório `./data/gold` é um bind mount **somente leitura** em `/data/gold`.
-  Para usar outro diretório local, defina `GOLD_DATA_DIR` antes dos comandos.
-  O diretório precisa existir; o Compose não cria um diretório vazio no lugar
-  de um caminho ausente.
-- `PORTAL_DB_PATH=/data/portal/portal.db` continua no mesmo volume nomeado
-  `portal_data`, com leitura e escrita. Não use `down --volumes`.
-- A Gold e o banco operacional permanecem em mounts separados. Os Dockerfiles
-  e os contextos de build não recebem o snapshot em `data/gold/`.
-- O backend atual suporta catálogos, busca/cadastro de UC, medidor/GD pelo
-  repositório e fila de inspeção. A rota de visão 360 depende também de leituras
-  ainda não implementadas; HTTP 501 nessas funcionalidades é uma limitação da
-  aplicação, mesmo quando as tabelas já existem na Gold.
-- Não existem rotas HTTP individuais para detalhe cadastral, medidor ou GD.
-  Esses métodos podem ser conferidos diretamente pelo repositório dentro do
-  container, sem implementar rotas novas nesta etapa.
-- Na validação com a Gold recebida, a fila sem filtro excedeu o timeout de
-  30 segundos do cliente. A fila com `prob_minima=1&tamanho=3` retornou HTTP 200.
-  O backend busca o cadastro de cada suspeita separadamente, e a consulta com
-  `COLLATE NOCASE` faz uma varredura da `dim_uc`; essa limitação de desempenho
-  permanece para uma etapa funcional posterior.
-
-## Serviços e persistência
-
-- Sem o override Gold, a composição utiliza **`DATA_SOURCE=mock`**. Os dados
-  analíticos exibidos são fictícios; não representam a Gold real.
-- O frontend é o único serviço publicado pela composição:
-  `127.0.0.1:8080:80`. O Nginx serve a SPA e encaminha `/api/...` para
-  `http://backend:8000`, preservando o prefixo `/api`.
-- O backend não publica porta no host. Seu health check consulta `/api/health`,
-  e o frontend aguarda o backend ficar saudável antes de iniciar.
-- `PORTAL_DB_PATH=/data/portal/portal.db`. O diretório inteiro `/data/portal/`
-  fica no volume nomeado `portal_data`, com acesso de leitura e escrita. Com o
-  nome de projeto padrão, o volume Docker se chama `v-energy-grid-360_portal_data`.
-- **`docker compose down` preserva o volume operacional.** Ao subir novamente
-  a mesma composição, as ordens de inspeção permanecem disponíveis. Não use
-  `docker compose down --volumes` nem `docker compose down -v` na parada normal:
-  essas opções removem os volumes gerenciados pela composição.
-- Persistência não substitui backup. A exclusão manual do volume ou dos dados
-  do Docker Desktop pode apagar as ordens. Outro nome de projeto Compose pode
-  selecionar um volume diferente.
-- A composição mock não precisa de `.env` nem de credenciais de providers.
-  Os contextos de build excluem configurações locais e bancos; não coloque
-  credenciais reais no Compose ou nos Dockerfiles.
-
-## Reconstrução e verificação
+Se houver um motivo específico para ignorar o cache de build:
 
 ```powershell
-docker compose config
 docker compose build --no-cache
 docker compose up --detach --wait
-docker compose ps
 ```
 
-O build sem cache requer acesso aos registros de imagens e aos repositórios
-de dependências. Os prompts Markdown da IA pertencem a `backend/app/` e devem
-continuar na imagem backend.
+**Atenção: `docker compose down -v` (ou `--volumes`) remove os volumes da
+composição e pode apagar os dados operacionais persistidos no `portal.db`.**
+Não use essa opção para uma parada normal, rebuild ou diagnóstico.
 
-## Limites e pendências
+## 9. Persistência do banco operacional
 
-- O modo padrão continua mock; o override `compose.gold.yaml` permite usar
-  a Gold real com montagem somente leitura, separada do volume operacional.
-  Isso não implementa as leituras da Gold ainda pendentes no backend.
-- **Redis será integrado posteriormente**, quando os adapters de cache e/ou
-  memória estiverem prontos e as políticas de persistência forem definidas.
-  Não há serviço Redis na composição atual.
-- O health check confirma a resposta HTTP e o modo escolhido; não verifica
-  integridade do SQLite, capacidade de escrita, providers ou o fluxo da IA.
-- A conexão completa do agente ao chat, os adapters de estado e as leituras
-  Gold ainda não implementadas são pendências da aplicação, não da Dockerização.
-- Este ambiente é local, com HTTP em loopback. TLS, exposição externa e
-  endurecimento para produção exigem uma etapa própria. A imagem backend ainda
-  usa o usuário padrão da imagem base, sem configuração de usuário sem privilégios.
-- As tags das imagens base e as dependências Python não estão totalmente
-  fixadas. Um novo build pode resolver versões diferentes; o frontend usa
-  `package-lock.json` com `npm ci`.
+O ciclo de vida dos dados é separado do ciclo dos containers:
+
+```text
+Backend removido → portal_data permanece → novo backend monta o mesmo volume
+                                         → portal.db e ordens permanecem
+```
+
+Com o nome de projeto definido no Compose, o volume se chama
+`v-energy-grid-360_portal_data`. Mantenha o projeto `v-energy-grid-360`;
+usar `-p` ou `COMPOSE_PROJECT_NAME` com outro nome pode selecionar outro volume
+e fazer a aplicação parecer vazia, mesmo com o volume original preservado.
+
+A Gold não depende desse volume: vem do bind mount de `data/gold/` no host e
+continua disponível após remover containers. Já `portal.db` fica no armazenamento
+gerenciado pelo Docker, não em `data/gold/` nem dentro da imagem.
+
+Persistência não substitui backup: exclusão manual do volume ou remoção dos dados
+do Docker Desktop pode apagar o banco operacional. Não remova volumes para
+resolver problemas de inicialização.
+
+## 10. Segurança, integridade e atualização da Gold
+
+O bind mount define `read_only: true` para todo `/data/gold`. O backend não deve
+alterar conteúdo ou schema da Gold. Ela fica separada do diretório operacional,
+que precisa permanecer gravável.
+
+Para conferir os mounts sem alterar dados:
+
+```powershell
+docker inspect v-energy-grid-360-backend-1 --format '{{json .Mounts}}'
+```
+
+Espere `/data/gold` com `Type=bind` e `RW=false`, e `/data/portal` com
+`Type=volume`, nome `v-energy-grid-360_portal_data` e `RW=true`.
+
+Uma atualização da Gold é publicada **fora do container**, substituindo o
+snapshot no host. Para evitar trocar um arquivo enquanto uma consulta o lê:
+
+1. Valide o novo snapshot e preserve a versão anterior fora do container.
+2. Execute `docker compose down`, sem `-v`.
+3. Substitua `data/gold/gold.db` pelo novo snapshot completo, mantendo o caminho.
+4. Execute `docker compose up --detach --build --wait` e a validação rápida.
+
+O volume operacional permanece durante esse procedimento. Não publique um
+snapshot ainda em escrita ou que dependa de arquivos de journal/WAL ausentes.
+Nunca corrija a Gold por comandos de escrita dentro do backend.
+
+## 11. Mocks e testes automatizados
+
+`MockRepository`, fixtures e mocks continuam no código porque testes automatizados
+dependem deles. Eles não representam a fonte de dados do ambiente operacional:
+**o Compose e a imagem backend usam `DATA_SOURCE=sqlite`**. A existência dessas
+estruturas de teste não exige um Compose alternativo nem um container adicional.
+
+## 12. Validação rápida
+
+Após subir a aplicação, confira:
+
+- [ ] `docker compose ps`: backend saudável e frontend em execução.
+- [ ] `http://localhost:8080`: frontend abre.
+- [ ] `/api/health`: HTTP 200 com `status=ok`.
+- [ ] A resposta do health informa `data_source=sqlite`.
+- [ ] Uma consulta de unidades retorna cadastro da Gold.
+
+```powershell
+docker compose ps
+Invoke-WebRequest http://localhost:8080
+Invoke-RestMethod http://localhost:8080/api/health
+Invoke-RestMethod 'http://localhost:8080/api/unidades?limite=1'
+```
+
+A última chamada deve retornar uma lista com uma UC do snapshot. Ela exercita
+o proxy, o repositório SQLite e a leitura real da Gold; o health isolado não
+comprova essa integração.
+
+## 13. Limitações atuais
+
+Estas são pendências da aplicação, não falhas da Dockerização:
+
+- O repositório SQLite ainda não implementa faturamento/consumo, atendimentos e
+  ocorrências/indicadores de continuidade. Rotas que dependem dessas leituras,
+  como a visão 360, podem responder HTTP 501 mesmo com tabelas presentes na Gold.
+- Não existem rotas HTTP individuais para detalhe cadastral, medidor e GD;
+  esses métodos estão disponíveis no repositório.
+- A fila sem filtro excedeu o timeout de 30 segundos na validação. O backend
+  busca cada UC separadamente e usa `COLLATE NOCASE` com varredura da `dim_uc`.
+  A fila filtrada com `prob_minima=1&tamanho=3` respondeu HTTP 200.
+- Os componentes de IA estão incorporados ao backend, mas a rota de perguntas
+  ainda responde com um placeholder: a conexão completa do agente está pendente.
+- Redis ainda não foi integrado e não é requisito para esta composição.
+
+Limites do ambiente Docker atual: acesso local por HTTP em loopback, usuário
+padrão da imagem backend e dependências Python/tags base não totalmente fixadas.
+TLS, exposição externa e endurecimento para produção exigem outra etapa.
+
+## 14. Troubleshooting
+
+Comece por `docker compose ps`, `docker compose logs --tail 100 backend frontend`
+e `docker compose config`. Não use exclusão de volumes ou restauração de fábrica
+como primeira tentativa de diagnóstico.
+
+| Problema | Verificação e próximo passo |
+|---|---|
+| `gold.db` ausente | Execute `Test-Path -LiteralPath data/gold/gold.db -PathType Leaf`. Confira se a extração não criou subpastas extras. Coloque o snapshot original no caminho esperado e execute novamente o comando de subida. Um diretório ausente impede o bind mount; um diretório existente sem o arquivo pode permitir health saudável, mas as consultas falharão. |
+| Docker Desktop/engine Linux não iniciado | Confira `docker version` e `docker info --format '{{.OSType}}'`. Se não houver servidor ou aparecer erro do pipe `dockerDesktopLinuxEngine`, inicie o Desktop, selecione containers Linux e aguarde o engine. Consulte os logs/diagnóstico do Desktop se a inicialização falhar; não apague volumes. |
+| Porta 8080 ocupada | No Windows, use `Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue` e `docker ps --format 'table {{.Names}}\t{{.Ports}}'` para identificar o processo/container. Libere a porta encerrando somente o recurso identificado e dispensável; o Compose publica `127.0.0.1:8080`. |
+| Backend `unhealthy` | Leia `docker compose logs --tail 100 backend` e `docker inspect v-energy-grid-360-backend-1 --format '{{json .State.Health}}'`. Confira a resposta HTTP e `DATA_SOURCE=sqlite`. Após corrigir a causa, execute `docker compose up --detach --build --wait`. |
+| Permissão ou mount incorreto | Confira `docker compose config` e `docker inspect v-energy-grid-360-backend-1 --format '{{json .Mounts}}'`. A Gold precisa existir e ser legível pelo Docker Desktop; confirme o acesso ao diretório no host. `/data/gold` deve ser read-only e `/data/portal` read-write. Não torne a Gold gravável para resolver erros no portal. |
+| Frontend abre, mas `/api` falha | Confira logs dos dois serviços e se o backend está saudável. Use `http://localhost:8080/api/health`; `backend:8000` é apenas interno. HTTP 502/504 requer verificar o upstream e duração das consultas; HTTP 501 das funcionalidades pendentes tem causa na aplicação. |
+| Ordens parecem ter desaparecido | Confira o nome do projeto e o volume montado em `/data/portal`. Procure o volume original com `docker volume inspect v-energy-grid-360_portal_data`. Não exclua nem recrie volumes antes de identificar qual está sendo usado. |
+
+## 15. Diagrama da arquitetura e dos dados
+
+```text
+Host
+├── Navegador: http://localhost:8080
+│   └── 127.0.0.1:8080 → frontend:80 (rede Docker)
+│       ├── Nginx → arquivos React + fallback SPA
+│       └── /api/... → http://backend:8000/api/...
+│                     └── FastAPI/Uvicorn + componentes IA
+│                         ├── leitura → /data/gold/gold.db
+│                         └── leitura/escrita → /data/portal/portal.db
+│
+├── data/gold/                           [bind mount read-only]
+│   └── gold.db ───────────────────────→ backend:/data/gold/gold.db
+│
+└── Docker volume portal_data            [read-write, persistente]
+    └── portal.db ──────────────────────→ backend:/data/portal/portal.db
+        Nome efetivo: v-energy-grid-360_portal_data
+
+Containers da aplicação: frontend + backend
+Sem containers separados para SQLite, IA ou Redis.
+```

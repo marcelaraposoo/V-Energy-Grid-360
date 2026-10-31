@@ -2,7 +2,9 @@ FROM python:3.13-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DATA_SOURCE=mock
+    DATA_SOURCE=sqlite \
+    SQLITE_PATH=/data/gold/gold.db \
+    PORTAL_DB_PATH=/data/portal/portal.db
 
 WORKDIR /app
 

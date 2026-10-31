@@ -4,6 +4,7 @@ from app.mock.mock_data import MUNICIPIOS, build_mock_data
 from app.repositories.base import OrdensStore
 from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, consumo_publico, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
+from app.repositories.rede import ocorrencia_publica
 
 
 class MockRepository:
@@ -135,21 +136,9 @@ class MockRepository:
         ]
 
     # rede
-    @staticmethod
-    def _ocorrencia(o):
-        return {
-            "ocorrencia_id": o["id_ocorrencia"], "uc_id": o["id_uc"],
-            "alimentador_id": o["alimentador"], "municipio": o["municipio"],
-            "bairro": o["bairro"], "classe": o["classe"], "tipo": o["tipo"],
-            "data": o["data_hora_inicio"], "data_fim": o["data_hora_fim"],
-            "competencia": o["mes_referencia"], "causa": o["causa"],
-            "duracao_min": o["duracao_min"],
-            "causa_evitavel": o["causa_evitavel"],
-        }
-
     def ocorrencias(self, inicio, fim, alimentador_id=None, municipio=None, uc_id=None):
         return [
-            self._ocorrencia(o) for o in self.d["fato_interrupcao"]
+            ocorrencia_publica(o) for o in self.d["fato_interrupcao"]
             if inicio <= o["mes_referencia"] <= fim
             and (alimentador_id is None or o["alimentador"] == alimentador_id)
             and (municipio is None or o["municipio"] == municipio)

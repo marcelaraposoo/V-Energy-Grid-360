@@ -199,6 +199,9 @@ class InterrupcoesUC(PeriodoHistoricoUC):
     duracao_total_min: int = Field(ge=0, description="Duração total das interrupções da própria UC no período.")
     dec_horas: float | None = Field(description="DEC do alimentador, como contexto da UC.")
     fec_vezes: float | None = Field(description="FEC do alimentador, como contexto da UC.")
+    qtd_ucs_alimentador_mes: int | None = Field(ge=0, description="UCs do alimentador na competência de referência.")
+    competencia_base_ucs: Competencia | None
+    horas_interrompidas: float | None = Field(ge=0, description="Impacto acumulado do alimentador em UC × horas.")
     historico: list[OcorrenciaRedeUC]
     escopo: Literal["uc"] = Field(
         description="Escopo da contagem, duração total e histórico: a própria UC.",

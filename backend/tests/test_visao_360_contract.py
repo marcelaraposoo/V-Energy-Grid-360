@@ -95,6 +95,7 @@ def test_contrato_aceita_historico_insuficiente_e_blocos_sem_registros(resposta)
     resposta["interrupcoes"].update(
         escopo="uc", historico=[], qtd_ocorrencias=0, duracao_total_min=0, dec_horas=None, fec_vezes=None,
         periodo_inicio=None, periodo_fim=None,
+        qtd_ucs_alimentador_mes=None, competencia_base_ucs=None, horas_interrompidas=None,
     )
     contrato = Visao360.model_validate(resposta)
     assert contrato.model_dump(mode="json") == resposta

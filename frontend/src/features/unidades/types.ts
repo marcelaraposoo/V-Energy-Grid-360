@@ -166,6 +166,10 @@ export interface InterrupcoesUC extends PeriodoHistoricoUC {
   /** Indicadores do alimentador, como contexto da UC. */
   dec_horas: number | null
   fec_vezes: number | null
+  qtd_ucs_alimentador_mes: number | null
+  competencia_base_ucs: string | null
+  /** Impacto do alimentador acumulado no período, em UC × horas. */
+  horas_interrompidas: number | null
   historico: OcorrenciaRedeUC[]
   /** Escopo da contagem, duração total e histórico: a própria UC. */
   escopo: 'uc'

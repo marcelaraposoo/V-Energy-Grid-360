@@ -1,7 +1,7 @@
 """Repositório sobre o SQLite exportado da camada Gold (`data/gold.db`).
 
 Cobre cadastro, catálogos, medidor e GD pela dim_uc; consumo e faturas da UC pela
-fato_consumo_faturamento; fila de suspeitas pela fila_inspecao. A consulta paginada de faturas
+fato_consumo_faturamento; rede pelas A7/A8; fila de suspeitas pela fila_inspecao. A consulta paginada de faturas
 faz contagens em SQL e usa LIMIT/OFFSET. Métodos ainda não integrados ou tabelas ausentes
 levantam `NaoDisponivelNaGold` (HTTP 501), sem apresentar indisponibilidade como histórico vazio.
 
@@ -25,6 +25,7 @@ from app.core.errors import NaoDisponivelNaGold
 from app.repositories.base import OrdensStore
 from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, consumo_publico, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
+from app.repositories.rede import ocorrencia_publica
 
 TABELA_UC = "dim_uc"
 TABELA_FILA = "fila_inspecao"
@@ -315,18 +316,51 @@ class SqliteRepository:
             "resumo": resumo, "anos_disponiveis": anos,
         }
 
+    # ---------- rede (A7 e A8) ----------
+    def ocorrencias(self, inicio, fim, alimentador_id=None, municipio=None, uc_id=None):
+        tabela = "fato_interrupcao"
+        where = "mes_referencia BETWEEN ? AND ?"
+        params = [inicio, fim]
+        if alimentador_id is not None:
+            where += " AND alimentador = ? COLLATE NOCASE"
+            params.append(alimentador_id)
+        if municipio is not None:
+            where += " AND municipio = ?"
+            params.append(municipio)
+        if uc_id is not None:
+            where += " AND id_uc = ? COLLATE NOCASE"
+            params.append(uc_id.strip())
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Ocorrências de rede", tabela)
+            linhas = [dict(r) for r in con.execute(f"""
+                SELECT * FROM {tabela} WHERE {where} ORDER BY data_hora_inicio, id_ocorrencia
+            """, params)]
+        return [ocorrencia_publica({**r, "causa_evitavel": _bool(r["causa_evitavel"])}) for r in linhas]
+
+    def indicadores_continuidade(self, inicio, fim, alimentador_id=None, municipio=None):
+        tabela = "dec_fec_alimentador_mensal"
+        where = "mes_referencia BETWEEN ? AND ?"
+        params = [inicio, fim]
+        if alimentador_id is not None:
+            where += " AND alimentador = ? COLLATE NOCASE"
+            params.append(alimentador_id)
+        if municipio is not None:
+            where += " AND municipio = ?"
+            params.append(municipio)
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Indicadores de continuidade (DEC/FEC)", tabela)
+            return [dict(r) for r in con.execute(f"""
+                SELECT * FROM {tabela} WHERE {where} ORDER BY mes_referencia, alimentador
+            """, params)]
+
     # ---------- métodos ainda não integrados ----------
     def faturas(self, inicio, fim, municipio=None, bairro=None, classe=None):
         raise _sem_gold("Faturamento", TABELA_FATURAMENTO)
 
     def atendimentos_uc(self, uc_id):
         raise _sem_gold("Atendimentos da UC", "fato_atendimento")
-
-    def ocorrencias(self, inicio, fim, alimentador_id=None, municipio=None, uc_id=None):
-        raise _sem_gold("Ocorrências de rede", "fato_interrupcao")
-
-    def indicadores_continuidade(self, inicio, fim, alimentador_id=None, municipio=None):
-        raise _sem_gold("Indicadores de continuidade (DEC/FEC)", "dec_fec_alimentador_mensal")
 
     def suspeitas(self):
         """Fila de suspeitas da Gold (`fila_inspecao`, 1 linha = 1 UC), no formato que o serviço de perdas usa.

@@ -275,6 +275,20 @@ export function InterrupcoesSection({
                     label: 'FEC acumulado',
                     value: formatarNumero(interrupcoes.fec_vezes),
                   },
+                  {
+                    label: 'UCs do alimentador',
+                    value: formatarNumero(interrupcoes.qtd_ucs_alimentador_mes),
+                  },
+                  {
+                    label: 'Competência da base de UCs',
+                    value: interrupcoes.competencia_base_ucs
+                      ? formatarCompetencia(interrupcoes.competencia_base_ucs)
+                      : 'Não disponível',
+                  },
+                  {
+                    label: 'Impacto acumulado (UC × horas)',
+                    value: formatarNumero(interrupcoes.horas_interrompidas),
+                  },
                 ]}
               />
             </Panel>

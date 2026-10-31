@@ -35,7 +35,7 @@ def cenario(mock, tmp_path):
 
 
 def isolar_demais_blocos(repo, monkeypatch):
-    """Somente no teste: rede e atendimentos serão integrados em etapas posteriores."""
+    """Somente no teste: isola os outros blocos para validar a leitura da A2."""
     monkeypatch.setattr(repo, "ocorrencias", lambda *args, **kwargs: [])
     monkeypatch.setattr(repo, "indicadores_continuidade", lambda *args, **kwargs: [])
     monkeypatch.setattr(repo, "atendimentos_uc", lambda *args, **kwargs: [])
@@ -138,7 +138,7 @@ def test_endpoint_consolidado_usa_a2_sem_mudar_o_contrato(cenario, monkeypatch):
         app.dependency_overrides.pop(repo_dep, None)
 
 
-def test_endpoint_ainda_informa_a_integracao_pendente_da_rede(cenario):
+def test_endpoint_informa_tabela_de_rede_ausente(cenario):
     app.dependency_overrides[repo_dep] = lambda: cenario.repo
     try:
         with TestClient(app) as client:

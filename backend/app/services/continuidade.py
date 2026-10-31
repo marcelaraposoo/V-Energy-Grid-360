@@ -18,8 +18,14 @@ def resumo_periodo(indicadores: list[dict]) -> dict:
     for linhas in por_mes.values():
         qtd_ucs = sum(r["qtd_ucs_alimentador_mes"] for r in linhas)
         if qtd_ucs:
-            dec += sum(r["horas_interrompidas"] for r in linhas) / qtd_ucs
-            fec += sum(r["qtd_interrupcoes"] for r in linhas) / qtd_ucs
+            dec += sum(
+                r["dec_horas"] * r["qtd_ucs_alimentador_mes"]
+                for r in linhas if r["qtd_ucs_alimentador_mes"]
+            ) / qtd_ucs
+            fec += sum(
+                r["fec"] * r["qtd_ucs_alimentador_mes"]
+                for r in linhas if r["qtd_ucs_alimentador_mes"]
+            ) / qtd_ucs
     ultimo_mes = max(por_mes, default=None)
     return {
         "dec_horas": round(dec, 6), "fec_vezes": round(fec, 6),

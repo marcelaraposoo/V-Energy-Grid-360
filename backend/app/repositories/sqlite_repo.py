@@ -1,12 +1,9 @@
 """Repositório sobre o SQLite exportado da camada Gold (`data/gold.db`).
 
-ETAPA 1 (esta): só o que a Gold já entrega na `main`, a `dim_uc` (1 linha = 1 UC). Cobre catálogos,
-busca de UC, medidor ativo e geração distribuída. O que depende de tabelas que ainda não estão na `main`
-(fato_consumo_faturamento, fato_interrupcao, fila_inspecao...) levanta `NaoDisponivelNaGold` (HTTP 501),
-em vez de devolver lista vazia: vazio pareceria "UC sem consumo", e não "dado que ainda não chegou".
-
-A consulta paginada de faturas já lê a fato_consumo_faturamento quando exportada, com contagens
-em SQL e LIMIT/OFFSET. Os demais métodos de faturamento/consumo continuam aguardando integração.
+Cobre cadastro, catálogos, medidor e GD pela dim_uc; consumo e faturas da UC pela
+fato_consumo_faturamento; fila de suspeitas pela fila_inspecao. A consulta paginada de faturas
+faz contagens em SQL e usa LIMIT/OFFSET. Métodos ainda não integrados ou tabelas ausentes
+levantam `NaoDisponivelNaGold` (HTTP 501), sem apresentar indisponibilidade como histórico vazio.
 
 Decisões:
 - Conexão aberta a cada chamada e SOMENTE LEITURA (`mode=ro`): a exportação da Gold pode trocar o arquivo
@@ -15,8 +12,7 @@ Decisões:
 - Leitura tolerante: coluna opcional ausente vira None, e booleanos aceitam 1/0, true/false e t/f.
   O formato exato do export (`04_export_banco_local`) ainda não existe.
 - LGPD: a `dim_uc` só tem colunas mascaradas; nada aqui lê nome ou documento completos.
-- `competencias()` vem do período coberto pelas leituras (primeiro e último mês da `dim_uc`),
-  já que a fato de faturamento ainda não está disponível.
+- `competencias()` vem do período coberto pelas leituras (primeiro e último mês da `dim_uc`).
 """
 from __future__ import annotations
 
@@ -27,11 +23,12 @@ from pathlib import Path
 
 from app.core.errors import NaoDisponivelNaGold
 from app.repositories.base import OrdensStore
-from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, fatura_publica
+from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, consumo_publico, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
 
 TABELA_UC = "dim_uc"
 TABELA_FILA = "fila_inspecao"
+TABELA_FATURAMENTO = "fato_consumo_faturamento"
 COLUNAS_OBRIGATORIAS = ("id_uc", "nome_titular_mascarado", "municipio", "bairro", "classe", "alimentador")
 
 DESCRICAO_CLASSE = {
@@ -252,18 +249,28 @@ class SqliteRepository:
             "energia_injetada_atipica": _bool(d.get("energia_injetada_atipica")),
         }
 
-    # ---------- ainda sem tabela na Gold ----------
-    def faturas(self, inicio, fim, municipio=None, bairro=None, classe=None):
-        raise _sem_gold("Faturamento", "fato_consumo_faturamento")
+    # ---------- consumo e faturas da UC (A2) ----------
+    def _faturamento_uc(self, uc_id):
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (TABELA_FATURAMENTO,)).fetchone():
+                raise _sem_gold("Consumo e faturas da UC", TABELA_FATURAMENTO)
+            return [dict(r) for r in con.execute(f"""
+                SELECT * FROM {TABELA_FATURAMENTO} WHERE id_uc = ? COLLATE NOCASE
+                ORDER BY mes_referencia, id_fatura
+            """, (uc_id.strip(),))]
 
     def consumo_uc(self, uc_id):
-        raise _sem_gold("Consumo da UC", "fato_consumo_faturamento")
+        return consumo_publico(self._faturamento_uc(uc_id))
 
     def faturas_uc(self, uc_id):
-        raise _sem_gold("Faturas da UC", "fato_consumo_faturamento")
+        linhas = self._faturamento_uc(uc_id)
+        if not linhas:
+            return []
+        uc = self._linha_uc(uc_id)
+        return [fatura_publica(f, uc) for f in linhas]
 
     def pagina_faturas_uc(self, uc_id, aba, ano, situacao, pagina):
-        tabela = "fato_consumo_faturamento"
+        tabela = TABELA_FATURAMENTO
         uc = self._linha_uc(uc_id)
         with closing(self._conectar()) as con:
             con.execute("BEGIN")
@@ -307,6 +314,10 @@ class SqliteRepository:
             "total": total, "pagina": pagina, "tamanho": TAMANHO_PAGINA,
             "resumo": resumo, "anos_disponiveis": anos,
         }
+
+    # ---------- métodos ainda não integrados ----------
+    def faturas(self, inicio, fim, municipio=None, bairro=None, classe=None):
+        raise _sem_gold("Faturamento", TABELA_FATURAMENTO)
 
     def atendimentos_uc(self, uc_id):
         raise _sem_gold("Atendimentos da UC", "fato_atendimento")

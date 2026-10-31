@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.mock.mock_data import MUNICIPIOS, build_mock_data
 from app.repositories.base import OrdensStore
-from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, fatura_publica
+from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, consumo_publico, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
 
 
@@ -71,20 +71,7 @@ class MockRepository:
         return fatura_publica(f, self._ucs[f["id_uc"]])
 
     def consumo_uc(self, uc_id):
-        faturas = self._faturas_por_uc.get(uc_id.upper(), [])
-        por_competencia = {f["mes_referencia"]: f for f in faturas}
-        serie = []
-        for f in faturas:
-            ano, mes = f["mes_referencia"].split("-")
-            anterior = por_competencia.get(f"{int(ano) - 1}-{mes}")
-            serie.append({
-                "competencia": f["mes_referencia"], "consumo_kwh": f["consumo_kwh"],
-                "consumo_kwh_ano_anterior": f["consumo_kwh_ano_anterior"],
-                "variacao_consumo_ano_anterior_pct": f["variacao_consumo_ano_anterior_pct"],
-                "valor_total": f["valor_total"],
-                "valor_total_ano_anterior": anterior["valor_total"] if anterior else None,
-            })
-        return serie
+        return consumo_publico(self._faturas_por_uc.get(uc_id.upper(), []))
 
     def faturas_uc(self, uc_id):
         return [self._fatura(f) for f in self._faturas_por_uc.get(uc_id.upper(), [])]

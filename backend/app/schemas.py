@@ -107,6 +107,11 @@ class DiagnosticoContaAltaUC(BaseModel):
     mensagem: str
 
 
+FaixaAtraso = Literal["EM DIA", "ATE 30 DIAS", "31 A 90 DIAS", "MAIS DE 90 DIAS"]
+AbaFaturas = Literal["recentes", "historico"]
+SituacaoFaturas = Literal["todas", "paga", "em_aberto"]
+
+
 class FaturaUC(BaseModel):
     uc_id: str
     competencia: Competencia = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
@@ -119,6 +124,7 @@ class FaturaUC(BaseModel):
     bandeira: str
     vencimento: date
     status: Literal["paga", "aberta", "atrasada"]
+    faixa_atraso: FaixaAtraso
     id_fatura: str | None = None
     data_pagamento: date | None = None
     valor_energia: float | None = None
@@ -127,6 +133,20 @@ class FaturaUC(BaseModel):
     preco_medio_kwh: float | None = Field(
         default=None, description="Valor da energia / consumo em kWh; inclui bandeira e exclui tributos.",
     )
+
+
+class ResumoFaturasUC(BaseModel):
+    pendencias_recentes: int = Field(ge=0)
+    pendencias_antigas: int = Field(ge=0)
+
+
+class PaginaFaturasUC(BaseModel):
+    itens: list[FaturaUC]
+    total: int = Field(ge=0)
+    pagina: int = Field(ge=1)
+    tamanho: Literal[10] = 10
+    anos_disponiveis: list[int]
+    resumo: ResumoFaturasUC
 
 
 class MedidorUC(BaseModel):

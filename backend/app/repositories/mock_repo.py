@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.mock.mock_data import CLASSES, MUNICIPIOS, build_mock_data
 from app.repositories.base import OrdensStore
+from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
 
 
@@ -66,19 +67,7 @@ class MockRepository:
         }
 
     def _fatura(self, f):
-        uc = self._ucs[f["id_uc"]]
-        status = "paga" if f["status_fatura"] == "PAGA" else "atrasada" if f["dias_atraso"] > 0 else "aberta"
-        return {
-            "uc_id": f["id_uc"], "competencia": f["mes_referencia"],
-            "municipio": f["municipio"], "bairro": f["bairro"],
-            "classe": uc["subgrupo_tarifario"], "alimentador_id": uc["alimentador"],
-            "consumo_kwh": f["consumo_kwh"], "valor": f["valor_energia"],
-            "bandeira": f["bandeira_tarifaria"], "vencimento": f["data_vencimento"],
-            "status": status, "id_fatura": f["id_fatura"],
-            "data_pagamento": f["data_pagamento"], "valor_energia": f["valor_energia"],
-            "valor_total": f["valor_total"], "tributos": f["tributos"],
-            "preco_medio_kwh": f["preco_medio_kwh"],
-        }
+        return fatura_publica(f, self._ucs[f["id_uc"]])
 
     def consumo_uc(self, uc_id):
         faturas = self._faturas_por_uc.get(uc_id.upper(), [])
@@ -98,6 +87,33 @@ class MockRepository:
 
     def faturas_uc(self, uc_id):
         return [self._fatura(f) for f in self._faturas_por_uc.get(uc_id.upper(), [])]
+
+    def pagina_faturas_uc(self, uc_id, aba, ano, situacao, pagina):
+        todas = self._faturas_por_uc.get(uc_id.upper(), [])
+        abertas = [f for f in todas if f["status_fatura"] == "EM ABERTO"]
+        resumo = {
+            "pendencias_recentes": sum(f["faixa_atraso"] in FAIXAS_RECENTES for f in abertas),
+            "pendencias_antigas": sum(f["faixa_atraso"] == FAIXA_ANTIGA for f in abertas),
+        }
+        competencias = set(sorted({f["mes_referencia"] for f in todas}, reverse=True)[:12])
+        if aba == "recentes":
+            filtradas = [f for f in todas if f["mes_referencia"] in competencias and (
+                f["status_fatura"] == "PAGA" or f["faixa_atraso"] in FAIXAS_RECENTES
+            )]
+        else:
+            filtradas = [f for f in todas
+                         if (ano is None or f["mes_referencia"].startswith(f"{ano:04d}-"))
+                         and (situacao == "todas" or f["status_fatura"] == (
+                             "PAGA" if situacao == "paga" else "EM ABERTO"
+                         ))]
+        filtradas.sort(key=lambda f: (f["mes_referencia"], f["id_fatura"]), reverse=True)
+        inicio = (pagina - 1) * TAMANHO_PAGINA
+        return {
+            "itens": [self._fatura(f) for f in filtradas[inicio:inicio + TAMANHO_PAGINA]],
+            "total": len(filtradas), "pagina": pagina, "tamanho": TAMANHO_PAGINA,
+            "anos_disponiveis": sorted({int(f["mes_referencia"][:4]) for f in todas}, reverse=True),
+            "resumo": resumo,
+        }
 
     def medidor_uc(self, uc_id):
         uc = self._ucs.get(uc_id.upper())

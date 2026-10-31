@@ -5,6 +5,9 @@ busca de UC, medidor ativo e geração distribuída. O que depende de tabelas qu
 (fato_consumo_faturamento, fato_interrupcao, fila_inspecao...) levanta `NaoDisponivelNaGold` (HTTP 501),
 em vez de devolver lista vazia: vazio pareceria "UC sem consumo", e não "dado que ainda não chegou".
 
+A consulta paginada de faturas já lê a fato_consumo_faturamento quando exportada, com contagens
+em SQL e LIMIT/OFFSET. Os demais métodos de faturamento/consumo continuam aguardando integração.
+
 Decisões:
 - Conexão aberta a cada chamada e SOMENTE LEITURA (`mode=ro`): a exportação da Gold pode trocar o arquivo
   a qualquer momento e o portal nunca escreve na Gold. As ordens de inspeção vivem em `portal.db`
@@ -24,6 +27,7 @@ from pathlib import Path
 
 from app.core.errors import NaoDisponivelNaGold
 from app.repositories.base import OrdensStore
+from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
 
 TABELA_UC = "dim_uc"
@@ -256,6 +260,52 @@ class SqliteRepository:
 
     def faturas_uc(self, uc_id):
         raise _sem_gold("Faturas da UC", "fato_consumo_faturamento")
+
+    def pagina_faturas_uc(self, uc_id, aba, ano, situacao, pagina):
+        tabela = "fato_consumo_faturamento"
+        uc = self._linha_uc(uc_id)
+        with closing(self._conectar()) as con:
+            con.execute("BEGIN")
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Faturas da UC", tabela)
+            resumo = dict(con.execute(f"""
+                SELECT COALESCE(SUM(status_fatura = 'EM ABERTO' AND faixa_atraso IN (?, ?, ?)), 0)
+                           AS pendencias_recentes,
+                       COALESCE(SUM(status_fatura = 'EM ABERTO' AND faixa_atraso = ?), 0)
+                           AS pendencias_antigas
+                FROM {tabela} WHERE id_uc = ? COLLATE NOCASE
+            """, (*FAIXAS_RECENTES, FAIXA_ANTIGA, uc_id)).fetchone())
+            anos = [r[0] for r in con.execute(f"""
+                SELECT DISTINCT CAST(substr(mes_referencia, 1, 4) AS INTEGER)
+                FROM {tabela} WHERE id_uc = ? COLLATE NOCASE ORDER BY 1 DESC
+            """, (uc_id,))]
+            where = "id_uc = ? COLLATE NOCASE"
+            params = [uc_id]
+            if aba == "recentes":
+                where += f""" AND mes_referencia IN (
+                    SELECT DISTINCT mes_referencia FROM {tabela}
+                    WHERE id_uc = ? COLLATE NOCASE ORDER BY mes_referencia DESC LIMIT 12
+                ) AND (status_fatura = 'PAGA' OR (
+                    status_fatura = 'EM ABERTO' AND faixa_atraso IN (?, ?, ?)
+                ))"""
+                params.extend((uc_id, *FAIXAS_RECENTES))
+            else:
+                if ano is not None:
+                    where += " AND mes_referencia >= ? AND mes_referencia <= ?"
+                    params.extend((f"{ano:04d}-01", f"{ano:04d}-12"))
+                if situacao != "todas":
+                    where += " AND status_fatura = ?"
+                    params.append("PAGA" if situacao == "paga" else "EM ABERTO")
+            total = con.execute(f"SELECT COUNT(*) FROM {tabela} WHERE {where}", params).fetchone()[0]
+            linhas = con.execute(f"""
+                SELECT * FROM {tabela} WHERE {where}
+                ORDER BY mes_referencia DESC, id_fatura DESC LIMIT ? OFFSET ?
+            """, (*params, TAMANHO_PAGINA, (pagina - 1) * TAMANHO_PAGINA)).fetchall()
+        return {
+            "itens": [fatura_publica(dict(f), uc) for f in linhas],
+            "total": total, "pagina": pagina, "tamanho": TAMANHO_PAGINA,
+            "resumo": resumo, "anos_disponiveis": anos,
+        }
 
     def atendimentos_uc(self, uc_id):
         raise _sem_gold("Atendimentos da UC", "fato_atendimento")

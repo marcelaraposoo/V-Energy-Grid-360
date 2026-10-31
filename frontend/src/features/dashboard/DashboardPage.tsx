@@ -104,7 +104,6 @@ export function DashboardPage() {
   return (
     <div className="dashboard-page">
       <PageHeader
-        eyebrow="VISÃO GERAL"
         title="Dashboard Executivo"
         description="Receita, consumo e indicadores do negócio em um só lugar."
       />

@@ -43,7 +43,6 @@ export function UnidadesPage() {
   return (
     <div className="ucv-page">
       <PageHeader
-        eyebrow="ANÁLISES · ATENDIMENTO"
         title="Visão 360 da UC"
         description="Cadastro, consumo e histórico do cliente em um só lugar."
       />

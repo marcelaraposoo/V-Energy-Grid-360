@@ -284,14 +284,6 @@ kbd {
   gap: 24px;
   margin-bottom: 28px;
 }
-.eyebrow {
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 1.5px;
-  line-height: 1.5;
-  margin-bottom: 8px;
-}
 .page-description {
   margin-top: 8px;
   font-size: 13px;

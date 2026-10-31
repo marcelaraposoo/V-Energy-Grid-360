@@ -119,6 +119,7 @@ export function SeletorCompetencia({
         <div
           id={`${id}-dialog`}
           role="dialog"
+          tabIndex={-1}
           aria-label={`Selecionar ${label.toLowerCase()}`}
           className="ucv-month-picker-popover"
         >

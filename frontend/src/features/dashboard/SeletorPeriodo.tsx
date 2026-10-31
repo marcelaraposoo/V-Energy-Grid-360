@@ -143,6 +143,7 @@ export function SeletorPeriodo({
         <div
           id={`${id}-dialog`}
           role="dialog"
+          tabIndex={-1}
           aria-label={`Selecionar ${label.toLowerCase()}`}
           aria-describedby={`${id}-ajuda`}
           className="dashboard-period-popover"

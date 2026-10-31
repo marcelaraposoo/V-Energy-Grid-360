@@ -37,7 +37,6 @@ function Navigation({ onNavigate }: { onNavigate?: () => void }) {
     <nav className="sidebar-nav" aria-label="Navegação principal">
       {navigation.map((section) => (
         <div className="nav-group" key={section.group}>
-          <p className="nav-group-label">{section.group}</p>
           {section.items.map(({ to, title, icon: Icon }) => (
             <NavLink
               to={to}

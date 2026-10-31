@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from app.agent.schemas import (
     AgentOutcome,
     AuditRecord,
@@ -56,6 +58,7 @@ def _audit(
     *,
     session_id="sessao-1",
     cache_hit=False,
+    truncated=False,
 ):
     return AuditRecord(
         request_id="req-1",
@@ -64,6 +67,7 @@ def _audit(
         outcome=outcome,
         cache_hit=cache_hit,
         final_answer="A receita foi de R$ 100.",
+        truncated=truncated,
     )
 
 
@@ -156,6 +160,8 @@ def test_answered_response_is_stored_in_cache():
         audit_record=_audit(),
         cache_store=cache_store,
         cache_key="cache-key",
+        cache_data_version="gold-v1",
+        cache_response_complete=True,
         cache_value=value,
         cache_ttl_seconds=300,
     )
@@ -174,6 +180,8 @@ def test_cache_hit_is_not_written_again():
         audit_record=_audit(cache_hit=True),
         cache_store=cache_store,
         cache_key="cache-key",
+        cache_data_version="gold-v1",
+        cache_response_complete=True,
         cache_value=_cache_value(),
         cache_ttl_seconds=300,
     )
@@ -192,6 +200,8 @@ def test_ineligible_outcome_is_not_cached():
         ),
         cache_store=cache_store,
         cache_key="cache-key",
+        cache_data_version="gold-v1",
+        cache_response_complete=True,
         cache_value=_cache_value(),
         cache_ttl_seconds=300,
     )
@@ -208,6 +218,8 @@ def test_invalid_ttl_does_not_write_cache():
         audit_record=_audit(),
         cache_store=cache_store,
         cache_key="cache-key",
+        cache_data_version="gold-v1",
+        cache_response_complete=True,
         cache_value=_cache_value(),
         cache_ttl_seconds=0,
     )
@@ -227,6 +239,95 @@ def test_store_failures_do_not_break_finalization():
         memory_entry=_memory_entry(),
         cache_store=cache_store,
         cache_key="cache-key",
+        cache_data_version="gold-v1",
+        cache_response_complete=True,
         cache_value=_cache_value(),
         cache_ttl_seconds=300,
     )
+
+
+@pytest.mark.parametrize("truncated", [True, None])
+def test_truncated_or_unknown_execution_is_not_written(truncated):
+    cache = FakeCacheStore()
+    _run(
+        audit_store=FakeAuditStore(), audit_record=_audit(truncated=truncated),
+        cache_store=cache, cache_key="cache-key", cache_value=_cache_value(),
+        cache_data_version="gold-v1", cache_response_complete=True,
+    )
+
+    assert cache.values == []
+
+
+def test_response_is_not_cached_until_explicitly_complete():
+    cache = FakeCacheStore()
+    _run(
+        audit_store=FakeAuditStore(), audit_record=_audit(),
+        cache_store=cache, cache_key="cache-key", cache_value=_cache_value(),
+        cache_data_version="gold-v1",
+    )
+
+    assert cache.values == []
+
+
+@pytest.mark.parametrize("version", [None, "", "   "])
+def test_missing_snapshot_version_does_not_write_or_break_finalization(version):
+    cache = FakeCacheStore()
+    audit = FakeAuditStore()
+    _run(
+        audit_store=audit, audit_record=_audit(),
+        cache_store=cache, cache_key="cache-key", cache_value=_cache_value(),
+        cache_data_version=version, cache_response_complete=True,
+    )
+
+    assert cache.values == []
+    assert len(audit.records) == 1
+
+
+def test_set_failure_does_not_prevent_normal_return():
+    audit = FakeAuditStore()
+    _run(
+        audit_store=audit, audit_record=_audit(),
+        cache_store=FakeCacheStore(fail=True), cache_key="cache-key", cache_value=_cache_value(),
+        cache_data_version="gold-v1", cache_response_complete=True,
+    )
+
+    assert len(audit.records) == 1
+
+
+def test_set_timeout_does_not_break_finalization():
+    class HangingCache(FakeCacheStore):
+        cancelled = False
+
+        async def set(self, key, value, ttl_seconds):
+            try:
+                await asyncio.Event().wait()
+            finally:
+                self.cancelled = True
+
+    cache = HangingCache()
+    audit = FakeAuditStore()
+
+    async def run():
+        await asyncio.wait_for(finalize(
+            audit_store=audit, audit_record=_audit(),
+            cache_store=cache, cache_key="cache-key", cache_value=_cache_value(),
+            cache_data_version="gold-v1", cache_response_complete=True,
+            cache_timeout_seconds=0.01,
+        ), timeout=1)
+
+    asyncio.run(run())
+    assert cache.cancelled is True
+    assert len(audit.records) == 1
+    assert cache.values == []
+
+
+def test_default_ttl_is_300_seconds():
+    cache = FakeCacheStore()
+    value = _cache_value()
+    _run(
+        audit_store=FakeAuditStore(), audit_record=_audit(),
+        cache_store=cache, cache_key="cache-key", cache_value=value,
+        cache_data_version="gold-v1", cache_response_complete=True,
+    )
+
+    assert cache.values == [("cache-key", value, 300)]

@@ -5,7 +5,11 @@ from app.agent.schemas import (
     QueryExecutionResult,
 )
 from app.agent.state.audit import AuditStore
-from app.agent.state.cache import CacheStore
+from app.agent.state.cache import (
+    CacheStore,
+    DEFAULT_CACHE_TTL_SECONDS,
+    DEFAULT_CACHE_TIMEOUT_SECONDS,
+)
 from app.agent.state.finalizer import finalize
 from app.agent.state.memory import MemoryStore
 from app.agent.state.records import (
@@ -31,7 +35,10 @@ async def finalize_request(
     cache_store: CacheStore | None = None,
     cache_key: str | None = None,
     cache_value: PostProcessingResult | None = None,
-    cache_ttl_seconds: int | None = None,
+    cache_ttl_seconds: int = DEFAULT_CACHE_TTL_SECONDS,
+    cache_timeout_seconds: float = DEFAULT_CACHE_TIMEOUT_SECONDS,
+    cache_data_version: str | None = None,
+    cache_response_complete: bool = False,
 ) -> None:
     """
     Ponte entre o fluxo do agente e a Camada 7.
@@ -68,4 +75,7 @@ async def finalize_request(
         cache_key=cache_key,
         cache_value=cache_value,
         cache_ttl_seconds=cache_ttl_seconds,
+        cache_timeout_seconds=cache_timeout_seconds,
+        cache_data_version=cache_data_version,
+        cache_response_complete=cache_response_complete,
     )

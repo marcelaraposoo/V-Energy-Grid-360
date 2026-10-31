@@ -76,6 +76,8 @@ def test_answered_request_finalizes_all_eligible_state():
         sql="SELECT receita FROM tabela",
         query_result=query_result,
         cache_key="cache-key",
+        cache_data_version="gold-v1",
+        cache_response_complete=True,
         cache_value=cache_value,
         cache_ttl_seconds=300,
     )
@@ -107,6 +109,8 @@ def test_provider_error_is_only_audited():
         final_answer="Serviço indisponível.",
         provider_error=ProviderErrorType.TIMEOUT,
         cache_key="cache-key",
+        cache_data_version="gold-v1",
+        cache_response_complete=True,
         cache_value=PostProcessingResult(
             answer="Serviço indisponível.",
             assumptions=[],
@@ -140,6 +144,8 @@ def test_cache_hit_is_audited_and_not_rewritten():
         final_answer="A receita foi R$ 100.",
         cache_hit=True,
         cache_key="cache-key",
+        cache_data_version="gold-v1",
+        cache_response_complete=True,
         cache_value=PostProcessingResult(
             answer="A receita foi R$ 100.",
             assumptions=[],
@@ -151,4 +157,22 @@ def test_cache_hit_is_audited_and_not_rewritten():
     assert audit.records[0].cache_hit is True
 
     assert len(memory.entries) == 1
+    assert cache.values == []
+
+
+def test_truncated_query_is_not_cached_at_finalization_boundary():
+    cache = FakeCacheStore()
+    audit = FakeAuditStore()
+    _run(
+        audit_store=audit, cache_store=cache, request_id="req-truncada",
+        question="Qual a receita?", outcome=AgentOutcome.ANSWERED,
+        final_answer="Resultado parcial.",
+        query_result=QueryExecutionResult(
+            columns=["receita"], rows=[[100.0]], row_count=2, truncated=True,
+        ),
+        cache_key="cache-key", cache_data_version="gold-v1", cache_response_complete=True,
+        cache_value=PostProcessingResult(answer="Resultado parcial."),
+    )
+
+    assert audit.records[0].truncated is True
     assert cache.values == []

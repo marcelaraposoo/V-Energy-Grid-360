@@ -6,7 +6,14 @@ from app.agent.schemas import (
     PostProcessingResult,
 )
 from app.agent.state.audit import AuditStore
-from app.agent.state.cache import CacheStore, should_store_in_cache
+from app.agent.state.cache import (
+    CacheStore,
+    DEFAULT_CACHE_TTL_SECONDS,
+    DEFAULT_CACHE_TIMEOUT_SECONDS,
+    should_store_in_cache,
+    write_cache,
+)
+from app.agent.state.cache_key import has_data_version
 from app.agent.state.memory import MemoryStore, should_store_in_memory
 
 
@@ -22,7 +29,10 @@ async def finalize(
     cache_store: CacheStore | None = None,
     cache_key: str | None = None,
     cache_value: PostProcessingResult | None = None,
-    cache_ttl_seconds: int | None = None,
+    cache_ttl_seconds: int = DEFAULT_CACHE_TTL_SECONDS,
+    cache_timeout_seconds: float = DEFAULT_CACHE_TIMEOUT_SECONDS,
+    cache_data_version: str | None = None,
+    cache_response_complete: bool = False,
 ) -> None:
     """
     Finaliza uma execução do agente.
@@ -64,19 +74,18 @@ async def finalize(
         cache_store is not None
         and cache_key is not None
         and cache_value is not None
-        and cache_ttl_seconds is not None
-        and cache_ttl_seconds > 0
+        and has_data_version(cache_data_version)
         and not audit_record.cache_hit
-        and should_store_in_cache(audit_record.outcome)
+        and should_store_in_cache(
+            audit_record.outcome,
+            truncated=audit_record.truncated,
+            response_complete=cache_response_complete,
+        )
     ):
-        try:
-            await cache_store.set(
-                cache_key,
-                cache_value,
-                cache_ttl_seconds,
-            )
-        except Exception as error:
-            logger.warning(
-                "Falha ao persistir cache. error_type=%s",
-                type(error).__name__,
-            )
+        await write_cache(
+            cache_store,
+            cache_key,
+            cache_value,
+            ttl_seconds=cache_ttl_seconds,
+            timeout_seconds=cache_timeout_seconds,
+        )

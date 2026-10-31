@@ -529,6 +529,15 @@
 .ucv-atendimento[data-status='Em aberto' i] {
   color: var(--accent);
 }
+:root[data-theme='light'] .ucv-page .badge {
+  background: color-mix(in srgb, currentColor 18%, var(--surface));
+  border-color: color-mix(in srgb, currentColor 45%, var(--surface));
+}
+:root[data-theme='light'] .ucv-page .badge.ucv-fatura--aberta,
+:root[data-theme='light'] .ucv-page .ucv-atendimento[data-status='Em aberto' i] {
+  background: #fff1b8;
+  border-color: #d8c069;
+}
 .ucv-atendimento-detail {
   display: block;
   margin-top: 4px;

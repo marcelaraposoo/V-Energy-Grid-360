@@ -9,6 +9,7 @@ from app.agent.schemas import (
     OutputGuardrailDecision,
     OutputGuardrailResult,
     ProviderAttempt,
+    ProviderPhase,
     ProviderErrorType,
     QueryExecutionResult,
     SynthesisResult,
@@ -85,7 +86,10 @@ async def synthesize_and_validate(
             )
         )
 
-        provider_attempts.extend(attempts)
+        provider_attempts.extend(
+            item.model_copy(update={"phase": ProviderPhase.SYNTHESIS, "attempt": index})
+            for index, item in enumerate(attempts, len(provider_attempts) + 1)
+        )
 
         if provider_error is not None:
             return SynthesisFlowResult(

@@ -107,6 +107,8 @@ def test_retries_once_and_then_passes(monkeypatch):
     assert flow.synthesis == GOOD
     assert flow.regenerations == 1
     assert len(flow.provider_attempts) == 2
+    assert [a.attempt for a in flow.provider_attempts] == [1, 2]
+    assert all(a.phase.value == "synthesis" for a in flow.provider_attempts)
     assert feedbacks[0] is None
     assert "9.999" in feedbacks[1]
 

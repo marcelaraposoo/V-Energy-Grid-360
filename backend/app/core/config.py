@@ -90,7 +90,12 @@ class Settings:
         "nvidia/nemotron-3-ultra-550b-a55b:free",
     )
 
-    provider_timeout_seconds: float = 30.0
+    # Somente payload inteiramente sintético pode liberar endpoints restritos.
+    provider_payload_policy: str = field(
+        default_factory=lambda: os.getenv("PROVIDER_PAYLOAD_POLICY", "confidential")
+    )
+
+    provider_timeout_seconds: float = 20.0
 
 
 

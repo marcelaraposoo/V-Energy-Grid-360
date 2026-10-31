@@ -183,17 +183,10 @@ async def run_gemini(
             error
         )
 
-        if error_type == ProviderErrorType.UNKNOWN:
-            logger.exception(
-                "Erro Gemini não classificado. "
-                "exception_type=%s cause_type=%s",
-                type(error).__name__,
-                (
-                    type(error.__cause__).__name__
-                    if error.__cause__
-                    else None
-                ),
-            )
+        logger.warning(
+            "Falha provider=gemini model=%s category=%s exception_type=%s",
+            resolved_model, error_type.value, type(error).__name__,
+        )
 
         provider_attempt = ProviderAttempt(
             provider=ProviderName.GEMINI,

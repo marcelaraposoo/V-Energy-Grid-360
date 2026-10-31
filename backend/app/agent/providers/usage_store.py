@@ -1,4 +1,9 @@
+import asyncio
 import json
+import logging
+from concurrent.futures import ThreadPoolExecutor
+from threading import BoundedSemaphore
+from typing import Callable
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -15,6 +20,43 @@ USAGE_LOCK_PATH = Path(
 )
 
 WINDOW_HOURS = 24
+LOCK_TIMEOUT_SECONDS = 0.1
+RECORD_TIMEOUT_SECONDS = 0.25
+_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="usage-store")
+_slot = BoundedSemaphore(1)
+logger = logging.getLogger(__name__)
+
+
+async def record_attempt_best_effort(register: Callable[[], None]) -> None:
+    """I/O fora do loop, espera limitada e no máximo um trabalho pendente.
+
+    Timeout não interrompe I/O do SO em andamento. Enquanto o worker estiver
+    ocupado, novos registros são descartados em vez de acumular threads/fila.
+    """
+    if not _slot.acquire(blocking=False):
+        return
+
+    def record() -> None:
+        try:
+            register()
+        except Exception as error:
+            logger.warning("Telemetria local indisponível provider=openrouter exception_type=%s",
+                           type(error).__name__)
+        finally:
+            _slot.release()
+
+    try:
+        future = _executor.submit(record)
+    except Exception as error:
+        _slot.release()
+        logger.warning("Telemetria local não agendada exception_type=%s", type(error).__name__)
+        return
+    try:
+        await asyncio.wait_for(
+            asyncio.shield(asyncio.wrap_future(future)), timeout=RECORD_TIMEOUT_SECONDS,
+        )
+    except TimeoutError:
+        logger.warning("Telemetria local excedeu timeout provider=openrouter")
 
 
 def _ensure_runtime_directory() -> None:
@@ -90,7 +132,7 @@ def get_request_timestamps() -> list[str]:
     _ensure_runtime_directory()
 
     with FileLock(
-        str(USAGE_LOCK_PATH)
+        str(USAGE_LOCK_PATH), timeout=LOCK_TIMEOUT_SECONDS,
     ):
         state = _load_state()
 
@@ -118,7 +160,7 @@ def register_request_attempt() -> None:
     _ensure_runtime_directory()
 
     with FileLock(
-        str(USAGE_LOCK_PATH)
+        str(USAGE_LOCK_PATH), timeout=LOCK_TIMEOUT_SECONDS,
     ):
         state = _load_state()
 

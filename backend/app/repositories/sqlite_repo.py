@@ -1,7 +1,8 @@
 """Repositório sobre o SQLite exportado da camada Gold (`data/gold.db`).
 
 Cobre cadastro, catálogos, medidor e GD pela dim_uc; consumo e faturas da UC pela
-fato_consumo_faturamento; rede pelas A7/A8; fila de suspeitas pela fila_inspecao. A consulta paginada de faturas
+fato_consumo_faturamento; rede pelas A7/A8; atendimentos pela B1; fila de suspeitas pela fila_inspecao.
+A consulta paginada de faturas
 faz contagens em SQL e usa LIMIT/OFFSET. Métodos ainda não integrados ou tabelas ausentes
 levantam `NaoDisponivelNaGold` (HTTP 501), sem apresentar indisponibilidade como histórico vazio.
 
@@ -22,6 +23,7 @@ from contextlib import closing
 from pathlib import Path
 
 from app.core.errors import NaoDisponivelNaGold
+from app.repositories.atendimento import atendimento_publico
 from app.repositories.base import OrdensStore
 from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, consumo_publico, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
@@ -355,12 +357,21 @@ class SqliteRepository:
                 SELECT * FROM {tabela} WHERE {where} ORDER BY mes_referencia, alimentador
             """, params)]
 
+    # ---------- atendimentos da UC (B1) ----------
+    def atendimentos_uc(self, uc_id):
+        tabela = "fato_atendimento"
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Atendimentos da UC", tabela)
+            linhas = [dict(r) for r in con.execute(f"""
+                SELECT * FROM {tabela} WHERE id_uc = ? COLLATE NOCASE
+                ORDER BY data_hora_abertura DESC, protocolo DESC
+            """, (uc_id.strip(),))]
+        return [atendimento_publico({**a, "aberto": _bool(a["aberto"])}) for a in linhas]
+
     # ---------- métodos ainda não integrados ----------
     def faturas(self, inicio, fim, municipio=None, bairro=None, classe=None):
         raise _sem_gold("Faturamento", TABELA_FATURAMENTO)
-
-    def atendimentos_uc(self, uc_id):
-        raise _sem_gold("Atendimentos da UC", "fato_atendimento")
 
     def suspeitas(self):
         """Fila de suspeitas da Gold (`fila_inspecao`, 1 linha = 1 UC), no formato que o serviço de perdas usa.

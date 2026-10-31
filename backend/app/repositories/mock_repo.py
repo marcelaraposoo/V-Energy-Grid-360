@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.mock.mock_data import MUNICIPIOS, build_mock_data
+from app.repositories.atendimento import atendimento_publico
 from app.repositories.base import OrdensStore
 from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, consumo_publico, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
@@ -124,14 +125,7 @@ class MockRepository:
 
     def atendimentos_uc(self, uc_id):
         return [
-            {
-                "protocolo": a["protocolo"], "uc_id": a["id_uc"],
-                "data": a["data_hora_abertura"], "data_fechamento": a["data_hora_fechamento"],
-                "canal": a["canal"], "assunto": a["assunto"], "subassunto": a["subassunto"],
-                "aberto": a["aberto"], "tempo_resolucao_horas": a["tempo_resolucao_horas"],
-                "qtd_tratativas": a["qtd_tratativas"], "ultima_acao": a["ultima_acao"],
-                "nota_satisfacao": a["nota_satisfacao"],
-            }
+            atendimento_publico(a)
             for a in self.d["fato_atendimento"] if a["id_uc"] == uc_id.upper()
         ]
 

@@ -107,7 +107,7 @@ def test_grade_mensal_preserva_zeros_nulos_e_denominadores_da_gold(cenario):
 def test_visao_360_contexto_do_alimentador_nao_se_confunde_com_a_uc(
     cenario, monkeypatch, periodo, inicio, quantidade, minutos, impacto, dec, fec,
 ):
-    # Único bloco isolado: B1/atendimentos será integrado na próxima etapa.
+    # Isola a B1, ausente nesta fixture dedicada à rede.
     monkeypatch.setattr(cenario.repo, "atendimentos_uc", lambda _: [])
     uc = cenario.ucs[0]["id_uc"]
     resposta = visao_360(cenario.repo, uc, periodo_interrupcoes=periodo).interrupcoes
@@ -165,7 +165,7 @@ def test_endpoint_entrega_rede_e_contexto_com_b1_isolada(cenario, monkeypatch):
         app.dependency_overrides.pop(repo_dep, None)
 
 
-def test_endpoint_ainda_informa_atendimentos_pendentes(cenario):
+def test_endpoint_informa_tabela_de_atendimentos_ausente(cenario):
     app.dependency_overrides[repo_dep] = lambda: cenario.repo
     try:
         with TestClient(app) as client:

@@ -21,8 +21,8 @@ import {
 import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
 import { UnidadeFields } from './UnidadeFields'
 import { FaturasSection } from './FaturasSection'
+import { AtendimentosSection } from './AtendimentosSection'
 import {
-  AtendimentosSection,
   ConsumoSection,
   GeracaoSection,
   InterrupcoesSection,
@@ -64,8 +64,6 @@ export function UnidadeProfile({ id }: { id: string }) {
   const [comparacao, setComparacao] = useState<SelecaoContaAlta | null>(null)
   const [periodoInterrupcoes, setPeriodoInterrupcoes] =
     useState<PeriodoHistorico>('12_meses')
-  const [periodoAtendimentos, setPeriodoAtendimentos] =
-    useState<PeriodoHistorico>('12_meses')
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [tentativa, setTentativa] = useState(0)
@@ -88,11 +86,6 @@ export function UnidadeProfile({ id }: { id: string }) {
     setCarregando(true)
     setPeriodoInterrupcoes(value)
   }
-  const alterarPeriodoAtendimentos = (value: PeriodoHistorico) => {
-    setErro(null)
-    setCarregando(true)
-    setPeriodoAtendimentos(value)
-  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -100,7 +93,6 @@ export function UnidadeProfile({ id }: { id: string }) {
       id,
       comparacao,
       periodoInterrupcoes,
-      periodoAtendimentos,
       controller.signal,
     )
       .then((resposta) => {
@@ -132,7 +124,7 @@ export function UnidadeProfile({ id }: { id: string }) {
         if (!controller.signal.aborted) setCarregando(false)
       })
     return () => controller.abort()
-  }, [id, comparacao, periodoInterrupcoes, periodoAtendimentos, tentativa])
+  }, [id, comparacao, periodoInterrupcoes, tentativa])
 
   if (!dados) {
     return (
@@ -293,8 +285,6 @@ export function UnidadeProfile({ id }: { id: string }) {
           onComparacaoChange={alterarComparacao}
           periodoInterrupcoes={periodoInterrupcoes}
           onPeriodoInterrupcoesChange={alterarPeriodoInterrupcoes}
-          periodoAtendimentos={periodoAtendimentos}
-          onPeriodoAtendimentosChange={alterarPeriodoAtendimentos}
           carregando={carregando}
           erro={erro}
           onRetry={tentarNovamente}

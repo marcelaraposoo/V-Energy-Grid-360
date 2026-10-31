@@ -18,7 +18,10 @@ export function FaturaDialog({ fatura, onFechar }: {
   }, [fatura])
 
   return (
-    <dialog ref={ref} className="dialog ucv-fatura-dialog" aria-labelledby={id} onClose={onFechar}>
+    <dialog ref={ref} className="dialog ucv-fatura-dialog" aria-labelledby={id} onClose={onFechar}
+      onClick={event => {
+        if (event.target === event.currentTarget) event.currentTarget.close()
+      }}>
       {fatura && (
         <div className="ucv-fatura-dialog-content">
           <header>

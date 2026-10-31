@@ -1,4 +1,4 @@
-import { FileText, Gauge, Headphones, Sun, Unplug } from 'lucide-react'
+import { FileText, Gauge, Sun, Unplug } from 'lucide-react'
 import { Panel } from '../../../components/ui/Panel'
 import { EmptyState } from '../../../components/ui/EmptyState'
 import {
@@ -8,7 +8,6 @@ import {
   formatarMoeda,
   formatarPrecoKwh,
   formatarNumero,
-  formatarNotaSatisfacao,
   situacoesFatura,
 } from '../formatters'
 import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
@@ -105,7 +104,6 @@ export function ConsumoSection({
     </div>
   )
 }
-
 export function MedidorSection({ dados }: SectionProps) {
   const medidor = dados.medidor
   return (
@@ -293,110 +291,6 @@ export function InterrupcoesSection({
               />
             </Panel>
           </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-type AtendimentosSectionProps = SectionProps & {
-  periodoAtendimentos: PeriodoHistorico
-  onPeriodoAtendimentosChange: (value: PeriodoHistorico) => void
-  carregando: boolean
-  erro: string | null
-  onRetry: () => void
-}
-
-export function AtendimentosSection({
-  dados,
-  periodoAtendimentos,
-  onPeriodoAtendimentosChange,
-  carregando,
-  erro,
-  onRetry,
-}: AtendimentosSectionProps) {
-  return (
-    <div className="ucv-atendimentos">
-      <FiltroPeriodoHistorico
-        title="Período dos atendimentos"
-        value={periodoAtendimentos}
-        onChange={onPeriodoAtendimentosChange}
-        periodo={dados.periodo_atendimentos}
-        carregando={carregando}
-        erro={erro}
-      />
-      <div
-        className="ucv-history-results"
-        aria-busy={carregando}
-        aria-live="polite"
-      >
-        {erro ? (
-          <div role="alert" className="ucv-diagnostic-error">
-            <p>{erro}</p>
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={onRetry}
-            >
-              Tentar novamente
-            </button>
-          </div>
-        ) : (
-          <Panel
-            title="Chamados de atendimento"
-            description="Solicitações e últimas ações registradas para a unidade · por data de abertura"
-          >
-            <HistoryTable
-              title="Histórico de chamados de atendimento"
-              columns={[
-                'Protocolo',
-                'Assunto',
-                'Subassunto',
-                'Canal',
-                'Abertura',
-                'Fechamento',
-                'Situação',
-                'Última ação',
-                'Satisfação',
-              ]}
-              icon={Headphones}
-              description="Não há chamados registrados para esta unidade no período selecionado."
-              empty={!dados.atendimentos.length}
-            >
-              {dados.atendimentos.map((atendimento) => (
-                <tr key={atendimento.protocolo}>
-                  <th scope="row">{atendimento.protocolo}</th>
-                  <td>{atendimento.assunto}</td>
-                  <td>{atendimento.subassunto}</td>
-                  <td>{atendimento.canal}</td>
-                  <td>{formatarDataHora(atendimento.data)}</td>
-                  <td>
-                    {atendimento.data_fechamento
-                      ? formatarDataHora(atendimento.data_fechamento)
-                      : 'Em aberto'}
-                  </td>
-                  <td>
-                    <span
-                      className="badge ucv-atendimento"
-                      data-status={atendimento.aberto ? 'Em aberto' : 'Fechado'}
-                    >
-                      {atendimento.aberto ? 'Em aberto' : 'Fechado'}
-                    </span>
-                  </td>
-                  <td>
-                    {atendimento.ultima_acao}
-                    <small className="ucv-atendimento-detail">
-                      {atendimento.qtd_tratativas}{' '}
-                      {atendimento.qtd_tratativas === 1
-                        ? 'ação registrada'
-                        : 'ações registradas'}
-                    </small>
-                  </td>
-                  <td>{formatarNotaSatisfacao(atendimento.nota_satisfacao)}</td>
-                </tr>
-              ))}
-            </HistoryTable>
-          </Panel>
         )}
       </div>
     </div>

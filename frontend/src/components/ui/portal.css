@@ -544,6 +544,86 @@ code {
   color: var(--text-muted);
 }
 
+/* Gráfico devolvido pelo agente (barras e linha) */
+.viz {
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+.viz-title {
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.viz-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.viz-bars li {
+  display: grid;
+  grid-template-columns: minmax(70px, 150px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.viz-label {
+  overflow: hidden;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.viz-track {
+  height: 12px;
+  background: var(--subtle-overlay);
+  border-radius: 3px;
+}
+.viz-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+.viz-fill--neg {
+  background: var(--danger);
+}
+.viz-value {
+  font-weight: 600;
+  text-align: right;
+}
+.viz-line {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.viz-line text {
+  fill: var(--text-muted);
+  font-size: 10px;
+}
+.viz-axes {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.viz-data {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.viz-data summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.viz-data .data-table {
+  margin-top: 8px;
+}
+
 @media (max-width: 767px) {
   .field {
     flex: 1;

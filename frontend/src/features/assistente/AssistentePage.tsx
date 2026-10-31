@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { RotateCcw, Send, Sparkles } from 'lucide-react'
 import { api } from '../../api'
-import type { RespostaIa } from '../../api'
+import type { RespostaIa, Visualizacao } from '../../api'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Panel } from '../../components/ui/Panel'
 import { mensagemDeErro } from '../../utils/format'
+import { VisualizacaoChart } from './VisualizacaoChart'
 import '../../components/ui/portal.css'
 
 type StatusMensagem = RespostaIa['status'] | 'erro'
@@ -15,6 +16,7 @@ type Mensagem = {
   texto: string
   status?: StatusMensagem
   sql?: string | null
+  visualizacao?: Visualizacao | null
   fontes?: string[]
 }
 
@@ -28,7 +30,7 @@ const SUGESTOES = [
 ]
 const ROTULO: Record<StatusMensagem, string> = {
   ok: 'Resposta com base nos dados',
-  nao_sei: 'Não sei responder com os dados disponíveis',
+  nao_sei: 'Sem resposta com os dados disponíveis',
   nao_implementado: 'Assistente ainda não conectado ao backend',
   erro: 'Não foi possível obter a resposta',
 }
@@ -73,7 +75,14 @@ export function AssistentePage() {
     try {
       const r = await api.ia.perguntar({ pergunta: limpa, sessao_id: sessao.current })
       if (!montado.current) return
-      adicionar({ papel: 'assistente', texto: r.resposta, status: r.status, sql: r.sql_executado, fontes: r.fontes })
+      adicionar({
+        papel: 'assistente',
+        texto: r.resposta,
+        status: r.status,
+        sql: r.sql_executado,
+        fontes: r.fontes,
+        visualizacao: r.visualizacao,
+      })
     } catch (e) {
       if (!montado.current) return
       adicionar({ papel: 'assistente', texto: mensagemDeErro(e), status: 'erro' })
@@ -131,6 +140,7 @@ export function AssistentePage() {
             <article key={m.id} className={`msg msg--${m.papel}${m.status ? ` msg--${m.status}` : ''}`}>
               {m.papel === 'assistente' && m.status && <span className="msg-label">{ROTULO[m.status]}</span>}
               <div className="msg-bubble">{m.texto}</div>
+              {m.visualizacao && <VisualizacaoChart spec={m.visualizacao} />}
               {m.papel === 'assistente' && (m.sql || (m.fontes && m.fontes.length > 0)) && (
                 <details>
                   <summary>Como cheguei a esta resposta</summary>
@@ -146,7 +156,7 @@ export function AssistentePage() {
           ))}
           {carregando && (
             <article className="msg" aria-busy="true">
-              <span className="msg-label">Consultando os dados…</span>
+              <span className="msg-label">Consultando os dados… isso pode levar alguns segundos</span>
               <div className="msg-bubble">
                 <span className="spinner" aria-hidden="true" />
               </div>

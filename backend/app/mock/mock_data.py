@@ -1,7 +1,8 @@
 """Gerador de dados MOCKADOS (determinístico).
 
-Cadastro, consumo/faturas, trocas de medidor, interrupções e atendimentos seguem dim_uc,
-fato_consumo_faturamento, fato_troca_medidor, fato_interrupcao e fato_atendimento da Gold consolidada
+Cadastro, consumo/faturas, agregadas mensais, trocas de medidor, interrupções e atendimentos
+seguem dim_uc, fato_consumo_faturamento, fato_segmento_mensal, kpis_mensal,
+fato_troca_medidor, fato_interrupcao e fato_atendimento da Gold consolidada
 (contrato consolidado da frente de Dados).
 Premissas da simulação:
 - 48 competências (2022-07 a 2026-06), 400 UCs, 14 municípios, 2 alimentadores por município.
@@ -19,6 +20,8 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from functools import lru_cache
+
+from app.mock.dashboard import build_fato_segmento_mensal, build_kpis_mensal
 
 SEED = 42
 DATA_REFERENCIA = date(2026, 6, 30)
@@ -424,4 +427,6 @@ def build_mock_data() -> dict:
         "fato_troca_medidor": fato_troca_medidor,
         "fato_interrupcao": fato_interrupcao, "fato_atendimento": fato_atendimento, "suspeitas": suspeitas,
         "dec_fec_alimentador_mensal": dec_fec_mensal,
+        "fato_segmento_mensal": build_fato_segmento_mensal(dim_uc, fato_consumo_faturamento, comps),
+        "kpis_mensal": build_kpis_mensal(dim_uc, fato_consumo_faturamento, fato_interrupcao, fato_atendimento, comps),
     }

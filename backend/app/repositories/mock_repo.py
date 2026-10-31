@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.mock.mock_data import MUNICIPIOS, build_mock_data
 from app.repositories.atendimento import atendimento_publico
 from app.repositories.base import OrdensStore
+from app.repositories.dashboard import validar_filtro_bairro
 from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, consumo_publico, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
 from app.repositories.rede import ocorrencia_publica
@@ -31,6 +32,22 @@ class MockRepository:
 
     def alimentadores(self, municipio=None):
         return [a for a in self.d["alimentadores"] if municipio is None or a["municipio"] == municipio]
+
+    # dashboard (A5/A3): mantém o grão da Gold, sem somar meses.
+    def kpis_mensais(self, inicio, fim):
+        return sorted([
+            dict(r) for r in self.d["kpis_mensal"] if inicio <= r["mes_referencia"] <= fim
+        ], key=lambda r: r["mes_referencia"])
+
+    def segmentos_mensais(self, inicio, fim, municipio=None, bairro=None, classe=None):
+        validar_filtro_bairro(municipio, bairro)
+        return sorted([
+            dict(r) for r in self.d["fato_segmento_mensal"]
+            if inicio <= r["mes_referencia"] <= fim
+            and (municipio is None or r["municipio"] == municipio)
+            and (bairro is None or r["bairro"] == bairro)
+            and (classe is None or r["classe"] == classe)
+        ], key=lambda r: (r["mes_referencia"], r["municipio"], r["bairro"], r["classe"]))
 
     # faturamento
     def faturas(self, inicio, fim, municipio=None, bairro=None, classe=None):

@@ -6,6 +6,7 @@ import pytest
 
 from app.core.errors import NaoDisponivelNaGold
 from app.repositories.base import Repository
+from app.repositories.mock_repo import MockRepository
 from app.repositories.ordens_store import MemoriaOrdensStore
 from app.repositories.sqlite_repo import SqliteRepository
 from tests.gold_fixture import COLUNAS, criar_gold_db
@@ -17,14 +18,15 @@ def repo(tmp_path):
 
 
 # ---------- contrato ----------
-def test_cumpre_o_contrato_do_repository():
-    """Todo método de `Repository` (base.py) existe no SqliteRepository com os mesmos parâmetros, na mesma ordem
+@pytest.mark.parametrize("classe_repo", [SqliteRepository, MockRepository])
+def test_cumpre_o_contrato_do_repository(classe_repo):
+    """Todo método de `Repository` (base.py) existe nos adaptadores com os mesmos parâmetros, na mesma ordem
     (parâmetros opcionais a mais no fim são aceitos). Sem isso, um método novo no contrato vira erro 500 em vez de 501."""
     faltam, incompativeis = [], []
     for nome, contrato in inspect.getmembers(Repository, inspect.isfunction):
         if nome.startswith("_"):
             continue
-        implementacao = getattr(SqliteRepository, nome, None)
+        implementacao = getattr(classe_repo, nome, None)
         if implementacao is None:
             faltam.append(nome)
             continue
@@ -32,7 +34,7 @@ def test_cumpre_o_contrato_do_repository():
         atual = list(inspect.signature(implementacao).parameters)
         if atual[:len(esperado)] != esperado:
             incompativeis.append(f"{nome}: contrato {esperado[1:]} x repositório {atual[1:]}")
-    assert not faltam, f"métodos do contrato que faltam no SqliteRepository: {faltam}"
+    assert not faltam, f"métodos do contrato que faltam no {classe_repo.__name__}: {faltam}"
     assert not incompativeis, f"assinaturas diferentes do contrato: {incompativeis}"
 
 

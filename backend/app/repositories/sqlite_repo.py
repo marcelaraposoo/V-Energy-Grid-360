@@ -3,6 +3,8 @@
 Cobre cadastro, catálogos, medidor e GD pela dim_uc; consumo e faturas da UC pela
 fato_consumo_faturamento; trocas de medidor pela A6; rede pelas A7/A8; atendimentos pela B1;
 fila de suspeitas pela fila_inspecao.
+Dashboard: leitura mensal das agregadas kpis_mensal (A5) e fato_segmento_mensal (A3);
+a integração dessas leituras aos endpoints ainda está pendente.
 A consulta paginada de faturas
 faz contagens em SQL e usa LIMIT/OFFSET. Métodos ainda não integrados ou tabelas ausentes
 levantam `NaoDisponivelNaGold` (HTTP 501), sem apresentar indisponibilidade como histórico vazio.
@@ -26,6 +28,7 @@ from pathlib import Path
 from app.core.errors import NaoDisponivelNaGold
 from app.repositories.atendimento import atendimento_publico
 from app.repositories.base import OrdensStore
+from app.repositories.dashboard import COLUNAS_KPIS, COLUNAS_SEGMENTOS, COLUNAS_TEXTO, validar_filtro_bairro
 from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, consumo_publico, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
 from app.repositories.rede import ocorrencia_publica
@@ -201,6 +204,50 @@ class SqliteRepository:
             if municipio is None or principal == municipio:
                 saida.append({"id": alim, "municipio": principal, "ucs_total": sum(p[0] for p in partes)})
         return saida
+
+    # ---------- dashboard (A5/A3) ----------
+    def _dashboard_mensal(self, tabela, colunas, inicio, fim, municipio=None, bairro=None, classe=None):
+        # Tabela, colunas e ordenação vêm somente das constantes internas A5/A3.
+        # Todos os valores recebidos do chamador usam parâmetros SQL.
+        cond = ["mes_referencia BETWEEN ? AND ?"]
+        args = [inicio, fim]
+        for coluna, valor in (("municipio", municipio), ("bairro", bairro), ("classe", classe)):
+            if valor is not None:
+                cond.append(f"{coluna} = ?")
+                args.append(valor)
+        ordem = [c for c in ("mes_referencia", "municipio", "bairro", "classe") if c in colunas]
+        with closing(self._conectar()) as con:
+            disponiveis = {r["name"] for r in con.execute(f"PRAGMA table_info({tabela})")}
+            if not disponiveis:
+                raise _sem_gold("Dados mensais do Dashboard", tabela)
+            faltantes = [c for c in colunas if c not in disponiveis]
+            if faltantes:
+                raise NaoDisponivelNaGold(
+                    f"A tabela {tabela} está incompleta para o Dashboard. Colunas ausentes: {', '.join(faltantes)}."
+                )
+            registros = con.execute(
+                f"SELECT {', '.join(colunas)} FROM {tabela} WHERE {' AND '.join(cond)} ORDER BY {', '.join(ordem)}",
+                args,
+            ).fetchall()
+        linhas = []
+        for registro in registros:
+            linha = {}
+            for coluna in colunas:
+                valor = registro[coluna]
+                if coluna not in COLUNAS_TEXTO:
+                    valor = _num(valor)
+                    if valor is not None and coluna.startswith("qtd_"):
+                        valor = int(valor)
+                linha[coluna] = valor
+            linhas.append(linha)
+        return linhas
+
+    def kpis_mensais(self, inicio, fim):
+        return self._dashboard_mensal("kpis_mensal", COLUNAS_KPIS, inicio, fim)
+
+    def segmentos_mensais(self, inicio, fim, municipio=None, bairro=None, classe=None):
+        validar_filtro_bairro(municipio, bairro)
+        return self._dashboard_mensal("fato_segmento_mensal", COLUNAS_SEGMENTOS, inicio, fim, municipio, bairro, classe)
 
     # ---------- unidades consumidoras (dim_uc) ----------
     def buscar_ucs(self, q: str | None, municipio: str | None, classe: str | None, limite: int) -> list[dict]:

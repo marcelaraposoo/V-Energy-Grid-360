@@ -81,12 +81,14 @@ export type UnidadeConsumidora = {
   uc_id: string
   titular: string
   classe: string
+  subgrupo_tarifario: 'B1' | 'B2' | 'B3' | 'A4' | null
   classe_descricao: string
   municipio: string
   bairro: string
   alimentador_id: string
   status: string
   data_ligacao: string
+  possui_gd: boolean | null
 }
 
 export type BuscarUcParams = {

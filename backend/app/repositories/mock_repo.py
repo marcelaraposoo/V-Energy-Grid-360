@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.mock.mock_data import CLASSES, MUNICIPIOS, build_mock_data
+from app.mock.mock_data import MUNICIPIOS, build_mock_data
 from app.repositories.base import OrdensStore
 from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
@@ -24,7 +24,8 @@ class MockRepository:
         return MUNICIPIOS
 
     def classes(self):
-        return CLASSES
+        cadastros = map(self._cadastro, self._ucs.values())
+        return {u["classe"]: u["classe_descricao"] for u in cadastros}
 
     def alimentadores(self, municipio=None):
         return [a for a in self.d["alimentadores"] if municipio is None or a["municipio"] == municipio]
@@ -36,7 +37,7 @@ class MockRepository:
             if inicio <= f["mes_referencia"] <= fim
             and (municipio is None or f["municipio"] == municipio)
             and (bairro is None or f["bairro"] == bairro)
-            and (classe is None or self._ucs[f["id_uc"]]["subgrupo_tarifario"] == classe)
+            and (classe is None or f["classe"] == classe)
         ]
 
     # UCs
@@ -46,7 +47,7 @@ class MockRepository:
             u for u in self._ucs.values()
             if (not q or q in u["id_uc"].lower() or q in u["nome_titular_mascarado"].lower())
             and (municipio is None or u["municipio"] == municipio)
-            and (classe is None or u["subgrupo_tarifario"] == classe)
+            and (classe is None or u["classe"] == classe)
         ]
         return [self._cadastro(u) for u in out[:limite]]
 
@@ -58,7 +59,7 @@ class MockRepository:
     def _cadastro(u):
         return {
             "uc_id": u["id_uc"], "titular": u["nome_titular_mascarado"],
-            "classe": u["subgrupo_tarifario"],
+            "classe": u["classe"], "subgrupo_tarifario": u["subgrupo_tarifario"],
             "classe_descricao": "Poder público" if u["classe"] == "PODER PUBLICO" else u["classe"].capitalize(),
             "municipio": u["municipio"], "bairro": u["bairro"],
             "alimentador_id": u["alimentador"], "status": u["status"],

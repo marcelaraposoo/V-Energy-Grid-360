@@ -6,8 +6,9 @@ export interface CadastroUC {
   uc_id: string
   /** Com dados reais, recebe o nome mascarado da Gold. */
   titular: string
-  /** Subgrupo tarifário, como B1 ou A4. */
+  /** Classe de consumo da Gold, como RESIDENCIAL ou PODER PUBLICO. */
   classe: string
+  subgrupo_tarifario: 'B1' | 'B2' | 'B3' | 'A4' | null
   classe_descricao: string
   municipio: string
   bairro: string

@@ -63,7 +63,9 @@ Baseado em `docs/data_quality_log.md` (itens ainda em investigação podem mudar
 |---|---|---|
 | `uc_id` | `id_uc` | busca ignora caixa; chave comum às fatos |
 | `titular` | `nome_titular_mascarado` | só mascarado (LGPD); a busca por nome acha só o primeiro nome e as iniciais |
-| `classe` | `classe` | valores reais: `RESIDENCIAL`, `RURAL`, `COMERCIAL`, `PODER PUBLICO`, `INDUSTRIAL` (o mock usa `B1`, `B2`...) |
+| `classe` | `classe` | `RESIDENCIAL`, `RURAL`, `COMERCIAL`, `PODER PUBLICO` ou `INDUSTRIAL`, iguais no mock e no SQLite; filtros de classe usam esses valores |
+| `subgrupo_tarifario` | `subgrupo_tarifario` | campo separado: `B1`, `B2`, `B3` ou `A4`; comercial e poder público compartilham `B3`, mas são classes distintas |
+| `possui_gd` | `possui_gd` | preserva verdadeiro/falso no cadastro; nulo apenas se a informação estiver indisponível no adaptador |
 | `alimentador_id` | `alimentador` | `ucs_total` = contagem de UCs do alimentador; se atender mais de um município, vale o de mais UCs |
 | `medidor` | `id_medidor_ativo`, `tipo_medidor_ativo`, `modelo_medidor_ativo`, `data_instalacao_medidor`, `idade_medidor_anos`, `medidor_trocado_recentemente` | `None` se a UC não tem medidor ativo |
 | `geracao_distribuida` | `possui_gd`, `potencia_gd_kwp`, `data_conexao_gd`, `modalidade_gd`, `energia_injetada_media_kwh`, `energia_injetada_atipica` | `modalidade` substitui o `fonte` do mock; com `atipica = true` a energia injetada não é medida real (log G5) |

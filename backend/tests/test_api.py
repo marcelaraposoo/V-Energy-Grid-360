@@ -280,7 +280,7 @@ def test_filtros_desconhecidos_retornam_422():
     assert client.get("/api/dashboard/kpis?municipio=Narnia").status_code == 422
     assert client.get("/api/receita/variacao?classe=Z9").status_code == 422
     assert client.get("/api/receita/variacao?municipio=Olinda&bairro=Boa Viagem").status_code == 422
-    assert client.get("/api/receita/variacao?municipio=Recife&bairro=Boa Viagem&classe=B1").status_code == 200
+    assert client.get("/api/receita/variacao?municipio=Recife&bairro=Boa Viagem&classe=RESIDENCIAL").status_code == 200
 
 
 def test_serie_alimentador_404_so_quando_nao_existe():

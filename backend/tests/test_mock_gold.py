@@ -157,7 +157,7 @@ def test_mock_preenche_diagnostico_de_consumo_e_faturamento():
 
 def test_filtros_e_alias_de_receita_sao_preservados():
     repo = MockRepository()
-    for classe in ("B1", "B2", "B3", "A4"):
+    for classe in ("RESIDENCIAL", "RURAL", "COMERCIAL", "PODER PUBLICO", "INDUSTRIAL"):
         faturas = repo.faturas("2025-07", "2026-06", classe=classe)
         assert faturas
         assert all(f["classe"] == classe for f in faturas)

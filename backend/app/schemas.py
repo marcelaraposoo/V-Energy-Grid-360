@@ -66,7 +66,8 @@ class VariacaoResponse(BaseModel):
 class CadastroUC(BaseModel):
     uc_id: str
     titular: str = Field(description="Nome de exibição; na Gold, usar nome_titular_mascarado.")
-    classe: str = Field(description="Subgrupo tarifário no contrato atual, como B1 ou A4.")
+    classe: Literal["RESIDENCIAL", "RURAL", "COMERCIAL", "PODER PUBLICO", "INDUSTRIAL"]
+    subgrupo_tarifario: Literal["B1", "B2", "B3", "A4"] | None = None
     classe_descricao: str
     municipio: str
     bairro: str

@@ -191,7 +191,9 @@ export function UnidadeProfile({ id }: { id: string }) {
             { label: 'Titular', value: cadastro.titular },
             {
               label: 'Classe de consumo',
-              value: `${cadastro.classe_descricao} (${cadastro.classe})`,
+              value: cadastro.subgrupo_tarifario
+                ? `${cadastro.classe_descricao} (${cadastro.subgrupo_tarifario})`
+                : cadastro.classe_descricao,
             },
             {
               label: 'Logradouro e número',

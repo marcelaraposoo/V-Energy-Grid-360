@@ -144,6 +144,7 @@ class SqliteRepository:
             "classe": classe,
             "classe_descricao": DESCRICAO_CLASSE.get(classe, classe.title() if classe else None),
             "subgrupo_tarifario": d.get("subgrupo_tarifario"),
+            "possui_gd": None if d.get("possui_gd") is None else _bool(d["possui_gd"]),
             "municipio": d["municipio"],
             "bairro": d["bairro"],
             "logradouro": d.get("logradouro"),

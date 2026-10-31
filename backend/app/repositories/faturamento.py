@@ -10,7 +10,7 @@ def fatura_publica(f: dict, uc: dict) -> dict:
     return {
         "uc_id": f["id_uc"], "competencia": f["mes_referencia"],
         "municipio": f["municipio"], "bairro": f["bairro"],
-        "classe": uc["subgrupo_tarifario"], "alimentador_id": uc["alimentador"],
+        "classe": f["classe"], "alimentador_id": uc["alimentador"],
         "consumo_kwh": f["consumo_kwh"], "valor": f["valor_energia"],
         "bandeira": f["bandeira_tarifaria"], "vencimento": f["data_vencimento"],
         "status": status, "faixa_atraso": f["faixa_atraso"], "id_fatura": f["id_fatura"],

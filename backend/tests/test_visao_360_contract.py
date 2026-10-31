@@ -41,7 +41,12 @@ def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
         assert interrupcoes["historico"] == sorted(originais, key=lambda o: o["data"], reverse=True)
 
         por_competencia = {f["competencia"]: f for f in repo.faturas_uc(uc_id)}
-        for fatura in resposta["faturas"] + resposta["faturas_em_aberto"]:
+        assert len(resposta["faturas"]) <= 1
+        assert "faturas_em_aberto" not in resposta
+        resumo = resposta["resumo_faturas"]
+        abertas = [f for f in por_competencia.values() if f["status"] != "paga"]
+        assert resumo["pendencias_recentes"] + resumo["pendencias_antigas"] == len(abertas)
+        for fatura in resposta["faturas"]:
             original = por_competencia[fatura["competencia"]]
             assert fatura | original == fatura
 
@@ -71,7 +76,7 @@ def test_contrato_aceita_historico_insuficiente_e_blocos_sem_registros(resposta)
     resposta.update(
         consumo=[],
         faturas=[],
-        faturas_em_aberto=[],
+        resumo_faturas={"pendencias_recentes": 0, "pendencias_antigas": 0},
         medidor=None,
         geracao_distribuida=None,
         atendimentos=[],

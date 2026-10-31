@@ -234,7 +234,7 @@ class Visao360(BaseModel):
     consumo: list[ConsumoMensalUC]
     diagnostico_conta_alta: DiagnosticoContaAltaUC
     faturas: list[FaturaUC]
-    faturas_em_aberto: list[FaturaUC]
+    resumo_faturas: ResumoFaturasUC
     medidor: MedidorUC | None
     geracao_distribuida: GeracaoDistribuidaUC | None
     interrupcoes: InterrupcoesUC

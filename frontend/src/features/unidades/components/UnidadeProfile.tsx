@@ -20,10 +20,10 @@ import {
 } from '../formatters'
 import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
 import { UnidadeFields } from './UnidadeFields'
+import { FaturasSection } from './FaturasSection'
 import {
   AtendimentosSection,
   ConsumoSection,
-  FaturasSection,
   GeracaoSection,
   InterrupcoesSection,
   MedidorSection,
@@ -229,7 +229,7 @@ export function UnidadeProfile({ id }: { id: string }) {
             label: 'Faturas em aberto',
             detail: 'Pendências de pagamento',
             icon: CircleDashed,
-            value: formatarNumero(dados.faturas_em_aberto.length),
+            value: formatarNumero(dados.resumo_faturas.pendencias_recentes + dados.resumo_faturas.pendencias_antigas),
           },
         ].map(({ label, detail, icon: Icon, value }) => (
           <section className="panel ucv-summary" key={label}>

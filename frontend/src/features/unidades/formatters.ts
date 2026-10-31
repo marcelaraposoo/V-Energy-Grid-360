@@ -1,3 +1,5 @@
+export const situacoesFatura = { paga: 'Paga', aberta: 'Em aberto', atrasada: 'Atrasada' }
+
 const numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 })
 const moeda = new Intl.NumberFormat('pt-BR', {
   style: 'currency',

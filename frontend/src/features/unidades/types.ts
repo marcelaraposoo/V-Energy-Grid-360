@@ -76,6 +76,7 @@ export interface FaturaUC {
   bandeira: string
   vencimento: string
   status: 'paga' | 'aberta' | 'atrasada'
+  faixa_atraso: 'EM DIA' | 'ATE 30 DIAS' | '31 A 90 DIAS' | 'MAIS DE 90 DIAS'
   id_fatura: string | null
   data_pagamento: string | null
   valor_energia: number | null
@@ -83,6 +84,23 @@ export interface FaturaUC {
   tributos: number | null
   /** valor_energia / consumo_kwh; inclui bandeira e exclui tributos. */
   preco_medio_kwh: number | null
+}
+
+export type AbaFaturas = 'recentes' | 'historico'
+export type SituacaoFaturas = 'todas' | 'paga' | 'em_aberto'
+
+export interface ResumoFaturasUC {
+  pendencias_recentes: number
+  pendencias_antigas: number
+}
+
+export interface PaginaFaturasUC {
+  itens: FaturaUC[]
+  total: number
+  pagina: number
+  tamanho: 10
+  anos_disponiveis: number[]
+  resumo: ResumoFaturasUC
 }
 
 export interface MedidorUC {
@@ -198,7 +216,7 @@ export interface Visao360 {
   consumo: ConsumoMensalUC[]
   diagnostico_conta_alta: DiagnosticoContaAltaUC
   faturas: FaturaUC[]
-  faturas_em_aberto: FaturaUC[]
+  resumo_faturas: ResumoFaturasUC
   medidor: MedidorUC | null
   geracao_distribuida: GeracaoDistribuidaUC | null
   interrupcoes: InterrupcoesUC

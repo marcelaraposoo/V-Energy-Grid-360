@@ -545,6 +545,79 @@
   font-size: 11px;
 }
 
+.ucv-faturas-resumo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 20px 22px;
+}
+.ucv-faturas-resumo > div {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.ucv-faturas-resumo span,
+.ucv-faturas-resumo small,
+.ucv-faturas-descricao {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.ucv-faturas-resumo strong {
+  font-size: 24px;
+  font-weight: 600;
+}
+.ucv-faturas-tabs {
+  margin-inline: 22px;
+}
+.ucv-faturas-descricao {
+  padding: 16px 22px;
+}
+.ucv-faturas-resultados {
+  min-height: 180px;
+}
+.ucv-faturas-resultados[aria-busy='true'] {
+  opacity: 0.6;
+}
+.ucv-fatura-link {
+  padding: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ucv-fatura-link:hover {
+  color: var(--accent);
+}
+.ucv-fatura-dialog-content {
+  display: grid;
+  gap: 20px;
+  padding: 22px;
+}
+.ucv-fatura-dialog-content > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ucv-fatura-dialog-content > .badge {
+  justify-self: start;
+}
+.ucv-fatura-dialog .ucv-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0;
+}
+
+@media (max-width: 479px) {
+  .ucv-faturas-resumo {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1279px) {
   .ucv-search-panel {
     flex-direction: column;

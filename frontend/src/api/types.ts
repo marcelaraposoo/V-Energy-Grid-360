@@ -171,7 +171,7 @@ export type Visao360 = {
   consumo: ConsumoMensal[]
   diagnostico_conta_alta: DiagnosticoContaAlta
   faturas: Fatura[]
-  faturas_em_aberto: Fatura[]
+  resumo_faturas: { pendencias_recentes: number; pendencias_antigas: number }
   medidor: Medidor | null
   geracao_distribuida: GeracaoDistribuida | null
   interrupcoes: Interrupcoes

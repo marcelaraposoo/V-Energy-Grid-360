@@ -10,6 +10,7 @@ from app.repositories.mock_repo import MockRepository
 from app.repositories.sqlite_repo import SqliteRepository
 from app.routers.deps import repo_dep
 from app.services.faturas import listar
+from app.services.unidades import visao_360
 from tests.gold_fixture import criar_gold_db
 
 
@@ -97,6 +98,14 @@ def test_uc_sem_faturas_e_uc_inexistente(repo):
     assert resultado.resumo.pendencias_antigas == 1
     with pytest.raises(NaoEncontrado):
         listar(repo, "UC999999", "recentes", None, "todas", 1)
+
+
+def test_visao_360_nao_envia_todas_as_pendencias():
+    repo = MockRepository()
+    resposta = visao_360(repo, "UC000001").model_dump(mode="json")
+    assert "faturas_em_aberto" not in resposta
+    assert len(resposta["faturas"]) == 1
+    assert resposta["resumo_faturas"] == repo.pagina_faturas_uc("UC000001", "historico", None, "todas", 1)["resumo"]
 
 
 def test_sqlite_sem_fato_informa_indisponibilidade(tmp_path):

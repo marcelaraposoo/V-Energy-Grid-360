@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from app.core.errors import NaoEncontrado
+from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES
 from app.schemas import (
     ClassificacaoVariacao,
     ComparacaoMetricaUC,
@@ -153,8 +154,11 @@ def visao_360(
         if c and periodo_at.periodo_inicio <= a["data"][:7] <= periodo_at.periodo_fim
     ]
     return Visao360(
-        cadastro=uc, consumo=consumo, diagnostico_conta_alta=diag, faturas=faturas[:12],
-        faturas_em_aberto=[f for f in faturas if f["status"] in ("aberta", "atrasada")],
+        cadastro=uc, consumo=consumo, diagnostico_conta_alta=diag, faturas=faturas[:1],
+        resumo_faturas={
+            "pendencias_recentes": sum(f["status"] != "paga" and f["faixa_atraso"] in FAIXAS_RECENTES for f in faturas),
+            "pendencias_antigas": sum(f["status"] != "paga" and f["faixa_atraso"] == FAIXA_ANTIGA for f in faturas),
+        },
         medidor=repo.medidor_uc(uc_id), geracao_distribuida=repo.gd_uc(uc_id),
         interrupcoes={**periodo_oc.model_dump(), "alimentador_id": uc["alimentador_id"],
                       "qtd_ocorrencias": len(oc), "duracao_total_min": sum(o["duracao_min"] for o in oc),

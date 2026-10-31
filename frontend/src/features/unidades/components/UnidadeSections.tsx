@@ -9,6 +9,7 @@ import {
   formatarPrecoKwh,
   formatarNumero,
   formatarNotaSatisfacao,
+  situacoesFatura,
 } from '../formatters'
 import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
 import { ConsumoChart } from './ConsumoChart'
@@ -18,7 +19,6 @@ import { FiltroPeriodoHistorico } from './FiltroPeriodoHistorico'
 import { UnidadeFields } from './UnidadeFields'
 
 type SectionProps = { dados: Visao360 }
-const situacoesFatura = { paga: 'Paga', aberta: 'Em aberto', atrasada: 'Atrasada' }
 type ConsumoSectionProps = SectionProps & {
   comparacao: SelecaoContaAlta
   onComparacaoChange: (value: SelecaoContaAlta) => void
@@ -103,56 +103,6 @@ export function ConsumoSection({
         {...diagnosticoProps}
       />
     </div>
-  )
-}
-
-export function FaturasSection({ dados }: SectionProps) {
-  const faturas = [
-    ...new Map(
-      [...dados.faturas, ...dados.faturas_em_aberto].map((f) => [
-        f.competencia,
-        f,
-      ]),
-    ).values(),
-  ].sort((a, b) => b.competencia.localeCompare(a.competencia))
-
-  return (
-    <Panel
-      title="Faturas e pagamentos"
-      description="Últimas faturas e pendências de pagamento, inclusive de competências anteriores"
-    >
-      <HistoryTable
-        title="Histórico de faturas e pagamentos"
-        columns={[
-          'Competência',
-          'Energia (R$)',
-          'Total (R$)',
-          'Bandeira',
-          'Vencimento',
-          'Pagamento',
-          'Situação',
-        ]}
-        icon={FileText}
-        description="Não há faturas disponíveis para esta unidade."
-        empty={!faturas.length}
-      >
-        {faturas.map((fatura) => (
-          <tr key={fatura.competencia}>
-            <th scope="row">{formatarCompetencia(fatura.competencia)}</th>
-            <td>{formatarMoeda(fatura.valor_energia)}</td>
-            <td>{formatarMoeda(fatura.valor_total)}</td>
-            <td>{fatura.bandeira}</td>
-            <td>{formatarData(fatura.vencimento)}</td>
-            <td>{formatarData(fatura.data_pagamento)}</td>
-            <td>
-              <span className={`badge ucv-fatura--${fatura.status}`}>
-                {situacoesFatura[fatura.status]}
-              </span>
-            </td>
-          </tr>
-        ))}
-      </HistoryTable>
-    </Panel>
   )
 }
 

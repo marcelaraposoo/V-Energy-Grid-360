@@ -1,0 +1,19 @@
+# Envia somente as dependencias e o codigo da aplicacao no contexto de build.
+**
+!requirements.txt
+!app/
+!app/**
+
+# Preserva os prompts Markdown, mas exclui artefatos locais tambem dentro de app/.
+**/__pycache__/
+**/*.py[cod]
+**/.env
+**/.env.*
+**/.venv/
+**/venv/
+**/*.db
+**/*.db-*
+**/*.sqlite*
+**/.runtime/
+**/tests/
+**/benchmarks/

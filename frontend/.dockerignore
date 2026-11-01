@@ -1,0 +1,23 @@
+# Inclui somente os arquivos necessarios ao build e ao servidor web.
+**
+!package.json
+!package-lock.json
+!index.html
+!vite.config.ts
+!tsconfig.json
+!tsconfig.app.json
+!tsconfig.node.json
+!nginx.conf
+!src/
+!src/**
+
+# Impede a inclusao de configuracoes locais e artefatos dentro dos fontes.
+**/.env
+**/.env.*
+**/node_modules/
+**/dist/
+**/.git/
+**/*.log
+**/*.db
+**/*.db-*
+**/*.sqlite*

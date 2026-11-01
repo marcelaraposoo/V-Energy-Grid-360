@@ -41,6 +41,8 @@ export function ClassesChart({ estado: { data, loading, error, reload }, periodo
                 const valor = item.consumo_kwh
                 const mudanca = referencia && disponivel(valor) && disponivel(item.consumo_referencia_kwh) ? item.variacao_pct : null
                 const Seta = mudanca === 0 ? Minus : disponivel(mudanca) && mudanca < 0 ? ArrowDownRight : ArrowUpRight
+                const tendencia = disponivel(mudanca) && mudanca !== 0
+                  ? mudanca > 0 ? 'favoravel' : 'desfavoravel' : undefined
                 return <li key={item.classe}>
                   <button type="button" className="dashboard-class-row" data-classe={item.classe}
                     aria-describedby={tooltip?.classe === item.classe ? tooltipId : undefined}
@@ -59,7 +61,7 @@ export function ClassesChart({ estado: { data, loading, error, reload }, periodo
                       <span className="dashboard-class-track" aria-hidden="true">
                         <span className="dashboard-class-bar" style={{ width: `${disponivel(valor) ? valor / maximo * 100 : 0}%` }} />
                       </span>
-                      {referencia && <span className="dashboard-class-change">
+                      {referencia && <span className="dashboard-class-change" data-tendencia={tendencia}>
                         {disponivel(mudanca) ? <><Seta size={13} aria-hidden="true" />{variacao.format(mudanca)}%</> : '—'}
                       </span>}
                     </span>

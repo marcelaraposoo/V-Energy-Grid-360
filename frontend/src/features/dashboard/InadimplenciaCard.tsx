@@ -19,6 +19,8 @@ export function InadimplenciaCard({ periodo, referencia, estado: { data, loading
   const variosMeses = quantidadeMeses(periodo) > 1
   const ultima = kpi?.inadimplencia?.ultima_competencia_pct
   const variacao = referencia && disponivel(kpi?.valor_atual) && disponivel(kpi?.valor_base) ? kpi?.variacao_pp : null
+  const tendencia = disponivel(variacao) && variacao !== 0
+    ? variacao < 0 ? 'favoravel' : 'desfavoravel' : undefined
 
   return (
     <Panel title="Faturamento em aberto" actions={<Wallet size={18} aria-hidden="true" />}>
@@ -31,7 +33,7 @@ export function InadimplenciaCard({ periodo, referencia, estado: { data, loading
               </p>
               <p>{variosMeses ? 'Consolidado' : 'Competência'} · {formatarPeriodo(periodo)}</p>
               {referencia && disponivel(variacao) && <p className="dashboard-inadimplencia-comparison">
-                <strong>{diferenca.format(variacao)} p.p.</strong> vs. referência · {formatarPeriodo(referencia)}
+                <strong data-tendencia={tendencia}>{diferenca.format(variacao)} p.p.</strong> vs. referência · {formatarPeriodo(referencia)}
               </p>}
             </div>
             {variosMeses && <div className="dashboard-secondary-detail dashboard-inadimplencia-last">

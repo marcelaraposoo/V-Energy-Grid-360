@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, Banknote, CircleDollarSign, Zap } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Banknote, CircleDollarSign, Minus, Zap } from 'lucide-react'
 import type { ApiState, KpisResponse, Periodo } from '../../api'
 import { ErrorState, LoadingState } from '../../components/ui/Feedback'
 import { disponivel, formatarPeriodo } from './formatacao'
@@ -20,13 +20,15 @@ export function KpisPrincipais({ estado: { data, loading, error, reload }, refer
           : indicadores.map(({ nome, titulo, icone: Icone, detalhe, formatar }) => {
             const kpi = data?.kpis.find((item) => item.nome === nome)
             const variacao = referencia && disponivel(kpi?.valor_atual) && disponivel(kpi?.valor_base) ? kpi?.variacao_pct : null
-            const Seta = disponivel(variacao) && variacao < 0 ? ArrowDownRight : ArrowUpRight
+            const Seta = variacao === 0 ? Minus : disponivel(variacao) && variacao < 0 ? ArrowDownRight : ArrowUpRight
+            const tendencia = (nome === 'Receita faturada' || nome === 'Energia faturada') && disponivel(variacao) && variacao !== 0
+              ? variacao > 0 ? 'favoravel' : 'desfavoravel' : undefined
             return <article className="panel dashboard-kpi" key={nome}>
               <h2><Icone size={17} strokeWidth={1.5} aria-hidden="true" />{titulo}</h2>
               <p className="dashboard-kpi-value">{disponivel(kpi?.valor_atual) ? formatar(kpi.valor_atual) : '—'}</p>
               <p className="dashboard-kpi-detail">{detalhe}</p>
               {referencia && <p className="dashboard-kpi-comparison" title={`Referência: ${formatarPeriodo(referencia)}`}>
-                {disponivel(variacao) ? <><span><Seta size={15} aria-hidden="true" />{percentual.format(variacao)}%</span>vs. referência</> : 'Sem dados para comparação'}
+                {disponivel(variacao) ? <><span data-tendencia={tendencia}><Seta size={15} aria-hidden="true" />{percentual.format(variacao)}%</span>vs. referência</> : 'Sem dados para comparação'}
               </p>}
             </article>
           })}

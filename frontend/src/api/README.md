@@ -27,6 +27,23 @@ Em desenvolvimento não precisa configurar nada: o padrão é `http://localhost:
 Se o backend estiver em outro endereço, copie `frontend/.env.example` para `frontend/.env.local`
 (o Git ignora esse arquivo) e ajuste `VITE_API_URL`. Reinicie o `npm run dev` depois de mudar.
 
+## Dashboard Executivo
+
+A tela envia somente períodos. `api.dashboard.kpis({ ...params, indicador: 'executivo' }, signal)`
+retorna os KPIs principais e o faturamento em aberto sem depender da A8. O contrato padrão
+sem esse parâmetro permanece disponível, incluindo UCs faturadas e os indicadores de continuidade.
+
+- `api.dashboard.serie(params, signal)`: evolução mensal A5/A3; valores nulos não viram zero.
+- `api.dashboard.cadastroGd(params, signal)`: posição cadastral A5 da última competência
+  principal e de referência, participação da GD e variação percentual de UCs cadastradas.
+- `api.dashboard.consumoClasses(params, signal)`: cinco classes em ordem de volume principal,
+  participação, volume de referência e variação percentual, calculados no backend pela A3.
+
+Ausência de uma classe em qualquer competência invalida seu consolidado. A participação
+fica nula quando o total está incompleto ou é zero; referência zero ou ausente não produz
+variação percentual. Os DTOs compartilhados em `types.ts` representam essas indisponibilidades.
+As funções existentes da API continuam aceitando filtros regionais nas telas que os utilizam.
+
 ## Como usar
 
 **Carregar dados ao abrir uma tela**

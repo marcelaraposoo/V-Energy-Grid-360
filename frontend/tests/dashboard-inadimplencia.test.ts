@@ -91,7 +91,7 @@ test('card de faturamento em aberto respeita mês, consolidado, comparação e i
       assert.match(html, /vs\. referência · Jan–Jun\/2025/)
       assert.equal((html.match(/p\.p\./g) ?? []).length, 1)
       assert.ok(html.indexOf('p.p.') < html.indexOf('Última competência'))
-      assert.match(html, /Situação conhecida até 30\/06\/2026/)
+      assert.match(html, /Consolidado · Jan–Jun\/2026/)
     })
     await t.test('lacuna não esconde a última taxa disponível e não mostra pp inválidos', () => {
       const html = renderizar(periodo, referencia, { ...kpi, valor_atual: null })

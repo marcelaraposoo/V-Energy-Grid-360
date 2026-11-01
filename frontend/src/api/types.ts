@@ -27,7 +27,7 @@ export type PeriodosParams = {
 }
 
 // comparar=false distingue a ausência de comparação dos períodos padrão do case.
-export type DashboardParams = FiltrosParams & { indicador?: 'inadimplencia' } & (
+export type DashboardParams = FiltrosParams & { indicador?: 'inadimplencia' | 'executivo' } & (
   | (PeriodosParams & { comparar?: true })
   | { comparar: false; atual_inicio?: Competencia; atual_fim?: Competencia; base_inicio?: never; base_fim?: never }
 )
@@ -65,6 +65,37 @@ export type SeriePonto = {
   receita: number | null
   energia_kwh: number | null
   tarifa_media: number | null
+}
+
+export type CadastroGdMes = {
+  competencia: Competencia
+  qtd_ucs_cadastradas: number | null
+  qtd_ucs_com_gd: number | null
+  percentual_gd: number | null
+}
+
+export type CadastroGdResponse = {
+  atual: CadastroGdMes
+  referencia: CadastroGdMes | null
+  variacao_cadastradas_pct: number | null
+}
+
+export type ClasseConsumo = 'RESIDENCIAL' | 'COMERCIAL' | 'INDUSTRIAL' | 'PODER PUBLICO' | 'RURAL'
+export type ConsumoClasse = {
+  classe: ClasseConsumo
+  consumo_kwh: number | null
+  participacao_pct: number | null
+  consumo_referencia_kwh: number | null
+  variacao_pct: number | null
+  competencias_ausentes: Competencia[]
+  competencias_ausentes_referencia: Competencia[] | null
+}
+
+export type ConsumoClassesResponse = {
+  periodo_atual: Periodo
+  periodo_base: Periodo | null
+  consumo_total_kwh: number | null
+  classes: ConsumoClasse[]
 }
 
 export type AgruparPor = 'municipio' | 'bairro' | 'classe'

@@ -6,8 +6,10 @@ import { prepararParametrosDashboard } from './dashboardPeriodos.ts'
 import type {
   AlimentadorDecFec,
   BuscarUcParams,
+  CadastroGdResponse,
   CatalogoFiltros,
   ContinuidadeParams,
+  ConsumoClassesResponse,
   DashboardParams,
   FilaParams,
   Health,
@@ -43,6 +45,10 @@ export function createApi(http: Http) {
         http.get<KpisResponse>('/api/dashboard/kpis', { params: prepararParametrosDashboard(params), signal }),
       serie: (params: DashboardParams = {}, signal?: AbortSignal) =>
         http.get<SeriePonto[]>('/api/dashboard/serie', { params: prepararParametrosDashboard(params), signal }),
+      cadastroGd: (params: DashboardParams = {}, signal?: AbortSignal) =>
+        http.get<CadastroGdResponse>('/api/dashboard/cadastro-gd', { params: prepararParametrosDashboard(params), signal }),
+      consumoClasses: (params: DashboardParams = {}, signal?: AbortSignal) =>
+        http.get<ConsumoClassesResponse>('/api/dashboard/consumo-classes', { params: prepararParametrosDashboard(params), signal }),
     },
 
     receita: {

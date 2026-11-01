@@ -324,3 +324,23 @@ def test_authorizer_allows_joins_subqueries_and_functions(db_path):
 
     assert outcome.status == SQLExecutionStatus.SUCCESS
     assert len(outcome.result.rows) == 3
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT name FROM sqlite_master",
+        "SELECT * FROM sqlite_stat1",
+        "SELECT * FROM sqlite_schema",
+    ],
+)
+def test_internal_sqlite_tables_cannot_be_read(db_path, sql):
+    outcome = _execute(sql, db_path)
+
+    assert outcome.status == SQLExecutionStatus.FAILED
+
+
+def test_normal_tables_are_still_readable_after_the_internal_block(db_path):
+    outcome = _execute("SELECT COUNT(*) FROM municipios", db_path)
+
+    assert outcome.status == SQLExecutionStatus.SUCCESS

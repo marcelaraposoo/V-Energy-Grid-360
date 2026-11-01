@@ -1,125 +1,114 @@
-## Camada de Fallback e Quotas
+## Camada 3 — Providers, fallback e quotas
 
-### Decisões arquiteturais
+### Objetivo e ordem
 
-A camada de acesso aos modelos de IA foi estruturada com **um provider principal e uma cadeia explícita de fallback**.
+A aplicação controla a cadeia em `providers/router.py`:
 
-Fluxo definido:
+1. Gemini `gemini-3.5-flash-lite`;
+2. OpenRouter `cohere/north-mini-code:free`;
+3. OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free`, somente se permitido pela política de dados;
+4. Gemini `gemini-3.1-flash-lite`, se diferente do principal e sem credencial Gemini invalidada.
 
-```text
-Gemini 3.5 Flash-Lite
-        ↓ erro recuperável
-OpenRouter: Cohere North Mini Code
-        ↓ erro recuperável
-OpenRouter: Nemotron 3 Ultra
-        ↓ erro recuperável
-Gemini 3.1 Flash-Lite
-        ↓        
-PROVIDER_UNAVAILABLE
-```
+Sucesso encerra a cadeia. Modelos repetidos no pool OpenRouter são deduplicados.
+São no máximo quatro tentativas por passagem com a configuração atual, ou três
+quando o Nemotron está desabilitado. Regenerações e síntese fazem novas passagens.
 
-O **Gemini 3.5 Flash-Lite**, acessado diretamente pela API do Google, foi definido como provider principal.
+### Erros e credenciais independentes
 
-O OpenRouter atua apenas como camada de contingência, utilizando, nesta ordem:
+`RATE_LIMITED`, `PROVIDER_UNAVAILABLE`, `TIMEOUT`, `CONNECTION_ERROR` e
+`INVALID_OUTPUT` permitem tentar o próximo modelo.
 
-1. Cohere North Mini Code (`cohere/north-mini-code:free`)
-2. Nemotron 3 Ultra (`nvidia/nemotron-3-ultra-550b-a55b:free`)
+`UNAUTHORIZED`, `FORBIDDEN` e `CONFIGURATION_ERROR` são tratados conservadoramente
+como falhas do provider: pulam seus demais modelos, mas permitem o provider
+independente. Uma dessas falhas no Gemini principal ainda permite OpenRouter,
+mas impede repetir a credencial no Gemini final. No OpenRouter, encerra somente
+o laço OpenRouter e permite o Gemini final.
 
-Os modelos do OpenRouter usam `PromptedOutput`. O modo `tool` falhou em quase todas as chamadas dos health checks, então o modo prompted foi adotado para melhorar a confiabilidade da saída estruturada.
+`QUOTA_EXHAUSTED` no Gemini permite OpenRouter; no OpenRouter encerra somente
+seu laço e permite o Gemini final. Quota não é inferida de todo HTTP 429:
+o adapter preserva a classificação específica fornecida pelo SDK.
+`BAD_REQUEST` e `UNKNOWN` encerram a cadeia inteira.
 
-O fallback é controlado pela própria aplicação através do `router.py`. Não utilizamos fallback automático do SDK ou do OpenRouter, permitindo maior controle sobre erros, tentativas e observabilidade.
+Se ninguém responder, `aggregate_errors()` considera todas as tentativas,
+incluindo a final, nesta ordem de prioridade:
 
-### Tratamento de erros
+1. última falha terminal (`BAD_REQUEST` ou `UNKNOWN`), se existir;
+2. `QUOTA_EXHAUSTED`, se qualquer tentativa identificar quota esgotada;
+3. última falha efetiva da lista.
 
-Os providers convertem suas falhas para uma classificação comum através de `ProviderErrorType`.
+Assim, quota conhecida não é apagada por indisponibilidade ou falha de credencial
+posterior. A lista completa permanece disponível para diagnóstico; o erro agregado
+não pretende descrever sozinho todas as causas. Sucesso retorna erro agregado nulo.
 
-Erros recuperáveis podem acionar fallback:
+### Timeout, retries e saída estruturada
 
-- `RATE_LIMITED`
-- `PROVIDER_UNAVAILABLE`
-- `TIMEOUT`
-- `CONNECTION_ERROR`
-- `INVALID_OUTPUT`
+O timeout é **20 segundos por chamada ao modelo**, via `request_timeout` do
+PydanticAI. `max_retries=0` e retries de tools/output iguais a zero mantêm uma
+tentativa por modelo por passagem. A aplicação não solicita uma lista de fallback
+ao OpenRouter; isso não controla possíveis redirecionamentos entre upstreams
+feitos pelo serviço dentro de uma chamada ao mesmo modelo.
 
-Quando a cota do Gemini é esgotada, o OpenRouter ainda pode ser utilizado, pois os dois providers possuem infraestruturas e limites independentes.
+**Não existe deadline global da requisição HTTP.** Seu orçamento e os timeouts
+de cliente/proxy permanecem pendentes para o E2E. Os 20 s não incluem a soma
+de fallback, regenerações, síntese e demais etapas.
 
-No OpenRouter, quando for identificado `QUOTA_EXHAUSTED`, a cadeia é encerrada imediatamente, pois trocar de modelo dentro do mesmo provider não resolveria o esgotamento global da conta.
+Gemini usa `NativeOutput`; OpenRouter usa `PromptedOutput` com validação Pydantic
+local, sem exigir `response_format` dos modelos gratuitos. Texto livre e JSON
+incompatível quando se espera objeto estruturado resultam em `INVALID_OUTPUT`
+e permitem fallback. Testes com o Agent real e `FunctionModel` local verificam
+essas falhas, fallback e timeout sem consumir APIs externas.
 
-Erros de configuração, autenticação ou requisição inválida não acionam fallback desnecessário.
+### Tentativas e logs
 
-### Retries
+`ProviderAttempt` preserva provider, modelo, ordem, timestamp, sucesso, latência
+e categoria de erro. O router numera cada passagem; as interfaces consumidoras
+acrescentam `phase=sql_generation` ou `phase=synthesis` e ordenam as tentativas
+acumuladas, inclusive regenerações. O `PipelineResult.provider_attempts` reúne
+as fases em ordem cronológica e preserva metadados em todas as saídas normais,
+inclusive falhas. A fase pode ser nula na chamada direta ao adapter/router.
+Falha de configuração antes da API também gera tentativa, com latência zero;
+modelo pulado pela política não é uma chamada nem uma tentativa produzida.
 
-Retries automáticos foram desabilitados.
+Os metadados são internos, sem auditoria persistente ou Logfire. A resposta ao
+usuário continua usando mensagens seguras. Logs próprios da C3 registram apenas
+metadados técnicos, sem corpo/repr de exceções, causa bruta ou traceback.
 
-Cada modelo recebe apenas uma tentativa por passagem no fluxo. Caso ocorra um erro recuperável, o controle passa explicitamente para o próximo modelo.
+### JSON local best-effort
 
-Isso evita:
+`.runtime/openrouter_usage.json`, relativo ao diretório de execução, registra
+somente timestamps UTC de tentativas OpenRouter em **janela móvel de 24 h**.
+Não é contagem de sucessos, quota diária autoritativa ou mecanismo de bloqueio:
+o provider continua sendo a fonte real de disponibilidade/cota.
 
-- latência imprevisível;
-- consumo oculto de requisições;
-- tentativas duplicadas;
-- dificuldade de auditoria.
+O registro usado pelo adapter roda fora do event loop, com timeout de lock de
+0,1 s e espera máxima de 0,25 s pela telemetria. Falha de diretório, leitura,
+JSON, gravação ou lock significa somente perda de telemetria local e não impede
+a chamada ao modelo. Há no máximo um trabalho de registro por processo; se
+ocupado, registros novos são descartados, sem fila crescente. O timeout não
+cancela I/O do SO já iniciado: o worker pode terminar depois, sem reter o loop.
+As funções síncronas de manutenção/leitura continuam sendo helpers locais;
+não devem ser chamadas diretamente pelo event loop.
 
-### Observabilidade
+O JSON pode desaparecer na recriação do container, pois não tem volume próprio.
+Não foi migrado para Redis ou banco. Persistência central é trabalho futuro.
 
-Cada tentativa de provider é representada por `ProviderAttempt`, contendo informações como:
+### Política de dados confidenciais
 
-- provider utilizado;
-- modelo utilizado;
-- posição da tentativa;
-- timestamp;
-- sucesso ou falha;
-- latência;
-- tipo de erro.
+O [endpoint gratuito NVIDIA Nemotron](https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b:free)
+informa que não deve receber dados confidenciais ou pessoais. Os dados reais do
+case são confidenciais: esse endpoint permanece **bloqueado por padrão**.
 
-O uso do OpenRouter também é registrado localmente através do `usage_store.py`.
+`PROVIDER_PAYLOAD_POLICY=confidential` é o padrão. Ausência, opção vazia ou
+valor desconhecido também mantém a restrição. Somente o valor explícito
+`synthetic` permite o endpoint, para testes cujo **payload inteiro** (pergunta,
+contexto, memória e resultados) seja artificial. A opção declara a política do
+payload; não inspeciona seu conteúdo nem anonimiza dados. Ter uma pergunta
+sintética não torna um contexto extraído da Gold real sintético.
 
-### Decisão sobre cota do OpenRouter
-
-A aplicação **não tenta prever nem bloquear o uso com base em uma cota fixa**.
-
-Isso foi decidido porque o limite real pode variar de acordo com a conta, créditos disponíveis e políticas do OpenRouter.
-
-Portanto:
-
-```text
-usage_store
-→ observa uso
-
-OpenRouter
-→ determina a disponibilidade real
-
-router
-→ reage ao erro retornado
-```
-
-Não existe mais lógica local de `NORMAL`, `WARNING` ou `CRITICAL`.
-
-### Persistência temporária
-
-Atualmente, as tentativas de uso do OpenRouter são persistidas em:
-
-```text
-.runtime/openrouter_usage.json
-```
-
-Essa persistência existe exclusivamente para observabilidade local.
-
-O JSON é uma solução temporária e **não deve ser tratado como persistência definitiva da aplicação**.
-
-### Alteração futura planejada
-
-Quando a camada de persistência central do V-Energy Grid 360 estiver disponível, os registros de uso dos providers devem deixar o arquivo JSON e ser armazenados no banco de dados.
-
-A migração deve preservar a separação entre:
-
-```text
-provider
-model
-timestamp
-success
-latency
-error_type
-```
-
-Isso permitirá futuramente consultas, métricas e auditoria sem depender de arquivos locais.
+O router pula o modelo restrito sem substituí-lo, registrando a decisão técnica;
+o adapter também bloqueia chamadas diretas antes de criar o modelo/enviar dados.
+Os outros modelos conservam sua ordem. Essa restrição conhecida não é uma
+aprovação de confidencialidade dos outros endpoints: a equipe ainda precisa
+decidir quais providers/payloads reais são autorizados no E2E. Não liberar
+`synthetic` para dados reais; eventual mudança dessa política requer decisão
+explícita da equipe. Nesta tarefa, nenhum dado real foi enviado.

@@ -6,7 +6,7 @@ A primeira camada de guardrail do agente foi criada para validar e proteger a en
 
 A proposta adotada foi manter essa camada **determinística, simples e barata**, evitando utilizar LLM para tarefas que podem ser resolvidas diretamente em Python.
 
-O guardrail não tenta compreender profundamente a intenção do usuário. Questões semânticas mais complexas ficam para a etapa 4.1 do agente, implementada posteriormente com PydanticAI.
+O guardrail não tenta compreender profundamente a intenção do usuário. Questões semânticas mais complexas ficam para a etapa 4.1 do agente, já implementada com PydanticAI.
 
 ---
 
@@ -44,6 +44,12 @@ Foram definidos:
 - `InputGuardrailResult`: resultado padronizado da validação.
 
 O resultado preserva tanto a entrada original quanto a versão normalizada.
+
+Ao bloquear, o pipeline preserva o mesmo `GuardrailReason` em
+`PipelineResult.input_guardrail_reason`, sem expor esse campo na resposta HTTP.
+Isso permite o futuro mapeamento central de outcomes/auditoria e distingue
+`GUARDRAIL_INTERNAL_ERROR` de violações da entrada. Não há nova enumeração ou
+persistência de auditoria nesta camada.
 
 ### `rules.py`
 
@@ -94,10 +100,12 @@ A normalização é propositalmente leve:
 
 - remoção de espaços no início e no final;
 - redução de whitespace repetido;
-- normalização de tabs e quebras de linha;
-- remoção de caracteres de controle/invisíveis.
+- normalização de tabs, quebras de linha e controles que representam whitespace;
+- remoção dos demais caracteres de controle/invisíveis.
 
-A limpeza não reescreve nem altera semanticamente a pergunta.
+Separadores como `\r` são convertidos em espaço, sem juntar palavras:
+`Qual\rfoi a receita?` vira `Qual foi a receita?`. A limpeza não reescreve termos
+de negócio, mas a remoção de invisíveis ainda pode alterar emojis compostos.
 
 ### Limite de tamanho
 
@@ -105,28 +113,41 @@ Foi definido um limite de **500 caracteres após a normalização**.
 
 Entradas maiores são bloqueadas e o usuário deve reformular a pergunta. O texto nunca é truncado silenciosamente.
 
+O schema HTTP `PerguntaIn` não impõe tamanho mínimo nem repete esse limite no
+texto bruto: entradas vazias e perguntas longas chegam à C1 para receber suas
+mensagens. Há somente um **teto técnico de 16.384 caracteres brutos**, separado
+do limite funcional, para limitar o trabalho de normalização. Acima desse teto,
+ou quando o campo não é uma string válida, a API responde HTTP 422 antes da C1.
+
 ### SQL direto
 
 O agente foi projetado para receber perguntas em linguagem natural.
 
-Por isso, SQL estruturalmente identificável é bloqueado, incluindo comandos como:
+São reconhecidas assinaturas comuns de SQL, sem parser completo:
 
-- `SELECT ... FROM`;
+- `SELECT ... FROM` com projeções compactas: colunas, `*`, funções simples,
+  listas por vírgula, `DISTINCT` e aliases explícitos com `AS`;
 - `INSERT INTO`;
 - `UPDATE ... SET`;
 - `DELETE FROM`;
-- `DROP`;
-- `ALTER`;
-- `CREATE`;
-- `TRUNCATE`.
+- `DROP TABLE/DATABASE/VIEW`;
+- `ALTER TABLE`;
+- `CREATE TABLE/DATABASE/VIEW`;
+- `TRUNCATE TABLE`.
 
 Palavras isoladas como `SQL`, `SELECT` ou `tabela` não são suficientes para bloquear uma mensagem.
+Inglês natural como `Select the municipalities from the last report and compare
+consumption.` não é bloqueado apenas pela presença de `select/from`. A cobertura
+é parcial: por exemplo, `SELECT 1` e `DROP INDEX` não são assinaturas desta camada.
 
 ### URLs
 
 Links externos não possuem utilidade no agente atual, pois ele não acessará a web.
 
-Mensagens contendo URLs são bloqueadas com um retorno específico.
+O reconhecimento atual cobre os prefixos `http://`, `https://` e `www.`, sem
+diferenciar maiúsculas/minúsculas, e bloqueia com um retorno específico. Não é
+um validador universal de URLs: domínios sem prefixo e outros protocolos, como
+FTP, não são cobertos. Nenhum desses formatos é acessado pela C1.
 
 ### Prompt injection
 
@@ -138,7 +159,16 @@ A primeira camada identifica apenas padrões explícitos e facilmente reconhecí
 
 Não existe a intenção de detectar todo prompt injection por regex.
 
-Ataques mais sofisticados serão tratados semanticamente no PydanticAI e também por outras camadas de segurança.
+As assinaturas PT/EN reconhecem instruções anteriores/prévias, referências às
+instruções do próprio agente/sistema, diretivas genéricas completas e mudança
+explícita de papel. `Ignore as regras tarifárias antigas e compare a receita
+por bairro.` é uma instrução de negócio e não corresponde a essas assinaturas.
+A comparação ignora caixa e acentos, inclusive Unicode decomposto, sem retirar
+acentos da pergunta encaminhada ao pipeline.
+
+Essa detecção continua limitada a padrões explícitos. A classificação semântica
+e as demais proteções pertencem às etapas posteriores; usar PydanticAI não é,
+por si só, uma garantia de detecção de ataques sofisticados.
 
 ### Follow-ups e idioma
 
@@ -150,6 +180,7 @@ Isso permite mensagens como:
 E Recife?
 E em 2025?
 Por bairro?
+42
 ```
 
 Também não há bloqueio por idioma. O comportamento de resposta em português será definido posteriormente no agente.
@@ -209,7 +240,8 @@ Foi decidido deixar para a etapa 4.1 do agente, utilizando PydanticAI:
 - interpretação de contexto e follow-ups;
 - decisão de gerar ou não SQL.
 
-A ideia inicial é que a mesma chamada responsável pelo Text-to-SQL também realize essa classificação semântica, evitando adicionar uma chamada extra de IA apenas para classificação.
+A etapa 4.1 concentra essa classificação e o Text-to-SQL; a C1 não adiciona uma
+chamada extra de IA para classificação.
 
 ---
 
@@ -230,7 +262,13 @@ Foram testados, entre outros:
 - URLs;
 - prompt injection explícito;
 - prioridade das regras;
-- short-circuit;
-- comportamento fail-closed.
+- short-circuit real: spies confirmam que regras posteriores não são chamadas;
+- comportamento fail-closed na normalização e durante uma regra;
+- follow-ups e limites bruto/normalizado pela interface HTTP;
+- falsos positivos em inglês natural e regras tarifárias;
+- injection sem acentos e com Unicode decomposto;
+- motivo estruturado e encaminhamento da pergunta normalizada no pipeline.
 
-No fechamento desta etapa, **55 testes do Input Guardrail passaram com sucesso**, além dos testes do módulo de respostas.
+Na revisão pré-E2E, passaram **203 testes**: 89 da C1, 10 de mensagens, 30 do
+pipeline, 18 da interface HTTP da C1 e 56 da API existente. Os testes de
+integração simulam as etapas posteriores, sem LLM ou acesso à Gold real.

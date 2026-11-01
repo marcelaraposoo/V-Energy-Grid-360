@@ -19,7 +19,9 @@ from pydantic_ai.exceptions import (
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 
+from app.agent.providers.data_policy import allows_model
 from app.agent.providers.usage_store import (
+    record_attempt_best_effort,
     register_request_attempt,
 )
 from app.agent.schemas import (
@@ -142,7 +144,9 @@ async def run_openrouter(
     started_at = datetime.now(timezone.utc)
     start = perf_counter()
 
-    if not settings.openrouter_api_key:
+    if not settings.openrouter_api_key or not allows_model(
+        model_name, getattr(settings, "provider_payload_policy", "confidential")
+    ):
         provider_attempt = ProviderAttempt(
             provider=ProviderName.OPENROUTER,
             model=model_name,
@@ -176,10 +180,8 @@ async def run_openrouter(
             },
         )
 
-        # Observabilidade:
-        # registra que uma tentativa real ao OpenRouter
-        # está prestes a acontecer.
-        register_request_attempt()
+        # Telemetria opcional: I/O isolado e espera limitada.
+        await record_attempt_best_effort(register_request_attempt)
 
         resolved_output_type = (
             str
@@ -221,28 +223,10 @@ async def run_openrouter(
             error
         )
 
-        # UNKNOWN deveria ser excepcional.
-        # Mantemos informação suficiente para
-        # descobrir a classe real sem registrar
-        # prompt nem dados do usuário.
-        if error_type == ProviderErrorType.UNKNOWN:
-            logger.exception(
-                "Erro OpenRouter não classificado. "
-                "model=%s "
-                "exception_type=%s "
-                "cause_type=%s "
-                "error=%r "
-                "cause=%r",
-                model_name,
-                type(error).__name__,
-                (
-                    type(error.__cause__).__name__
-                    if error.__cause__
-                    else None
-                ),
-                error,
-                error.__cause__,
-            )
+        logger.warning(
+            "Falha provider=openrouter model=%s category=%s exception_type=%s",
+            model_name, error_type.value, type(error).__name__,
+        )
 
         provider_attempt = ProviderAttempt(
             provider=ProviderName.OPENROUTER,

@@ -58,7 +58,13 @@ class ProviderErrorType(str, Enum):
     UNKNOWN = "unknown"
 
 
+class ProviderPhase(str, Enum):
+    SQL_GENERATION = "sql_generation"
+    SYNTHESIS = "synthesis"
+
+
 class ProviderAttempt(BaseModel):
+    phase: ProviderPhase | None = None
     provider: ProviderName
     model: str
     attempt: int
@@ -93,6 +99,9 @@ class SQLGenerationResult(BaseModel):
                 raise ValueError(
                     "sql é obrigatório quando o status é READY."
                 )
+
+            if self.reason is not None:
+                raise ValueError("reason deve ser None quando o status é READY.")
 
             return self
 
@@ -241,6 +250,7 @@ class SQLExecutionFlowResult(BaseModel):
     outcome: SQLExecutionOutcome | None = None
     provider_error: ProviderErrorType | None = None
     regenerations: int = 0
+    provider_attempts: list[ProviderAttempt] = Field(default_factory=list)
 
     @property
     def executed(self) -> bool:

@@ -20,7 +20,9 @@ from app.agent.provider_responses import get_provider_message
 from app.agent.responses import get_guardrail_message
 from app.agent.schemas import (
     GuardrailDecision,
+    GuardrailReason,
     PostProcessingResult,
+    ProviderAttempt,
     SQLGenerationStatus,
     SynthesisStatus,
     VisualizationSpec,
@@ -63,6 +65,9 @@ class PipelineResult:
     sql: str | None = None
     assumptions: tuple[str, ...] = ()
     visualization: VisualizationSpec | None = None
+    # Metadado interno para o futuro mapeamento central de outcomes/auditoria.
+    input_guardrail_reason: GuardrailReason | None = None
+    provider_attempts: tuple[ProviderAttempt, ...] = ()
 
 
 # Mensagens de perguntas que o agente decide não responder.
@@ -110,12 +115,17 @@ def _no_answer(
     message: str,
     stage: PipelineStage,
     sql: str | None = None,
+    *,
+    input_guardrail_reason: GuardrailReason | None = None,
+    provider_attempts: tuple[ProviderAttempt, ...] = (),
 ) -> PipelineResult:
     return PipelineResult(
         status=PipelineStatus.NO_ANSWER,
         message=message,
         stage=stage,
         sql=sql,
+        input_guardrail_reason=input_guardrail_reason,
+        provider_attempts=provider_attempts,
     )
 
 
@@ -165,6 +175,7 @@ async def answer_question(
         return _no_answer(
             get_guardrail_message(entry.reason),
             PipelineStage.INPUT_GUARDRAIL,
+            input_guardrail_reason=entry.reason,
         )
 
     clean_question = entry.normalized_input or question
@@ -177,28 +188,34 @@ async def answer_question(
         database_path=database_path,
     )
 
+    provider_attempts = tuple(flow.provider_attempts)
+
     if flow.provider_error is not None:
         return _no_answer(
             get_provider_message(flow.provider_error),
             PipelineStage.SQL_GENERATION,
+            provider_attempts=provider_attempts,
         )
 
     if flow.guardrail_reason is not None:
         return _no_answer(
             _GENERATION_BLOCKED_MESSAGE,
             PipelineStage.SQL_GUARDRAIL,
+            provider_attempts=provider_attempts,
         )
 
     if flow.outcome is None:
         return _no_answer(
             _generation_message(flow),
             PipelineStage.SQL_GENERATION,
+            provider_attempts=provider_attempts,
         )
 
     if not flow.executed:
         return _no_answer(
             get_execution_message(flow.outcome.error_type),
             PipelineStage.SQL_EXECUTION,
+            provider_attempts=provider_attempts,
         )
 
     query_result = flow.outcome.result
@@ -210,10 +227,16 @@ async def answer_question(
         result=query_result,
     )
 
+    provider_attempts += tuple(
+        item.model_copy(update={"attempt": index})
+        for index, item in enumerate(synthesis_flow.provider_attempts, len(provider_attempts) + 1)
+    )
+
     if synthesis_flow.provider_error is not None:
         return _no_answer(
             get_provider_message(synthesis_flow.provider_error),
             PipelineStage.SYNTHESIS,
+            provider_attempts=provider_attempts,
         )
 
     if not synthesis_flow.approved:
@@ -226,6 +249,7 @@ async def answer_question(
         return _no_answer(
             get_output_guardrail_message(reason),
             PipelineStage.OUTPUT_GUARDRAIL,
+            provider_attempts=provider_attempts,
         )
 
     # ----- Camada 6 -----
@@ -238,6 +262,7 @@ async def answer_question(
         return _no_answer(
             get_output_guardrail_message(None),
             PipelineStage.POST_PROCESSING,
+            provider_attempts=provider_attempts,
         )
 
     return PipelineResult(
@@ -247,4 +272,5 @@ async def answer_question(
         sql=flow.sql,
         assumptions=tuple(processed.assumptions),
         visualization=processed.visualization,
+        provider_attempts=provider_attempts,
     )

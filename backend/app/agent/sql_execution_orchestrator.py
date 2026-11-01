@@ -6,6 +6,7 @@ from app.agent.guardrails.sql_guardrail import (
 )
 from app.agent.schemas import (
     ProviderAttempt,
+    ProviderPhase,
     ProviderErrorType,
     SQLExecutionErrorType,
     SQLExecutionFlowResult,
@@ -101,18 +102,23 @@ async def generate_validate_and_execute(
             guardrail_feedback=feedback,
         )
 
-        provider_attempts.extend(attempts)
+        provider_attempts.extend(
+            item.model_copy(update={"phase": ProviderPhase.SQL_GENERATION, "attempt": index})
+            for index, item in enumerate(attempts, len(provider_attempts) + 1)
+        )
 
         if provider_error is not None:
             return SQLExecutionFlowResult(
                 provider_error=provider_error,
                 regenerations=regenerations,
+                provider_attempts=provider_attempts,
             )
 
         if generation is None:
             return SQLExecutionFlowResult(
                 provider_error=ProviderErrorType.INVALID_OUTPUT,
                 regenerations=regenerations,
+                provider_attempts=provider_attempts,
             )
 
         if generation.status != SQLGenerationStatus.READY:
@@ -120,12 +126,14 @@ async def generate_validate_and_execute(
                 generation_status=generation.status,
                 generation_reason=generation.reason,
                 regenerations=regenerations,
+                provider_attempts=provider_attempts,
             )
 
         if not generation.sql:
             return SQLExecutionFlowResult(
                 provider_error=ProviderErrorType.INVALID_OUTPUT,
                 regenerations=regenerations,
+                provider_attempts=provider_attempts,
             )
 
         # ----- 4.2: guardrail do SQL -----
@@ -146,6 +154,7 @@ async def generate_validate_and_execute(
                     sql=generation.sql,
                     guardrail_reason=guardrail.reason,
                     regenerations=regenerations,
+                    provider_attempts=provider_attempts,
                 )
 
             feedback = retry_feedback
@@ -176,4 +185,5 @@ async def generate_validate_and_execute(
             sql=generation.sql,
             outcome=outcome,
             regenerations=regenerations,
+            provider_attempts=provider_attempts,
         )

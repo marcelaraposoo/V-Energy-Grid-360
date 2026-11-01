@@ -331,7 +331,16 @@
 .dashboard-secondary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
+  gap: 0 20px;
+}
+.dashboard-secondary > .panel {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  row-gap: 0;
+}
+.dashboard-secondary > .panel > .feedback {
+  grid-row: span 2;
 }
 .dashboard-secondary .panel-header {
   align-items: flex-start;
@@ -342,6 +351,10 @@
   margin-top: 2px;
 }
 .dashboard-secondary-body {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 2;
+  row-gap: 0;
   padding: 0 22px 20px;
 }
 .dashboard-secondary-value {
@@ -356,7 +369,7 @@
   letter-spacing: 0;
   color: var(--text-secondary);
 }
-.dashboard-secondary-body > p:not(.dashboard-secondary-value) {
+.dashboard-secondary-main > p:not(.dashboard-secondary-value) {
   color: var(--text-muted);
   font-size: 11px;
 }
@@ -374,6 +387,35 @@
 .dashboard-secondary-detail strong {
   color: var(--text-primary);
   font-weight: 500;
+}
+.dashboard-secondary-main > .dashboard-inadimplencia-comparison {
+  margin-top: 12px;
+  line-height: 1.6;
+}
+.dashboard-inadimplencia-comparison strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.dashboard-inadimplencia-last {
+  display: block;
+}
+.dashboard-inadimplencia-last .dashboard-secondary-value {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+.dashboard-inadimplencia-last .dashboard-secondary-value small {
+  margin-left: 4px;
+  font-size: 11px;
+}
+.dashboard-inadimplencia-last > p:last-child {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.dashboard-secondary-value.dashboard-inadimplencia-unavailable {
+  font-size: 18px;
+}
+.dashboard-inadimplencia-last .dashboard-inadimplencia-unavailable {
+  font-size: 14px;
 }
 @media (max-width: 1279px) {
   .dashboard-filters {
@@ -396,6 +438,14 @@
   .dashboard-kpis,
   .dashboard-secondary {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .dashboard-secondary {
+    gap: 20px;
+  }
+  .dashboard-secondary > .panel,
+  .dashboard-secondary-body {
+    display: block;
+    grid-row: auto;
   }
   .dashboard-kpi {
     padding: 18px;

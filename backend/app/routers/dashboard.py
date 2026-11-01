@@ -10,9 +10,9 @@ router = APIRouter(prefix="/api", tags=["dashboard e receita"])
 
 
 @router.get("/dashboard/kpis", response_model=KpisResponse)
-def kpis(periodos=Depends(dashboard_periodos_dep), f=Depends(filtros_dep), repo=Depends(repo_dep)):
+def kpis(indicador: Literal["inadimplencia"] | None = None, periodos=Depends(dashboard_periodos_dep), f=Depends(filtros_dep), repo=Depends(repo_dep)):
     base, atual = periodos
-    return dashboard.kpis(repo, base, atual, f)
+    return dashboard.kpis(repo, base, atual, f, indicador=indicador)
 
 
 @router.get("/dashboard/serie", response_model=list[SeriePonto])

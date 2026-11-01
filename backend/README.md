@@ -58,6 +58,27 @@ docs/contrato-gold.md
 Filtros comuns: `municipio`, `bairro`, `classe`; períodos: `base_inicio/base_fim/atual_inicio/atual_fim` (`YYYY-MM`).
 Padrão: base = primeiros 12 meses, atual = últimos 12 (como na pergunta do diretor).
 
+### Faturamento em aberto no Dashboard
+
+O KPI `Inadimplência` usa a A3 (`fato_segmento_mensal`), inclusive na visão geral:
+`SUM(valor_em_aberto) / SUM(receita_total) * 100`. O denominador inclui tributos.
+A consulta preserva as competências selecionadas e a situação conhecida até 30/06/2026;
+inclui todas as faturas em aberto, mesmo ainda não vencidas, sem usar `dias_atraso`.
+Esse consolidado é derivado para o intervalo solicitado; não substitui o indicador mensal da A5.
+
+
+- `valor_atual`/`valor_base`: taxas consolidadas, ou `null` quando indisponíveis.
+- `variacao_pp`: principal menos referência, em pontos percentuais; `variacao_pct` e
+  `variacao_abs` ficam nulos para inadimplência. Sem referência, não há variação.
+- `inadimplencia`: taxa da última competência, competências ausentes de cada intervalo
+  e `data_corte`. A taxa final não recebe uma segunda comparação.
+
+Uma competência ausente invalida o consolidado inteiro, preservando a taxa final quando
+disponível. Valores monetários nulos, não finitos ou negativos invalidam a razão afetada;
+denominador zero não produz uma taxa. Registros presentes com zero não são lacunas.
+Segmentos duplicados são reportados em vez de agregados duas vezes.
+Os demais KPIs mantêm seus cálculos anteriores; a homologação da exportação oficial é pendente.
+
 ### Diagnóstico de conta alta
 
 `GET /api/unidades/{uc}/visao-360` aceita `competencia_atual` e `competencia_referencia`

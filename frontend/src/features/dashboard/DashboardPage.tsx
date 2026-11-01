@@ -8,16 +8,18 @@ import {
   RotateCcw,
   Sun,
   Users,
-  Wallet,
   Zap,
   ChartNoAxesCombined,
 } from 'lucide-react'
+import { api, useApi } from '../../api'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Panel } from '../../components/ui/Panel'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { EvolucaoChart } from './EvolucaoChart'
 import { SeletorPeriodo } from './SeletorPeriodo'
 import { SeletorFiltro } from './SeletorFiltro'
+import { InadimplenciaCard } from './InadimplenciaCard'
+import { parametrosInadimplencia } from './inadimplencia'
 import { dashboardMock, dadosPeriodoMock, locaisMock } from './mockData'
 import { alterarPeriodos, estadoInicial } from './periodos'
 import { quantidadeMeses, sugerirReferencia, validarPeriodo, validarPeriodosDashboard } from '../../utils/periodosDashboard'
@@ -53,6 +55,10 @@ export function DashboardPage() {
     undefined, () => estadoInicial(periodoPadrao),
   )
   const { periodo, comparar, referencia: comparacao, aviso } = temporal
+  const inadimplencia = useApi(
+    (signal) => api.dashboard.kpis(parametrosInadimplencia(periodo, comparar ? comparacao : null, { municipio, bairro, classe }), signal),
+    [periodo.inicio, periodo.fim, comparar, comparacao?.inicio, comparacao?.fim, municipio, bairro, classe],
+  )
   const dadosAtual = dadosPeriodoMock(periodo)
   const dadosReferencia = comparar && comparacao ? dadosPeriodoMock(comparacao) : null
   const receitaAtual = dadosAtual ? total(dadosAtual.receita) : null
@@ -246,40 +252,26 @@ export function DashboardPage() {
         className="dashboard-secondary"
         aria-label="Indicadores complementares"
       >
-        <Panel
-          title="Inadimplência"
-          description="Faturas da competência Jun/2026"
-          actions={<Wallet size={18} aria-hidden="true" />}
-        >
-          <div className="dashboard-secondary-body">
-            <p className="dashboard-secondary-value">
-              {indicadores.inadimplencia.toLocaleString('pt-BR')}
-              <small>%</small>
-            </p>
-            <p>Do valor total da competência em aberto</p>
-            <div className="dashboard-secondary-detail">
-              <span>Faturas em aberto</span>
-              <strong>{numero.format(indicadores.faturasEmAberto)}</strong>
-            </div>
-          </div>
-        </Panel>
+        <InadimplenciaCard periodo={periodo} referencia={comparar ? comparacao : null} estado={inadimplencia} />
         <Panel
           title="Geração distribuída"
           description="Conectada até Jun/2026"
           actions={<Sun size={18} aria-hidden="true" />}
         >
           <div className="dashboard-secondary-body">
-            <p className="dashboard-secondary-value">
-              {numero.format(indicadores.ucsGd)}
-              <small>UCs</small>
-            </p>
-            <p>
-              {(
-                (indicadores.ucsGd / indicadores.ucsCadastradas) *
-                100
-              ).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}
-              % da base cadastrada
-            </p>
+            <div className="dashboard-secondary-main">
+              <p className="dashboard-secondary-value">
+                {numero.format(indicadores.ucsGd)}
+                <small>UCs</small>
+              </p>
+              <p>
+                {(
+                  (indicadores.ucsGd / indicadores.ucsCadastradas) *
+                  100
+                ).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}
+                % da base cadastrada
+              </p>
+            </div>
             <div className="dashboard-secondary-detail">
               <span>UCs cadastradas</span>
               <strong>{numero.format(indicadores.ucsCadastradas)}</strong>
@@ -292,11 +284,13 @@ export function DashboardPage() {
           actions={<Headphones size={18} aria-hidden="true" />}
         >
           <div className="dashboard-secondary-body">
-            <p className="dashboard-secondary-value">
-              {numero.format(indicadores.atendimentos)}
-              <small>chamados</small>
-            </p>
-            <p>Avaliações preenchidas · escala de 1 a 5</p>
+            <div className="dashboard-secondary-main">
+              <p className="dashboard-secondary-value">
+                {numero.format(indicadores.atendimentos)}
+                <small>chamados</small>
+              </p>
+              <p>Avaliações preenchidas · escala de 1 a 5</p>
+            </div>
             <div className="dashboard-secondary-detail">
               <span>Satisfação média</span>
               <strong>

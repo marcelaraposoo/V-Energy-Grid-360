@@ -45,8 +45,6 @@ export const dashboardMock = {
     ucsFaturadas: 44_820,
     ucsFaturadasReferencia: 43_940,
     ucsCadastradas: 45_000,
-    inadimplencia: 7.8,
-    faturasEmAberto: 3_480,
     ucsGd: 3_420,
     atendimentos: 84_300,
     satisfacao: 4.1,

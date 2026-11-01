@@ -27,7 +27,7 @@ export type PeriodosParams = {
 }
 
 // comparar=false distingue a ausência de comparação dos períodos padrão do case.
-export type DashboardParams = FiltrosParams & (
+export type DashboardParams = FiltrosParams & { indicador?: 'inadimplencia' } & (
   | (PeriodosParams & { comparar?: true })
   | { comparar: false; atual_inicio?: Competencia; atual_fim?: Competencia; base_inicio?: never; base_fim?: never }
 )
@@ -35,13 +35,23 @@ export type DashboardParams = FiltrosParams & (
 // ---------- dashboard e receita ----------
 export type Periodo = { inicio: Competencia; fim: Competencia }
 
+export type DetalheInadimplencia = {
+  ultima_competencia: Competencia
+  ultima_competencia_pct: number | null
+  competencias_ausentes: Competencia[]
+  competencias_ausentes_base: Competencia[] | null
+  data_corte: string
+}
+
 export type Kpi = {
   nome: string
   unidade: string
-  valor_atual: number
+  valor_atual: number | null
   valor_base: number | null
   variacao_abs: number | null
   variacao_pct: number | null
+  variacao_pp?: number | null
+  inadimplencia?: DetalheInadimplencia | null
 }
 
 export type KpisResponse = {

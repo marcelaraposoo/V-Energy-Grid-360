@@ -20,13 +20,23 @@ class Filtros(BaseModel):
 
 
 # ---------- dashboard / receita ----------
+class DetalheInadimplencia(BaseModel):
+    ultima_competencia: Competencia
+    ultima_competencia_pct: float | None
+    competencias_ausentes: list[Competencia]
+    competencias_ausentes_base: list[Competencia] | None
+    data_corte: date
+
+
 class Kpi(BaseModel):
     nome: str
     unidade: str
-    valor_atual: float
+    valor_atual: float | None
     valor_base: float | None
     variacao_abs: float | None
     variacao_pct: float | None
+    variacao_pp: float | None = None
+    inadimplencia: DetalheInadimplencia | None = None
 
 
 class KpisResponse(BaseModel):

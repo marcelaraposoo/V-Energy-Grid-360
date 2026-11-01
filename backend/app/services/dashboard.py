@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Literal
 
 from app.repositories.base import Repository
-from app.schemas import Filtros, Kpi, KpisResponse, Periodo, SeriePonto
+from app.schemas import DetalheInadimplencia, Filtros, Kpi, KpisResponse, Periodo, SeriePonto
 from app.services.continuidade import resumo_periodo
 
 DATA_CORTE_GOLD = date(2026, 6, 30)
@@ -57,6 +57,13 @@ class ComparacaoIndicador:
     variacao_abs: Decimal | None = None
     variacao_pct: Decimal | None = None
     variacao_pp: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class InadimplenciaPeriodo:
+    consolidado_pct: Decimal | None
+    ultima_competencia_pct: Decimal | None
+    competencias_ausentes: tuple[str, ...]
 
 
 def _somar_valores(valores: list[Decimal | int | float | None]) -> Decimal | None:
@@ -123,6 +130,59 @@ def _competencias_periodo(periodo: Periodo) -> tuple[str, ...]:
     primeiro = (inicio.year - 1) * 12 + inicio.month - 1
     ultimo = (fim.year - 1) * 12 + fim.month - 1
     return tuple(f"{i // 12 + 1:04d}-{i % 12 + 1:02d}" for i in range(primeiro, ultimo + 1))
+
+
+def _valor_monetario(valor) -> Decimal | None:
+    try:
+        numero = Decimal(str(valor))
+    except (InvalidOperation, ValueError):
+        return None
+    return numero if numero.is_finite() and numero >= 0 else None
+
+
+def calcular_inadimplencia_periodo(repo: Repository, periodo: Periodo, filtros: Filtros) -> InadimplenciaPeriodo:
+    """Proporção do faturamento selecionado ainda em aberto no corte da Gold.
+
+    A3 é usada inclusive na visão geral: agrega dinheiro antes de dividir,
+    preservando competências, zeros e lacunas. Não consulta atraso das faturas.
+    """
+    competencias = _competencias_periodo(periodo)
+    linhas = repo.segmentos_mensais(
+        periodo.inicio, periodo.fim, filtros.municipio, filtros.bairro, filtros.classe,
+    )
+    por_mes = defaultdict(list)
+    chaves = set()
+    for linha in linhas:
+        mes = linha["mes_referencia"]
+        if mes not in competencias:
+            continue
+        chave = (mes, linha["municipio"], linha["bairro"], linha["classe"])
+        if chave in chaves:
+            raise ValueError(f"fato_segmento_mensal possui segmento duplicado: {chave}.")
+        chaves.add(chave)
+        por_mes[mes].append(linha)
+    ausentes = tuple(mes for mes in competencias if mes not in por_mes)
+    valores = {
+        mes: (
+            _somar_valores([_valor_monetario(r.get("valor_em_aberto")) for r in registros]),
+            _somar_valores([_valor_monetario(r.get("receita_total")) for r in registros]),
+        ) for mes, registros in por_mes.items()
+    }
+
+    def taxa(aberto, total):
+        if total is None or total <= 0:
+            return None
+        return _dividir(aberto * 100 if aberto is not None else None, total)
+
+    aberto_final, total_final = valores.get(periodo.fim, (None, None))
+    return InadimplenciaPeriodo(
+        consolidado_pct=taxa(
+            _somar_valores([v[0] for v in valores.values()]),
+            _somar_valores([v[1] for v in valores.values()]),
+        ) if not ausentes else None,
+        ultima_competencia_pct=taxa(aberto_final, total_final),
+        competencias_ausentes=ausentes,
+    )
 
 
 def calcular_periodo(repo: Repository, periodo: Periodo, filtros: Filtros) -> IndicadoresPeriodo:
@@ -209,16 +269,39 @@ def _calc(repo, p: Periodo, f: Filtros) -> dict:
     rows = repo.faturas(p.inicio, p.fim, f.municipio, f.bairro, f.classe)
     receita = sum(r["valor"] for r in rows)
     kwh = sum(r["consumo_kwh"] for r in rows)
-    atrasado = sum(r["valor"] for r in rows if r["status"] == "atrasada")
     continuidade = resumo_periodo(repo.indicadores_continuidade(p.inicio, p.fim, municipio=f.municipio))
     return {
         "receita": receita, "kwh": kwh, "tarifa": receita / kwh if kwh else 0,
-        "ucs": len({r["uc_id"] for r in rows}), "inadimplencia": atrasado / receita * 100 if receita else 0,
+        "ucs": len({r["uc_id"] for r in rows}),
         "dec": continuidade["dec_horas"], "fec": continuidade["fec_vezes"],
     }
 
 
-def kpis(repo, base: Periodo | None, atual: Periodo, f: Filtros) -> KpisResponse:
+def _inadimplencia_kpi(repo, base: Periodo | None, atual: Periodo, f: Filtros) -> Kpi:
+    a = calcular_inadimplencia_periodo(repo, atual, f)
+    b = calcular_inadimplencia_periodo(repo, base, f) if base is not None else None
+    comparacao = _comparar_valores(b.consolidado_pct if b else None, a.consolidado_pct, pontos_percentuais=True)
+
+    def percentual(valor):
+        return float(_arredondar(valor, 2)) if valor is not None else None
+
+    return Kpi(
+        nome="Inadimplência", unidade="%", valor_atual=percentual(a.consolidado_pct),
+        valor_base=percentual(b.consolidado_pct) if b else None,
+        variacao_abs=None, variacao_pct=None, variacao_pp=comparacao.variacao_pp,
+        inadimplencia=DetalheInadimplencia(
+            ultima_competencia=atual.fim, ultima_competencia_pct=percentual(a.ultima_competencia_pct),
+            competencias_ausentes=list(a.competencias_ausentes),
+            competencias_ausentes_base=list(b.competencias_ausentes) if b else None,
+            data_corte=DATA_CORTE_GOLD,
+        ),
+    )
+
+
+def kpis(repo, base: Periodo | None, atual: Periodo, f: Filtros, indicador: Literal["inadimplencia"] | None = None) -> KpisResponse:
+    inadimplencia = _inadimplencia_kpi(repo, base, atual, f)
+    if indicador == "inadimplencia":
+        return KpisResponse(periodo_base=base, periodo_atual=atual, kpis=[inadimplencia])
     a = _calc(repo, atual, f)
     b = _calc(repo, base, f) if base is not None else defaultdict(lambda: None)
     return KpisResponse(periodo_base=base, periodo_atual=atual, kpis=[
@@ -226,7 +309,7 @@ def kpis(repo, base: Periodo | None, atual: Periodo, f: Filtros) -> KpisResponse
         _kpi("Energia faturada", "kWh", a["kwh"], b["kwh"]),
         _kpi("Tarifa média efetiva", "R$/kWh", a["tarifa"], b["tarifa"]),
         _kpi("UCs faturadas", "UCs", a["ucs"], b["ucs"]),
-        _kpi("Inadimplência", "%", a["inadimplencia"], b["inadimplencia"]),
+        inadimplencia,
         _kpi("DEC (simplificado)", "h", a["dec"], b["dec"]),
         _kpi("FEC (simplificado)", "vezes", a["fec"], b["fec"]),
     ])

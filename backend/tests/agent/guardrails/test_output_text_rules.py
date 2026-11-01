@@ -1,6 +1,7 @@
 import pytest
 
 from app.agent.guardrails import output_text_rules as rules
+from app.agent.guardrails.output_text_rules import has_spelled_out_number
 
 
 def test_lacks_useful_content():
@@ -29,6 +30,34 @@ def test_detects_urls(text):
 
 def test_plain_text_is_not_url():
     assert not rules.contains_url("Recife tem 4.820 unidades.")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Em Olinda, noventa e oito unidades tiveram queda.",
+        "A queda foi de trinta por cento.",
+        "Há duas faturas em aberto.",
+        "O total foi de mil reais.",
+        "Foram quarenta e cinco clientes afetados.",
+    ],
+)
+def test_detects_spelled_out_numbers(text):
+    assert has_spelled_out_number(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Em Olinda, 98 unidades tiveram queda de 30%.",
+        "Há um alimentador com DEC alto.",
+        "Isso aconteceu uma vez em junho.",
+        "O mil-folhas estava bom.",
+        "Recife concentra a maior parte das interrupções.",
+    ],
+)
+def test_ordinary_text_is_not_a_spelled_out_number(text):
+    assert not has_spelled_out_number(text)
 
 
 @pytest.mark.parametrize(

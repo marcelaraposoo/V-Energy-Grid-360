@@ -2,13 +2,14 @@
 // o que permite cancelar a chamada quando a tela é fechada (o hook useApi já faz isso sozinho).
 // Os nomes dos parâmetros são os mesmos da API (snake_case): veja http://localhost:8000/docs.
 import type { Http } from './http.ts'
+import { prepararParametrosDashboard } from './dashboardPeriodos.ts'
 import type {
   AlimentadorDecFec,
   BuscarUcParams,
   CatalogoFiltros,
   ContinuidadeParams,
+  DashboardParams,
   FilaParams,
-  FiltrosParams,
   Health,
   Insight,
   KpisResponse,
@@ -16,7 +17,6 @@ import type {
   Ordem,
   Pagina,
   PerguntaIa,
-  PeriodosParams,
   PontoDecFec,
   RespostaIa,
   ResultadoInspecao,
@@ -39,10 +39,10 @@ export function createApi(http: Http) {
     filtros: (signal?: AbortSignal) => http.get<CatalogoFiltros>('/api/filtros', { signal }),
 
     dashboard: {
-      kpis: (params: PeriodosParams & FiltrosParams = {}, signal?: AbortSignal) =>
-        http.get<KpisResponse>('/api/dashboard/kpis', { params, signal }),
-      serie: (params: FiltrosParams = {}, signal?: AbortSignal) =>
-        http.get<SeriePonto[]>('/api/dashboard/serie', { params, signal }),
+      kpis: (params: DashboardParams = {}, signal?: AbortSignal) =>
+        http.get<KpisResponse>('/api/dashboard/kpis', { params: prepararParametrosDashboard(params), signal }),
+      serie: (params: DashboardParams = {}, signal?: AbortSignal) =>
+        http.get<SeriePonto[]>('/api/dashboard/serie', { params: prepararParametrosDashboard(params), signal }),
     },
 
     receita: {

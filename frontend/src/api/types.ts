@@ -26,6 +26,12 @@ export type PeriodosParams = {
   atual_fim?: Competencia
 }
 
+// comparar=false distingue a ausência de comparação dos períodos padrão do case.
+export type DashboardParams = FiltrosParams & (
+  | (PeriodosParams & { comparar?: true })
+  | { comparar: false; atual_inicio?: Competencia; atual_fim?: Competencia; base_inicio?: never; base_fim?: never }
+)
+
 // ---------- dashboard e receita ----------
 export type Periodo = { inicio: Competencia; fim: Competencia }
 
@@ -33,13 +39,13 @@ export type Kpi = {
   nome: string
   unidade: string
   valor_atual: number
-  valor_base: number
-  variacao_abs: number
+  valor_base: number | null
+  variacao_abs: number | null
   variacao_pct: number | null
 }
 
 export type KpisResponse = {
-  periodo_base: Periodo
+  periodo_base: Periodo | null
   periodo_atual: Periodo
   kpis: Kpi[]
 }

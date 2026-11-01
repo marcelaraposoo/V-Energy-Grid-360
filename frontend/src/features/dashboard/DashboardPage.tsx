@@ -1,49 +1,20 @@
 import { useReducer } from 'react'
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Banknote,
-  CircleDollarSign,
-  Headphones,
-  RotateCcw,
-  Sun,
-  Users,
-  Zap,
-  ChartNoAxesCombined,
-} from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { api, useApi } from '../../api'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { Panel } from '../../components/ui/Panel'
-import { EmptyState } from '../../components/ui/EmptyState'
-import { EvolucaoChart } from './EvolucaoChart'
 import { SeletorPeriodo } from './SeletorPeriodo'
 import { InadimplenciaCard } from './InadimplenciaCard'
-import { parametrosInadimplencia } from './inadimplencia'
-import { dashboardMock, dadosPeriodoMock } from './mockData'
+import { ClassesChart } from './ClassesChart'
+import { EvolucaoPanel } from './EvolucaoPanel'
+import { KpisPrincipais } from './KpisPrincipais'
+import { UcsGdCard } from './UcsGdCard'
+import { parametrosDashboard } from './consultas'
 import { alterarPeriodos, estadoInicial } from './periodos'
-import { quantidadeMeses, sugerirReferencia, validarPeriodo, validarPeriodosDashboard } from '../../utils/periodosDashboard'
+import { limitesDashboard, periodoInicialDashboard, quantidadeMeses, sugerirReferencia, validarPeriodo, validarPeriodosDashboard } from '../../utils/periodosDashboard'
 import './dashboard.css'
 
-const numero = new Intl.NumberFormat('pt-BR')
-const compacto = new Intl.NumberFormat('pt-BR', {
-  notation: 'compact',
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-})
-const moeda = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-})
-const percentual = new Intl.NumberFormat('pt-BR', {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-  signDisplay: 'exceptZero',
-})
-const total = (valores: number[]) =>
-  valores.reduce((soma, valor) => soma + valor, 0)
-const { atual, indicadores } = dashboardMock
-const periodoPadrao = { inicio: atual.inicio, fim: atual.fim }
-const limites = { minimo: dashboardMock.inicioBase, maximo: atual.fim }
+const periodoPadrao = periodoInicialDashboard
+const limites = limitesDashboard
 
 export function DashboardPage() {
   const [temporal, dispatch] = useReducer(
@@ -51,56 +22,15 @@ export function DashboardPage() {
     undefined, () => estadoInicial(periodoPadrao),
   )
   const { periodo, comparar, referencia: comparacao, aviso } = temporal
-  const inadimplencia = useApi(
-    (signal) => api.dashboard.kpis(parametrosInadimplencia(periodo, comparar ? comparacao : null), signal),
-    [periodo.inicio, periodo.fim, comparar, comparacao?.inicio, comparacao?.fim],
-  )
-  const dadosAtual = dadosPeriodoMock(periodo)
-  const dadosReferencia = comparar && comparacao ? dadosPeriodoMock(comparacao) : null
-  const receitaAtual = dadosAtual ? total(dadosAtual.receita) : null
-  const receitaReferencia = dadosReferencia ? total(dadosReferencia.receita) : null
-  const consumoAtual = dadosAtual ? total(dadosAtual.consumo) : null
-  const consumoReferencia = dadosReferencia ? total(dadosReferencia.consumo) : null
-  const ucsNoMes = (mes: string | undefined) => mes === '2026-06' ? indicadores.ucsFaturadas
-    : mes === '2025-06' ? indicadores.ucsFaturadasReferencia : null
-  const ucsAtual = ucsNoMes(periodo.fim)
-  const ucsReferencia = comparar ? ucsNoMes(comparacao?.fim) : null
+  const referencia = comparar ? comparacao : null
+  const params = parametrosDashboard(periodo, referencia)
+  const deps = [periodo.inicio, periodo.fim, referencia?.inicio, referencia?.fim]
+  const indicadores = useApi((signal) => api.dashboard.kpis({ ...params, indicador: 'executivo' }, signal), deps)
+  const serie = useApi((signal) => api.dashboard.serie(params, signal), deps)
+  const cadastro = useApi((signal) => api.dashboard.cadastroGd(params, signal), deps)
+  const classes = useApi((signal) => api.dashboard.consumoClasses(params, signal), deps)
   const quantidade = quantidadeMeses(periodo)
   const validarReferencia = (base: typeof periodo) => validarPeriodosDashboard(periodo, base, true, limites)
-  const kpis = [
-    {
-      label: 'Receita faturada',
-      icon: Banknote,
-      valor: receitaAtual === null ? '—' : `R$ ${compacto.format(receitaAtual)}`,
-      detalhe: 'Valor da energia, sem tributos',
-      atual: receitaAtual,
-      referencia: receitaReferencia,
-    },
-    {
-      label: 'Consumo faturado',
-      icon: Zap,
-      valor: consumoAtual === null ? '—' : `${compacto.format(consumoAtual)} kWh`,
-      detalhe: 'Energia faturada no período',
-      atual: consumoAtual,
-      referencia: consumoReferencia,
-    },
-    {
-      label: 'UCs faturadas',
-      icon: Users,
-      valor: ucsAtual === null ? '—' : numero.format(ucsAtual),
-      detalhe: `${periodo.fim} · unidades com fatura no mês`,
-      atual: ucsAtual,
-      referencia: ucsReferencia,
-    },
-    {
-      label: 'Preço médio por kWh',
-      icon: CircleDollarSign,
-      valor: receitaAtual === null || !consumoAtual ? '—' : moeda.format(receitaAtual / consumoAtual),
-      detalhe: 'Receita de energia / consumo faturado',
-      atual: receitaAtual === null || !consumoAtual ? null : receitaAtual / consumoAtual,
-      referencia: receitaReferencia === null || !consumoReferencia ? null : receitaReferencia / consumoReferencia,
-    },
-  ]
 
   return (
     <div className="dashboard-page">
@@ -119,8 +49,8 @@ export function DashboardPage() {
           key={`atual-${comparar}`}
           label="Período analisado"
           valor={periodo}
-          minimo={dashboardMock.inicioBase}
-          maximo={atual.fim}
+          minimo={limites.minimo}
+          maximo={limites.maximo}
           validar={(valor) => validarPeriodo(valor, comparar ? 12 : 24, limites)}
           onChange={(valor) => dispatch({ tipo: 'periodo', valor })}
         />
@@ -129,8 +59,8 @@ export function DashboardPage() {
             key={`base-${periodo.inicio}-${periodo.fim}`}
             label="Período de referência (opcional)"
             valor={comparacao}
-            minimo={dashboardMock.inicioBase}
-            maximo={atual.fim}
+            minimo={limites.minimo}
+            maximo={limites.maximo}
             desabilitado={quantidade > 12}
             sugestao={sugerirReferencia(periodo, limites)}
             mesesFixos={quantidade}
@@ -145,120 +75,20 @@ export function DashboardPage() {
         {aviso && <p className="dashboard-temporal-help" role="status" aria-live="polite">{aviso}</p>}
       </form>
 
-      <section className="dashboard-kpis" aria-label="Indicadores principais">
-        {kpis.map(
-          ({ label, icon: Icon, valor, detalhe, atual, referencia }) => {
-            const variacao = comparar && atual !== null && referencia !== null && referencia !== 0
-              ? (atual / referencia - 1) * 100 : null
-            const Seta = variacao !== null && variacao < 0 ? ArrowDownRight : ArrowUpRight
-            return (
-              <article className="panel dashboard-kpi" key={label}>
-                <h2>
-                  <Icon size={17} strokeWidth={1.5} aria-hidden="true" />
-                  {label}
-                </h2>
-                <p className="dashboard-kpi-value">{valor}</p>
-                <p className="dashboard-kpi-detail">{detalhe}</p>
-                {comparar && <p className="dashboard-kpi-comparison">
-                  {variacao !== null ? <><span>
-                    <Seta size={15} aria-hidden="true" />
-                    {percentual.format(variacao)}%
-                  </span>
-                  vs. referência</> : 'Sem dados para comparação'}
-                </p>}
-              </article>
-            )
-          },
-        )}
+      <KpisPrincipais estado={indicadores} referencia={referencia} />
+
+      <section className="dashboard-complementary" aria-label="Indicadores complementares e consumo por classe">
+        <div className="dashboard-complementary-stack">
+          <InadimplenciaCard periodo={periodo} referencia={referencia} estado={indicadores} />
+          <UcsGdCard competencia={periodo.fim} referencia={referencia} estado={cadastro} />
+        </div>
+        <ClassesChart key={`${periodo.inicio}-${periodo.fim}-${referencia?.inicio}-${referencia?.fim}`}
+          periodo={periodo} referencia={referencia} estado={classes} />
       </section>
 
-      <div className="dashboard-charts">
-        <Panel
-          title="Evolução da receita"
-          description={`Receita de energia, sem tributos · ${quantidade === 1 ? 'R$' : 'R$ milhões'}`}
-        >
-          {dadosAtual ? <EvolucaoChart
-            key={`${periodo.inicio}-${periodo.fim}-${comparacao?.inicio}-${comparar}`}
-            titulo="Receita mensal"
-            unidade="R$"
-            atual={dadosAtual.receita}
-            referencia={dadosReferencia?.receita}
-            periodoAtual={periodo}
-            periodoReferencia={comparar ? comparacao : null}
-          /> : <EmptyState icon={ChartNoAxesCombined} title="Sem dados para o período"
-            description="Os dados fictícios de apresentação não cobrem todo o intervalo selecionado." compact />}
-        </Panel>
-        <Panel
-          title="Evolução do consumo"
-          description={`Energia faturada · ${quantidade === 1 ? 'kWh' : 'milhões de kWh'}`}
-        >
-          {dadosAtual ? <EvolucaoChart
-            key={`${periodo.inicio}-${periodo.fim}-${comparacao?.inicio}-${comparar}`}
-            titulo="Consumo mensal"
-            unidade="kWh"
-            atual={dadosAtual.consumo}
-            referencia={dadosReferencia?.consumo}
-            periodoAtual={periodo}
-            periodoReferencia={comparar ? comparacao : null}
-          /> : <EmptyState icon={ChartNoAxesCombined} title="Sem dados para o período"
-            description="Os dados fictícios de apresentação não cobrem todo o intervalo selecionado." compact />}
-        </Panel>
-      </div>
-
-      <section
-        className="dashboard-secondary"
-        aria-label="Indicadores complementares"
-      >
-        <InadimplenciaCard periodo={periodo} referencia={comparar ? comparacao : null} estado={inadimplencia} />
-        <Panel
-          title="Geração distribuída"
-          description="Conectada até Jun/2026"
-          actions={<Sun size={18} aria-hidden="true" />}
-        >
-          <div className="dashboard-secondary-body">
-            <div className="dashboard-secondary-main">
-              <p className="dashboard-secondary-value">
-                {numero.format(indicadores.ucsGd)}
-                <small>UCs</small>
-              </p>
-              <p>
-                {(
-                  (indicadores.ucsGd / indicadores.ucsCadastradas) *
-                  100
-                ).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}
-                % da base cadastrada
-              </p>
-            </div>
-            <div className="dashboard-secondary-detail">
-              <span>UCs cadastradas</span>
-              <strong>{numero.format(indicadores.ucsCadastradas)}</strong>
-            </div>
-          </div>
-        </Panel>
-        <Panel
-          title="Atendimento"
-          description="Chamados abertos de Jul/2025 a Jun/2026"
-          actions={<Headphones size={18} aria-hidden="true" />}
-        >
-          <div className="dashboard-secondary-body">
-            <div className="dashboard-secondary-main">
-              <p className="dashboard-secondary-value">
-                {numero.format(indicadores.atendimentos)}
-                <small>chamados</small>
-              </p>
-              <p>Avaliações preenchidas · escala de 1 a 5</p>
-            </div>
-            <div className="dashboard-secondary-detail">
-              <span>Satisfação média</span>
-              <strong>
-                {indicadores.satisfacao.toLocaleString('pt-BR', {
-                  minimumFractionDigits: 1,
-                })}{' '}
-                / 5
-              </strong>
-            </div>
-          </div>
-        </Panel>
+      <section className="dashboard-charts" aria-label="Evolução mensal">
+        <EvolucaoPanel estado={serie} periodo={periodo} referencia={referencia} campo="receita" />
+        <EvolucaoPanel estado={serie} periodo={periodo} referencia={referencia} campo="energia_kwh" />
       </section>
     </div>
   )

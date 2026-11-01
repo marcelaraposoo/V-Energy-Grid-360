@@ -34,10 +34,29 @@ sem manter uma segunda definição. Veja o [mapeamento da Gold](../backend/docs/
 
 Com `DATA_SOURCE=mock` no backend, os dados são fictícios. Há exemplos de troca em
 `UC000001` (09/2025) e `UC000007` (03/2026). SQLite fictício nos testes não substitui
-a homologação da exportação oficial. O dashboard continua mockado no frontend para validação do design.
+a homologação da exportação oficial. O Dashboard consulta a API; não utiliza os mocks locais de apresentação.
 O Dashboard oferece somente período analisado e referência opcional. Suas consultas à API
 usam a visão geral da base, sem filtros de município, bairro ou classe.
 Ele inicia em jul/2025–jun/2026, sem referência; “Limpar” restaura essa seleção sem comparação.
+
+## Dashboard Executivo
+
+A primeira linha mostra receita de energia, consumo faturado e preço médio por kWh em três
+colunas iguais. A segunda divide a largura entre faturamento em aberto e cadastro/GD empilhados
+à esquerda, e consumo por classe à direita. A terceira mantém os gráficos de evolução mensal.
+Em telas menores, as seções ficam em uma coluna.
+
+UCs cadastradas e GD usam a última competência selecionada (A5), incluindo a posição final
+da referência quando há comparação. O consumo por classe soma as competências da A3, ordena
+as cinco classes pelo volume principal e mantém uma única barra por classe. Faltar um mês
+de uma classe deixa seu consolidado indisponível; a participação exige um total completo.
+
+Os quatro carregamentos usam `useApi`, com cancelamento de consultas anteriores e tratamento
+de erro, loading e dados indisponíveis. A consulta `indicador=executivo` compartilha a resposta
+dos KPIs principais com o card de faturamento em aberto; UCs faturadas continuam disponíveis
+na API, embora não apareçam no topo. Os gráficos existentes recebem a série Gold e mantêm
+suas regras de barras/linhas, comparação e tooltips. O eixo Y adapta a faixa e a unidade aos
+dados das séries visíveis, sempre partindo de zero, sem alterar os valores mensais.
 
 ## Estrutura
 

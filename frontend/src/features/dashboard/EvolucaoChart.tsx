@@ -3,6 +3,7 @@ import type { Periodo } from '../../api/types'
 import { ChartNoAxesCombined } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { quantidadeMeses } from '../../utils/periodosDashboard'
+import { escalaGrafico, unidadeDaEscala } from './escalaGrafico'
 
 type EvolucaoChartProps = {
   titulo: string
@@ -60,8 +61,8 @@ export function EvolucaoChart({
   const base = 204
   const rotuloPeriodo = (p: Periodo) => p.inicio === p.fim
     ? formatarMes(p.inicio, 0) : `${formatarMes(p.inicio, 0)} a ${formatarMes(p.fim, 0)}`
-  const maximo =
-    Math.ceil(Math.max(1, ...atual, ...(comparar ? referencia : [])) / 5_000_000) * 5_000_000
+  const escala = escalaGrafico([...atual, ...(comparar ? referencia : [])])
+  const { maximo } = escala
   const espacoMes = (largura - esquerda - direita) / Math.max(atual.length - 1, 1)
   const larguraBarra = 64
   const xAtualMensal = esquerda + (largura - esquerda - direita) * (comparar ? 0.3 : 0.5)
@@ -70,7 +71,8 @@ export function EvolucaoChart({
   const y = (valor: number) => base - (valor / maximo) * (base - topo)
   const pontos = (valores: number[]) => valores.map((valor, i) => `${x(i)},${y(valor)}`).join(' ')
   const passoRotulos = !comparar && atual.length > 12 ? Math.ceil(atual.length / 8) : 1
-  const numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
+  const numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 })
+  const numeroEixo = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: escala.casas })
   const moeda = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -121,9 +123,9 @@ export function EvolucaoChart({
           viewBox={`0 0 ${largura} ${altura}`}
           role="group"
           aria-roledescription={mensal ? 'gráfico de barras' : 'gráfico de linhas'}
-          aria-label={`${titulo}: ${rotuloPeriodo(periodoAtual)}${comparar && periodoReferencia ? `, comparado a ${rotuloPeriodo(periodoReferencia)}` : ''}`}
+          aria-label={`${titulo}: ${rotuloPeriodo(periodoAtual)}${comparar && periodoReferencia ? `, comparado a ${rotuloPeriodo(periodoReferencia)}` : ''}. Eixo vertical em ${unidadeDaEscala(unidade, escala.prefixo)}.`}
         >
-          {[0, maximo / 2, maximo].map((valor) => (
+          {escala.marcacoes.map((valor) => (
             <g key={valor}>
               <line
                 x1={esquerda}
@@ -133,7 +135,7 @@ export function EvolucaoChart({
                 className="dashboard-chart-grid"
               />
               <text x={esquerda - 10} y={y(valor) + 4} textAnchor="end">
-                {numero.format(valor / 1_000_000)}
+                {numeroEixo.format(valor / escala.divisor)}
               </text>
             </g>
           ))}

@@ -97,17 +97,15 @@ def test_receita_mantem_dependencia_anterior_sem_regras_novas_do_dashboard():
     assert base.fim == atual.inicio  # Recortes sobrepostos e diferentes continuam permitidos nesta outra tela.
 
 
-def test_kpis_sem_comparacao_nao_consultam_base_nem_retornam_variacoes(monkeypatch):
-    calcular = Mock(return_value={"receita": 100, "kwh": 200, "tarifa": 0.5, "ucs": 10, "inadimplencia": 5, "dec": 1, "fec": 2})
-    monkeypatch.setattr(dashboard, "_calc", calcular)
+def test_kpis_sem_comparacao_nao_consultam_base_nem_retornam_variacoes():
     repo = SimpleNamespace(segmentos_mensais=Mock(return_value=[{
         "mes_referencia": "2026-05", "municipio": "Recife", "bairro": "Centro", "classe": "COMERCIAL",
         "receita_total": 100, "valor_em_aberto": 5,
-    }]))
+        "receita_energia": 100, "consumo_kwh": 200, "qtd_ucs_faturadas": 10,
+    }]), indicadores_continuidade=Mock(return_value=[]))
     filtros = Filtros(municipio="Recife", bairro="Centro", classe="COMERCIAL")
     atual = Periodo(inicio="2026-05", fim="2026-05")
     resposta = dashboard.kpis(repo, None, atual, filtros).model_dump(mode="json")
-    calcular.assert_called_once_with(repo, atual, filtros)
     repo.segmentos_mensais.assert_called_once_with("2026-05", "2026-05", "Recife", "Centro", "COMERCIAL")
     assert resposta["periodo_base"] is None
     for kpi in resposta["kpis"]:

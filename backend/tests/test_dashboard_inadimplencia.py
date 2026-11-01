@@ -123,7 +123,7 @@ def test_kpi_compara_consolidados_em_pp_sem_recalcular_outros_indicadores(monkey
     linhas = [segmento(f"{ano}-{mes:02d}", 1000, aberto)
               for ano, aberto in [(2025, 50), (2026, 60)] for mes in range(1, meses + 1)]
     repo = repositorio(linhas)
-    monkeypatch.setattr(dashboard, "_calc", Mock(side_effect=AssertionError("Consulta exclusiva do indicador")))
+    monkeypatch.setattr(dashboard, "calcular_periodo", Mock(side_effect=AssertionError("Consulta exclusiva do indicador")))
     resposta = dashboard.kpis(repo, base, principal, Filtros(), indicador="inadimplencia")
     kpi, = resposta.kpis
     assert kpi.valor_atual == 6 and kpi.valor_base == 5 and kpi.variacao_pp == 1
@@ -161,14 +161,25 @@ def test_sem_comparacao_nao_consulta_referencia_nem_produz_pp():
     repo.segmentos_mensais.assert_called_once()
 
 
-def test_consulta_completa_mantem_valores_dos_outros_kpis(monkeypatch):
-    monkeypatch.setattr(dashboard, "_calc", Mock(return_value=dict(receita=100, kwh=200, tarifa=0.5, ucs=10, dec=1, fec=2)))
-    resposta = dashboard.kpis(repositorio([segmento("2026-01")]), None,
+def test_consulta_completa_preserva_inadimplencia_e_o_resumo_de_continuidade():
+    repo = repositorio([segmento("2026-01")])
+    repo.kpis_mensais = Mock(return_value=[{
+        "mes_referencia": "2026-01", "receita_energia": 100, "consumo_total_kwh": 200,
+        "qtd_ucs_faturadas": 10, "inadimplencia_pct": 10,
+    }])
+    repo.indicadores_continuidade = Mock(return_value=[{
+        "mes_referencia": "2026-01", "qtd_ucs_alimentador_mes": 10, "dec_horas": 1, "fec": 2,
+        "qtd_interrupcoes": 20, "horas_interrompidas": 10,
+    }])
+    resposta = dashboard.kpis(repo, None,
                              Periodo(inicio="2026-01", fim="2026-01"), Filtros())
     assert [(k.nome, k.valor_atual) for k in resposta.kpis if k.nome != "Inadimplência"] == [
         ("Receita faturada", 100), ("Energia faturada", 200), ("Tarifa média efetiva", 0.5),
         ("UCs faturadas", 10), ("DEC (simplificado)", 1), ("FEC (simplificado)", 2),
     ]
+    inadimplencia = next(k for k in resposta.kpis if k.nome == "Inadimplência")
+    assert inadimplencia.valor_atual == inadimplencia.inadimplencia.ultima_competencia_pct == 10
+    repo.segmentos_mensais.assert_called_once()
 
 
 @pytest.fixture(scope="module")

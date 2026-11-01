@@ -34,7 +34,7 @@ def test_busca_de_unidades_pelo_nome_mascarado(client):
 
 def test_dashboard_devolve_501_explicando_a_tabela_que_falta(client):
     r = client.get("/api/dashboard/kpis")
-    assert r.status_code == 501 and "fato_consumo_faturamento" in r.json()["detail"]
+    assert r.status_code == 501 and "fato_segmento_mensal" in r.json()["detail"]
 
 
 def test_filtro_aceita_classe_real_da_gold(client):

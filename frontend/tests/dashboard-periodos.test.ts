@@ -42,6 +42,21 @@ test('estado inicial e limpar mantêm o período principal sem referência', () 
   assert.equal(alterado.referencia, null)
 })
 
+test('padrão do Dashboard abre comparando com o primeiro ano da base; limpar volta a ele', () => {
+  const primeiroAno = { inicio: '2022-07', fim: '2023-06' }
+  const reduzirComBase = (e: ReturnType<typeof estadoInicial>, a: Parameters<typeof alterarPeriodos>[1]) =>
+    alterarPeriodos(e, a, padrao, limitesDashboard, primeiroAno)
+  const inicial = estadoInicial(padrao, primeiroAno)
+  assert.equal(inicial.comparar, true)
+  assert.deepEqual(inicial.referencia, primeiroAno)
+  assert.equal(validarPeriodosDashboard(inicial.periodo, inicial.referencia, true), null)
+  // Período de outra duração troca a referência pela sugestão automática.
+  const curto = reduzirComBase(inicial, { tipo: 'periodo', valor: { inicio: '2026-05', fim: '2026-05' } })
+  assert.deepEqual(curto.referencia, { inicio: '2025-05', fim: '2025-05' })
+  const semComparacao = reduzirComBase(curto, { tipo: 'comparar', valor: false })
+  assert.deepEqual(reduzirComBase(semComparacao, { tipo: 'limpar' }), inicial)
+})
+
 test('alternância rápida sempre remove ou restaura uma referência válida', () => {
   let estado = estadoInicial(padrao)
   for (let i = 0; i < 50; i++) {

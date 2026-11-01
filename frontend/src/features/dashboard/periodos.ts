@@ -16,14 +16,18 @@ export type AcaoPeriodos =
   | { tipo: 'comparar'; valor: boolean }
   | { tipo: 'limpar' }
 
-export function estadoInicial(periodo: Periodo): EstadoPeriodos {
-  return { periodo, comparar: false, referencia: null, modoReferencia: 'ano_anterior', aviso: null }
+// Com referência, a tela já abre comparando (no Dashboard: primeiro ano da base, o recorte do diagnóstico).
+export function estadoInicial(periodo: Periodo, referencia: Periodo | null = null): EstadoPeriodos {
+  return referencia
+    ? { periodo, comparar: true, referencia, modoReferencia: 'personalizado', aviso: null }
+    : { periodo, comparar: false, referencia: null, modoReferencia: 'ano_anterior', aviso: null }
 }
 
 export function alterarPeriodos(
   estado: EstadoPeriodos, acao: AcaoPeriodos, padrao: Periodo, limites: LimitesPeriodos,
+  referenciaPadrao: Periodo | null = null,
 ): EstadoPeriodos {
-  if (acao.tipo === 'limpar') return estadoInicial(padrao)
+  if (acao.tipo === 'limpar') return estadoInicial(padrao, referenciaPadrao)
   if (acao.tipo === 'modo') {
     const referencia = referenciaAutomatica(estado.periodo, acao.valor)
     const erro = validarPeriodosDashboard(estado.periodo, referencia, true, limites)

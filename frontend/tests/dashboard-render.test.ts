@@ -94,8 +94,9 @@ test('Dashboard escolhe barras ou linhas conforme os períodos e preserva valore
     assert.equal((filtros.match(/class="filter-field dashboard-period-picker"/g) ?? []).length, 2)
     assert.doesNotMatch(filtros, /Município|Bairro|Classe de consumo/)
     assert.match(pagina, /Período de referência \(opcional\)/)
-    assert.match(pagina, /Selecionar período/)
-    assert.doesNotMatch(pagina, /Remover período de referência|dashboard-kpi-comparison|dashboard-chart-reference/)
+    // Abre comparando com o primeiro ano da base (recorte do diagnóstico), com opção de remover.
+    assert.match(pagina, /Jul\/2022 a Jun\/2023/)
+    assert.match(pagina, /Remover período de referência/)
     assert.doesNotMatch(pagina, /dashboard-period-chip/)
     assert.doesNotMatch(pagina, /type="checkbox"/)
     assert.match(pagina, /Jul\/2025 a Jun\/2026/)

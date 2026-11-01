@@ -10,16 +10,17 @@ import { KpisPrincipais } from './KpisPrincipais'
 import { UcsGdCard } from './UcsGdCard'
 import { parametrosDashboard } from './consultas'
 import { alterarPeriodos, estadoInicial } from './periodos'
-import { limitesDashboard, periodoInicialDashboard, quantidadeMeses, sugerirReferencia, validarPeriodo, validarPeriodosDashboard } from '../../utils/periodosDashboard'
+import { limitesDashboard, periodoInicialDashboard, quantidadeMeses, referenciaInicialDashboard, sugerirReferencia, validarPeriodo, validarPeriodosDashboard } from '../../utils/periodosDashboard'
 import './dashboard.css'
 
 const periodoPadrao = periodoInicialDashboard
+const referenciaPadrao = referenciaInicialDashboard
 const limites = limitesDashboard
 
 export function DashboardPage() {
   const [temporal, dispatch] = useReducer(
-    (estado: ReturnType<typeof estadoInicial>, acao: Parameters<typeof alterarPeriodos>[1]) => alterarPeriodos(estado, acao, periodoPadrao, limites),
-    undefined, () => estadoInicial(periodoPadrao),
+    (estado: ReturnType<typeof estadoInicial>, acao: Parameters<typeof alterarPeriodos>[1]) => alterarPeriodos(estado, acao, periodoPadrao, limites, referenciaPadrao),
+    undefined, () => estadoInicial(periodoPadrao, referenciaPadrao),
   )
   const { periodo, comparar, referencia: comparacao, aviso } = temporal
   const referencia = comparar ? comparacao : null

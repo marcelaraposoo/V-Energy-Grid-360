@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useReducer, useState } from 'react'
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -10,14 +10,17 @@ import {
   Users,
   Wallet,
   Zap,
+  ChartNoAxesCombined,
 } from 'lucide-react'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Panel } from '../../components/ui/Panel'
+import { EmptyState } from '../../components/ui/EmptyState'
 import { EvolucaoChart } from './EvolucaoChart'
 import { SeletorPeriodo } from './SeletorPeriodo'
 import { SeletorFiltro } from './SeletorFiltro'
-import type { PeriodoSelecionado } from './SeletorPeriodo'
-import { dashboardMock, locaisMock } from './mockData'
+import { dashboardMock, dadosPeriodoMock, locaisMock } from './mockData'
+import { alterarPeriodos, estadoInicial } from './periodos'
+import { quantidadeMeses, sugerirReferencia, validarPeriodo, validarPeriodosDashboard } from '../../utils/periodosDashboard'
 import './dashboard.css'
 
 const numero = new Intl.NumberFormat('pt-BR')
@@ -37,69 +40,66 @@ const percentual = new Intl.NumberFormat('pt-BR', {
 })
 const total = (valores: number[]) =>
   valores.reduce((soma, valor) => soma + valor, 0)
-const { atual, referencia, indicadores } = dashboardMock
+const { atual, indicadores } = dashboardMock
 const periodoPadrao = { inicio: atual.inicio, fim: atual.fim }
-
-function periodoAnoAnterior(
-  periodo: PeriodoSelecionado,
-): PeriodoSelecionado | null {
-  const anterior = (mes: string) =>
-    `${Number(mes.slice(0, 4)) - 1}${mes.slice(4)}`
-  const inicio = anterior(periodo.inicio)
-  const fim = anterior(periodo.fim)
-  return inicio < dashboardMock.inicioBase ? null : { inicio, fim }
-}
-
-const receitaAtual = total(atual.receita)
-const receitaReferencia = total(referencia.receita)
-const consumoAtual = total(atual.consumo)
-const consumoReferencia = total(referencia.consumo)
-
-const kpis = [
-  {
-    label: 'Receita faturada',
-    icon: Banknote,
-    valor: `R$ ${compacto.format(receitaAtual)}`,
-    detalhe: 'Valor da energia, sem tributos',
-    atual: receitaAtual,
-    referencia: receitaReferencia,
-  },
-  {
-    label: 'Consumo faturado',
-    icon: Zap,
-    valor: `${compacto.format(consumoAtual)} kWh`,
-    detalhe: 'Energia faturada no período',
-    atual: consumoAtual,
-    referencia: consumoReferencia,
-  },
-  {
-    label: 'UCs faturadas',
-    icon: Users,
-    valor: numero.format(indicadores.ucsFaturadas),
-    detalhe: 'Jun/2026 · unidades com fatura no mês',
-    atual: indicadores.ucsFaturadas,
-    referencia: indicadores.ucsFaturadasReferencia,
-  },
-  {
-    label: 'Preço médio por kWh',
-    icon: CircleDollarSign,
-    valor: moeda.format(receitaAtual / consumoAtual),
-    detalhe: 'Receita de energia / consumo faturado',
-    atual: receitaAtual / consumoAtual,
-    referencia: receitaReferencia / consumoReferencia,
-  },
-]
+const limites = { minimo: dashboardMock.inicioBase, maximo: atual.fim }
 
 export function DashboardPage() {
   const [municipio, setMunicipio] = useState('')
   const [bairro, setBairro] = useState('')
   const [classe, setClasse] = useState('')
-  const [periodo, setPeriodo] = useState(periodoPadrao)
-  const [comparacao, setComparacao] = useState(() =>
-    periodoAnoAnterior(periodoPadrao),
+  const [temporal, dispatch] = useReducer(
+    (estado: ReturnType<typeof estadoInicial>, acao: Parameters<typeof alterarPeriodos>[1]) => alterarPeriodos(estado, acao, periodoPadrao, limites),
+    undefined, () => estadoInicial(periodoPadrao),
   )
-  const bairros =
-    locaisMock.find((local) => local.municipio === municipio)?.bairros ?? []
+  const { periodo, comparar, referencia: comparacao, aviso } = temporal
+  const dadosAtual = dadosPeriodoMock(periodo)
+  const dadosReferencia = comparar && comparacao ? dadosPeriodoMock(comparacao) : null
+  const receitaAtual = dadosAtual ? total(dadosAtual.receita) : null
+  const receitaReferencia = dadosReferencia ? total(dadosReferencia.receita) : null
+  const consumoAtual = dadosAtual ? total(dadosAtual.consumo) : null
+  const consumoReferencia = dadosReferencia ? total(dadosReferencia.consumo) : null
+  const ucsNoMes = (mes: string | undefined) => mes === '2026-06' ? indicadores.ucsFaturadas
+    : mes === '2025-06' ? indicadores.ucsFaturadasReferencia : null
+  const ucsAtual = ucsNoMes(periodo.fim)
+  const ucsReferencia = comparar ? ucsNoMes(comparacao?.fim) : null
+  const quantidade = quantidadeMeses(periodo)
+  const validarReferencia = (base: typeof periodo) => validarPeriodosDashboard(periodo, base, true, limites)
+  const bairros = locaisMock.find((local) => local.municipio === municipio)?.bairros ?? []
+  const kpis = [
+    {
+      label: 'Receita faturada',
+      icon: Banknote,
+      valor: receitaAtual === null ? '—' : `R$ ${compacto.format(receitaAtual)}`,
+      detalhe: 'Valor da energia, sem tributos',
+      atual: receitaAtual,
+      referencia: receitaReferencia,
+    },
+    {
+      label: 'Consumo faturado',
+      icon: Zap,
+      valor: consumoAtual === null ? '—' : `${compacto.format(consumoAtual)} kWh`,
+      detalhe: 'Energia faturada no período',
+      atual: consumoAtual,
+      referencia: consumoReferencia,
+    },
+    {
+      label: 'UCs faturadas',
+      icon: Users,
+      valor: ucsAtual === null ? '—' : numero.format(ucsAtual),
+      detalhe: `${periodo.fim} · unidades com fatura no mês`,
+      atual: ucsAtual,
+      referencia: ucsReferencia,
+    },
+    {
+      label: 'Preço médio por kWh',
+      icon: CircleDollarSign,
+      valor: receitaAtual === null || !consumoAtual ? '—' : moeda.format(receitaAtual / consumoAtual),
+      detalhe: 'Receita de energia / consumo faturado',
+      atual: receitaAtual === null || !consumoAtual ? null : receitaAtual / consumoAtual,
+      referencia: receitaReferencia === null || !consumoReferencia ? null : receitaReferencia / consumoReferencia,
+    },
+  ]
 
   return (
     <div className="dashboard-page">
@@ -116,27 +116,33 @@ export function DashboardPage() {
           setMunicipio('')
           setBairro('')
           setClasse('')
-          setPeriodo(periodoPadrao)
-          setComparacao(periodoAnoAnterior(periodoPadrao))
+          dispatch({ tipo: 'limpar' })
         }}
       >
         <SeletorPeriodo
+          key={`atual-${comparar}`}
           label="Período analisado"
           valor={periodo}
           minimo={dashboardMock.inicioBase}
           maximo={atual.fim}
-          onChange={(selecionado) => {
-            setPeriodo(selecionado)
-            setComparacao(periodoAnoAnterior(selecionado))
-          }}
+          validar={(valor) => validarPeriodo(valor, comparar ? 12 : 24, limites)}
+          onChange={(valor) => dispatch({ tipo: 'periodo', valor })}
         />
-        <SeletorPeriodo
-          label="Período de comparação"
-          valor={comparacao}
-          minimo={dashboardMock.inicioBase}
-          maximo={atual.fim}
-          onChange={setComparacao}
-        />
+        <div className="dashboard-reference">
+          <SeletorPeriodo
+            key={`base-${periodo.inicio}-${periodo.fim}`}
+            label="Período de referência (opcional)"
+            valor={comparacao}
+            minimo={dashboardMock.inicioBase}
+            maximo={atual.fim}
+            desabilitado={quantidade > 12}
+            sugestao={sugerirReferencia(periodo, limites)}
+            mesesFixos={quantidade}
+            validar={validarReferencia}
+            onLimpar={() => dispatch({ tipo: 'comparar', valor: false })}
+            onChange={(valor) => dispatch({ tipo: 'referencia', valor })}
+          />
+        </div>
         <SeletorFiltro
           label="Município"
           valor={municipio}
@@ -173,13 +179,15 @@ export function DashboardPage() {
         <button type="reset" className="button button--secondary">
           <RotateCcw size={14} aria-hidden="true" /> Limpar
         </button>
+        {aviso && <p className="dashboard-temporal-help" role="status" aria-live="polite">{aviso}</p>}
       </form>
 
       <section className="dashboard-kpis" aria-label="Indicadores principais">
         {kpis.map(
           ({ label, icon: Icon, valor, detalhe, atual, referencia }) => {
-            const variacao = (atual / referencia - 1) * 100
-            const Seta = variacao < 0 ? ArrowDownRight : ArrowUpRight
+            const variacao = comparar && atual !== null && referencia !== null && referencia !== 0
+              ? (atual / referencia - 1) * 100 : null
+            const Seta = variacao !== null && variacao < 0 ? ArrowDownRight : ArrowUpRight
             return (
               <article className="panel dashboard-kpi" key={label}>
                 <h2>
@@ -188,13 +196,13 @@ export function DashboardPage() {
                 </h2>
                 <p className="dashboard-kpi-value">{valor}</p>
                 <p className="dashboard-kpi-detail">{detalhe}</p>
-                <p className="dashboard-kpi-comparison">
-                  <span>
+                {comparar && <p className="dashboard-kpi-comparison">
+                  {variacao !== null ? <><span>
                     <Seta size={15} aria-hidden="true" />
                     {percentual.format(variacao)}%
                   </span>
-                  vs. referência
-                </p>
+                  vs. referência</> : 'Sem dados para comparação'}
+                </p>}
               </article>
             )
           },
@@ -204,25 +212,33 @@ export function DashboardPage() {
       <div className="dashboard-charts">
         <Panel
           title="Evolução da receita"
-          description="Receita de energia, sem tributos · R$ milhões"
+          description={`Receita de energia, sem tributos · ${quantidade === 1 ? 'R$' : 'R$ milhões'}`}
         >
-          <EvolucaoChart
+          {dadosAtual ? <EvolucaoChart
+            key={`${periodo.inicio}-${periodo.fim}-${comparacao?.inicio}-${comparar}`}
             titulo="Receita mensal"
             unidade="R$"
-            atual={atual.receita}
-            referencia={referencia.receita}
-          />
+            atual={dadosAtual.receita}
+            referencia={dadosReferencia?.receita}
+            periodoAtual={periodo}
+            periodoReferencia={comparar ? comparacao : null}
+          /> : <EmptyState icon={ChartNoAxesCombined} title="Sem dados para o período"
+            description="Os dados fictícios de apresentação não cobrem todo o intervalo selecionado." compact />}
         </Panel>
         <Panel
           title="Evolução do consumo"
-          description="Energia faturada · milhões de kWh"
+          description={`Energia faturada · ${quantidade === 1 ? 'kWh' : 'milhões de kWh'}`}
         >
-          <EvolucaoChart
+          {dadosAtual ? <EvolucaoChart
+            key={`${periodo.inicio}-${periodo.fim}-${comparacao?.inicio}-${comparar}`}
             titulo="Consumo mensal"
             unidade="kWh"
-            atual={atual.consumo}
-            referencia={referencia.consumo}
-          />
+            atual={dadosAtual.consumo}
+            referencia={dadosReferencia?.consumo}
+            periodoAtual={periodo}
+            periodoReferencia={comparar ? comparacao : null}
+          /> : <EmptyState icon={ChartNoAxesCombined} title="Sem dados para o período"
+            description="Os dados fictícios de apresentação não cobrem todo o intervalo selecionado." compact />}
         </Panel>
       </div>
 

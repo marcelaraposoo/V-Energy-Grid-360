@@ -9,9 +9,9 @@ const decimal = new Intl.NumberFormat('pt-BR', {
 export const fmtInteiro = (v: number) => inteiro.format(v)
 export const fmtDecimal = (v: number) => decimal.format(v)
 
-/** '2026-10-27T10:31:00' -> '27/10/2026 10:31'. */
+/** '2026-10-27T10:31:00' (ou '2026-10-27 10:31:00') -> '27/10/2026 10:31'. */
 export function fmtDataHora(iso: string): string {
-  const [data, hora] = iso.split('T')
+  const [data, hora] = iso.split(/[T ]/)
   const [ano, mes, dia] = data.split('-')
   const h = hora?.slice(0, 5)
   return `${dia}/${mes}/${ano}${h ? ` ${h}` : ''}`

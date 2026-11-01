@@ -34,6 +34,12 @@ Quando uma pergunta envolver um bairro específico, utilize `municipio` junto co
 
 Não trate `bairro` isoladamente como identificador global.
 
+### Classe de consumo
+
+Quando a pergunta citar uma classe de consumo (comercial, residencial, rural, poder público ou industrial), filtre obrigatoriamente por `classe` usando o valor exato: `COMERCIAL`, `RESIDENCIAL`, `RURAL`, `PODER PUBLICO` ou `INDUSTRIAL`. Nunca agregue todas as classes quando a pergunta menciona uma. Exemplo: "receita comercial em Olinda" exige `classe = 'COMERCIAL'`.
+
+Ao somar valores de `receita_decomposicao` por município ou classe, use `SUM(...)` em cada coluna numérica. Nunca selecione colunas numéricas sem agregação junto de `GROUP BY`: o resultado pertenceria a uma linha qualquer do grupo.
+
 ### Nomes de municípios
 
 Os nomes de municípios têm acentuação e usam capitalização normal (por exemplo `Jaboatão dos Guararapes`, `São Lourenço da Mata`, `Araçoiaba`). Use exatamente essa grafia nos filtros.

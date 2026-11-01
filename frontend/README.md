@@ -35,6 +35,8 @@ sem manter uma segunda definição. Veja o [mapeamento da Gold](../backend/docs/
 Com `DATA_SOURCE=mock` no backend, os dados são fictícios. Há exemplos de troca em
 `UC000001` (09/2025) e `UC000007` (03/2026). SQLite fictício nos testes não substitui
 a homologação da exportação oficial. O dashboard continua mockado no frontend para validação do design.
+O Dashboard oferece somente período analisado e referência opcional. Suas consultas à API
+usam a visão geral da base, sem filtros de município, bairro ou classe.
 Ele inicia em jul/2025–jun/2026, sem referência; “Limpar” restaura essa seleção sem comparação.
 
 ## Estrutura

@@ -21,32 +21,32 @@ const kpi: Kpi = {
   },
 }
 
-test('consulta exclusiva da inadimplência preserva filtros, normaliza classe e omite referência desativada', async () => {
+test('consulta da inadimplência usa somente períodos e omite referência desativada', async () => {
   const chamadas: URL[] = []
   const api = createApi(createHttp('http://test', async (url) => {
     chamadas.push(new URL(String(url)))
     return new Response(JSON.stringify({ kpis: [kpi] }))
   }))
-  await api.dashboard.kpis(parametrosInadimplencia(periodo, null, { municipio: 'Recife', bairro: 'Centro', classe: 'Poder público' }))
+  await api.dashboard.kpis(parametrosInadimplencia(periodo, null))
   const params = chamadas[0].searchParams
   assert.equal(chamadas[0].pathname, '/api/dashboard/kpis')
   assert.equal(params.get('indicador'), 'inadimplencia')
   assert.equal(params.get('comparar'), 'false')
   assert.equal(params.get('atual_inicio'), '2026-01')
   assert.equal(params.get('atual_fim'), '2026-06')
-  assert.equal(params.get('municipio'), 'Recife')
-  assert.equal(params.get('bairro'), 'Centro')
-  assert.equal(params.get('classe'), 'PODER PUBLICO')
   assert.equal(params.has('base_inicio'), false)
   assert.equal(params.has('base_fim'), false)
-  await api.dashboard.kpis(parametrosInadimplencia(periodo, referencia, {}))
+  await api.dashboard.kpis(parametrosInadimplencia(periodo, referencia))
   assert.equal(chamadas[1].searchParams.get('base_inicio'), '2025-01')
   assert.equal(chamadas[1].searchParams.get('base_fim'), '2025-06')
   assert.equal(chamadas[1].searchParams.get('comparar'), 'true')
-  await api.dashboard.kpis(parametrosInadimplencia(periodo, null, {}))
+  await api.dashboard.kpis(parametrosInadimplencia(periodo, null))
   assert.equal(chamadas[2].searchParams.has('base_inicio'), false)
-  assert.throws(() => api.dashboard.kpis(parametrosInadimplencia(periodo, { inicio: '2026-02', fim: '2026-03' }, {})))
+  assert.throws(() => api.dashboard.kpis(parametrosInadimplencia(periodo, { inicio: '2026-02', fim: '2026-03' })))
   assert.equal(chamadas.length, 3)
+  for (const chamada of chamadas) {
+    for (const filtro of ['municipio', 'bairro', 'classe']) assert.equal(chamada.searchParams.has(filtro), false)
+  }
 })
 
 test('card de faturamento em aberto respeita mês, consolidado, comparação e indisponibilidade', async (t) => {

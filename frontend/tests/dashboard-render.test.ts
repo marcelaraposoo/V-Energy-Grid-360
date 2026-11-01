@@ -89,6 +89,10 @@ test('Dashboard escolhe barras ou linhas conforme os períodos e preserva valore
     assert.doesNotMatch(semReferencia, /dashboard-chart-current/)
     const { DashboardPage } = await server.ssrLoadModule('/src/features/dashboard/DashboardPage.tsx')
     const pagina = renderToStaticMarkup(createElement(DashboardPage))
+    const filtros = pagina.match(/<form\b[^>]*aria-label="Filtros do dashboard"[^>]*>(.*?)<\/form>/)?.[1]
+    assert.ok(filtros)
+    assert.equal((filtros.match(/class="filter-field dashboard-period-picker"/g) ?? []).length, 2)
+    assert.doesNotMatch(filtros, /Município|Bairro|Classe de consumo/)
     assert.match(pagina, /Período de referência \(opcional\)/)
     assert.match(pagina, /Selecionar período/)
     assert.doesNotMatch(pagina, /Remover período de referência|dashboard-kpi-comparison|dashboard-chart-reference/)

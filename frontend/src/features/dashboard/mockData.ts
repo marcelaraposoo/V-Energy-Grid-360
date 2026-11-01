@@ -51,15 +51,6 @@ export const dashboardMock = {
   },
 }
 
-export const locaisMock = [
-  { municipio: 'Recife', bairros: ['Boa Viagem', 'Casa Amarela', 'Várzea'] },
-  { municipio: 'Olinda', bairros: ['Bairro Novo', 'Casa Caiada', 'Rio Doce'] },
-  {
-    municipio: 'Jaboatão dos Guararapes',
-    bairros: ['Candeias', 'Piedade', 'Prazeres'],
-  },
-]
-
 // Recorta somente os valores fictícios já existentes; não inventa os meses anteriores.
 export function dadosPeriodoMock(periodo: Periodo) {
   const meses = new Map<string, { receita: number; consumo: number }>()

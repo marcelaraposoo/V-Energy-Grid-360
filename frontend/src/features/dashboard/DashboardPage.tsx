@@ -1,4 +1,4 @@
-import { useReducer, useState } from 'react'
+import { useReducer } from 'react'
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -17,10 +17,9 @@ import { Panel } from '../../components/ui/Panel'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { EvolucaoChart } from './EvolucaoChart'
 import { SeletorPeriodo } from './SeletorPeriodo'
-import { SeletorFiltro } from './SeletorFiltro'
 import { InadimplenciaCard } from './InadimplenciaCard'
 import { parametrosInadimplencia } from './inadimplencia'
-import { dashboardMock, dadosPeriodoMock, locaisMock } from './mockData'
+import { dashboardMock, dadosPeriodoMock } from './mockData'
 import { alterarPeriodos, estadoInicial } from './periodos'
 import { quantidadeMeses, sugerirReferencia, validarPeriodo, validarPeriodosDashboard } from '../../utils/periodosDashboard'
 import './dashboard.css'
@@ -47,17 +46,14 @@ const periodoPadrao = { inicio: atual.inicio, fim: atual.fim }
 const limites = { minimo: dashboardMock.inicioBase, maximo: atual.fim }
 
 export function DashboardPage() {
-  const [municipio, setMunicipio] = useState('')
-  const [bairro, setBairro] = useState('')
-  const [classe, setClasse] = useState('')
   const [temporal, dispatch] = useReducer(
     (estado: ReturnType<typeof estadoInicial>, acao: Parameters<typeof alterarPeriodos>[1]) => alterarPeriodos(estado, acao, periodoPadrao, limites),
     undefined, () => estadoInicial(periodoPadrao),
   )
   const { periodo, comparar, referencia: comparacao, aviso } = temporal
   const inadimplencia = useApi(
-    (signal) => api.dashboard.kpis(parametrosInadimplencia(periodo, comparar ? comparacao : null, { municipio, bairro, classe }), signal),
-    [periodo.inicio, periodo.fim, comparar, comparacao?.inicio, comparacao?.fim, municipio, bairro, classe],
+    (signal) => api.dashboard.kpis(parametrosInadimplencia(periodo, comparar ? comparacao : null), signal),
+    [periodo.inicio, periodo.fim, comparar, comparacao?.inicio, comparacao?.fim],
   )
   const dadosAtual = dadosPeriodoMock(periodo)
   const dadosReferencia = comparar && comparacao ? dadosPeriodoMock(comparacao) : null
@@ -71,7 +67,6 @@ export function DashboardPage() {
   const ucsReferencia = comparar ? ucsNoMes(comparacao?.fim) : null
   const quantidade = quantidadeMeses(periodo)
   const validarReferencia = (base: typeof periodo) => validarPeriodosDashboard(periodo, base, true, limites)
-  const bairros = locaisMock.find((local) => local.municipio === municipio)?.bairros ?? []
   const kpis = [
     {
       label: 'Receita faturada',
@@ -118,12 +113,7 @@ export function DashboardPage() {
         className="panel dashboard-filters"
         aria-label="Filtros do dashboard"
         onSubmit={(event) => event.preventDefault()}
-        onReset={() => {
-          setMunicipio('')
-          setBairro('')
-          setClasse('')
-          dispatch({ tipo: 'limpar' })
-        }}
+        onReset={() => dispatch({ tipo: 'limpar' })}
       >
         <SeletorPeriodo
           key={`atual-${comparar}`}
@@ -149,39 +139,6 @@ export function DashboardPage() {
             onChange={(valor) => dispatch({ tipo: 'referencia', valor })}
           />
         </div>
-        <SeletorFiltro
-          label="Município"
-          valor={municipio}
-          placeholder="Todos os municípios"
-          opcoes={locaisMock.map((local) => local.municipio)}
-          onChange={(selecionado) => {
-            setMunicipio(selecionado)
-            setBairro('')
-          }}
-        />
-        <SeletorFiltro
-          label="Bairro"
-          valor={bairro}
-          placeholder={
-            municipio ? 'Todos os bairros' : 'Selecione um município'
-          }
-          opcoes={bairros}
-          desabilitado={!municipio}
-          onChange={setBairro}
-        />
-        <SeletorFiltro
-          label="Classe de consumo"
-          valor={classe}
-          placeholder="Todas as classes"
-          opcoes={[
-            'Residencial',
-            'Comercial',
-            'Industrial',
-            'Rural',
-            'Poder público',
-          ]}
-          onChange={setClasse}
-        />
         <button type="reset" className="button button--secondary">
           <RotateCcw size={14} aria-hidden="true" /> Limpar
         </button>

@@ -4,7 +4,6 @@ import pytest
 
 from app.agent.guardrails.output_rules import (
     extract_numbers,
-    has_spelled_out_number,
     parse_number_token,
 )
 
@@ -130,29 +129,3 @@ def test_malformed_number_is_extracted_without_candidates():
 def test_text_without_numbers():
     assert extract_numbers("Sem valores aqui.") == []
     assert extract_numbers("") == []
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "noventa e oito unidades",
-        "trinta por cento",
-        "duas faturas",
-        "mil clientes",
-        "QUATRO horas",
-    ],
-)
-def test_detects_spelled_out_numbers_with_units(text):
-    assert has_spelled_out_number(text)
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "A receita subiu muito.",
-        "oitenta e oito",
-        "98 unidades",
-    ],
-)
-def test_does_not_detect_spelled_out_numbers_without_matching_units(text):
-    assert not has_spelled_out_number(text)

@@ -37,6 +37,11 @@ def test_dashboard_devolve_501_explicando_a_tabela_que_falta(client):
     assert r.status_code == 501 and "fato_segmento_mensal" in r.json()["detail"]
 
 
+def test_serie_dashboard_devolve_501_quando_agregada_mensal_nao_foi_exportada(client):
+    resposta = client.get("/api/dashboard/serie")
+    assert resposta.status_code == 501 and "kpis_mensal" in resposta.json()["detail"]
+
+
 def test_filtro_aceita_classe_real_da_gold(client):
     # 501 (e não 422) mostra que "PODER PUBLICO" passou na validação contra o catálogo
     assert client.get("/api/dashboard/kpis", params={"classe": "PODER PUBLICO"}).status_code == 501

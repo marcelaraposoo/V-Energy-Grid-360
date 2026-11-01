@@ -22,8 +22,9 @@ Docs interativas: http://localhost:8000/docs · Testes: `pytest`
 3. As consultas por UC de cadastro, consumo, faturas paginadas, medidor, trocas, GD, interrupções,
    continuidade e atendimentos estão implementadas. Catálogos, busca e fila de inspeção também
    possuem leitura SQLite; a fila requer `fila_inspecao`.
-4. Uma tabela necessária ausente devolve **501**, com a tabela no `detail`. A consulta global
-   de faturamento usada por receita/dashboard ainda devolve 501 no SQLite. Veja o
+4. Uma tabela necessária ausente devolve **501**, com a tabela no `detail`. Os KPIs e a série
+   mensal do Dashboard usam as agregadas Gold. A consulta global de faturas da análise de
+   receita ainda devolve 501 no SQLite. Veja o
    [mapeamento da Gold](docs/contrato-gold.md) para os limites de cada bloco.
 5. As ordens de inspeção continuam em `data/portal.db`, nos dois modos.
 
@@ -57,6 +58,26 @@ docs/contrato-gold.md
 
 Filtros comuns: `municipio`, `bairro`, `classe`; períodos: `base_inicio/base_fim/atual_inicio/atual_fim` (`YYYY-MM`).
 Padrão: base = primeiros 12 meses, atual = últimos 12 (como na pergunta do diretor).
+
+### Série mensal do Dashboard
+
+`GET /api/dashboard/serie` usa A5 (`kpis_mensal`) sem filtros e agrega A3
+(`fato_segmento_mensal`) por competência quando há município, bairro ou classe.
+Os campos da resposta permanecem `competencia`, `receita`, `energia_kwh` e `tarifa_media`.
+Receita é a energia faturada, sem tributos; os pontos são mensais, sem acumulação progressiva.
+O preço mensal divide a soma da receita pela soma do consumo, com quatro casas decimais.
+Receita e consumo têm duas casas na resposta, como os KPIs principais.
+
+Sem parâmetros temporais, retorna o histórico inteiro do catálogo (48 meses na base do case).
+Com `atual_*`, `base_*` ou `comparar`, mantém as validações do Dashboard e retorna somente
+os intervalos selecionados, em ordem cronológica e com as competências reais. A comparação
+opcional consulta cada intervalo separadamente, sem ler meses entre eles.
+
+Uma competência ausente mantém seu ponto com valores `null`; não é preenchida com zero
+nem substituída por outro mês. Nulos de uma métrica preservam as demais quando disponíveis.
+Zeros presentes são mantidos, e consumo zero torna `tarifa_media` nula. Uma agregada necessária
+ausente continua retornando 501. A consulta não depende de faturas globais nem da A8.
+Os gráficos do frontend continuam com os mocks de apresentação até a etapa de integração.
 
 ### Faturamento em aberto no Dashboard
 

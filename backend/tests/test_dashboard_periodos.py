@@ -114,10 +114,12 @@ def test_kpis_sem_comparacao_nao_consultam_base_nem_retornam_variacoes():
 
 
 def test_serie_sem_comparacao_filtra_principal_e_com_comparacao_usa_so_os_dois_intervalos():
-    def faturas(inicio, fim, municipio, bairro, classe):
+    def segmentos(inicio, fim, municipio, bairro, classe):
         assert (municipio, bairro, classe) == ("Recife", "Centro", "RESIDENCIAL")
-        return [{"competencia": c, "consumo_kwh": 100, "valor": 50} for c in COMPETENCIAS if inicio <= c <= fim]
-    repo = SimpleNamespace(competencias=lambda: COMPETENCIAS, faturas=faturas)
+        return [{"mes_referencia": c, "consumo_kwh": 100, "receita_energia": 50,
+                 "receita_total": 60, "valor_em_aberto": 0, "qtd_ucs_faturadas": 1}
+                for c in COMPETENCIAS if inicio <= c <= fim]
+    repo = SimpleNamespace(competencias=lambda: COMPETENCIAS, segmentos_mensais=segmentos)
     filtros = Filtros(municipio="Recife", bairro="Centro", classe="RESIDENCIAL")
     atual = Periodo(inicio="2026-05", fim="2026-05")
     assert [r.competencia for r in dashboard.serie(repo, filtros, (None, atual))] == ["2026-05"]

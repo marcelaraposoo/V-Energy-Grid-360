@@ -47,9 +47,9 @@ class KpisResponse(BaseModel):
 
 class SeriePonto(BaseModel):
     competencia: Competencia
-    receita: float
-    energia_kwh: float
-    tarifa_media: float
+    receita: float | None
+    energia_kwh: float | None
+    tarifa_media: float | None
 
 
 class VariacaoLinha(BaseModel):

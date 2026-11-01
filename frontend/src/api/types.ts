@@ -62,9 +62,9 @@ export type KpisResponse = {
 
 export type SeriePonto = {
   competencia: Competencia
-  receita: number
-  energia_kwh: number
-  tarifa_media: number
+  receita: number | null
+  energia_kwh: number | null
+  tarifa_media: number | null
 }
 
 export type AgruparPor = 'municipio' | 'bairro' | 'classe'

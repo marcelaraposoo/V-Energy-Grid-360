@@ -335,17 +335,35 @@ def kpis(repo, base: Periodo | None, atual: Periodo, f: Filtros, indicador: Lite
     ])
 
 
-def serie(repo, f: Filtros, periodos: tuple[Periodo | None, Periodo] | None = None) -> list[SeriePonto]:
-    comps = repo.competencias()
-    if periodos is not None:
-        comps = [c for c in comps if any(p is not None and p.inicio <= c <= p.fim for p in periodos)]
-    if not comps:
-        return []
-    acc = {c: [0.0, 0.0] for c in comps}
-    for r in repo.faturas(comps[0], comps[-1], f.municipio, f.bairro, f.classe):
-        if r["competencia"] not in acc:
-            continue
-        acc[r["competencia"]][0] += r["consumo_kwh"]
-        acc[r["competencia"]][1] += r["valor"]
-    return [SeriePonto(competencia=c, receita=round(v[1], 2), energia_kwh=round(v[0], 1),
-                       tarifa_media=round(v[1] / v[0], 4) if v[0] else 0) for c, v in acc.items()]
+def serie(repo: Repository, f: Filtros, periodos: tuple[Periodo | None, Periodo] | None = None) -> list[SeriePonto]:
+    """Valores mensais A5/A3, sem acumular nem preencher lacunas com zero.
+
+    Sem períodos explícitos, mantém todo o catálogo de competências. Os meses
+    reais são ordenados uma única vez, inclusive na comparação entre intervalos.
+    """
+    if periodos is None:
+        competencias = sorted(set(repo.competencias()))
+        if not competencias:
+            return []
+        intervalos = [Periodo(inicio=competencias[0], fim=competencias[-1])]
+    else:
+        intervalos = [p for p in periodos if p is not None]
+        competencias = sorted({mes for p in intervalos for mes in _competencias_periodo(p)})
+
+    mensais = {}
+    for periodo in intervalos:
+        mensais.update(metricas_mensais(repo, periodo, f))
+
+    def valor(numero: Decimal | None, casas: int) -> float | None:
+        return float(_arredondar(numero, casas)) if numero is not None and numero.is_finite() else None
+
+    pontos = []
+    for mes in competencias:
+        metrica = mensais.get(mes)
+        receita = metrica.receita_energia if metrica else None
+        consumo = metrica.consumo_kwh if metrica else None
+        pontos.append(SeriePonto(
+            competencia=mes, receita=valor(receita, 2), energia_kwh=valor(consumo, 2),
+            tarifa_media=valor(_dividir(receita, consumo), 4),
+        ))
+    return pontos

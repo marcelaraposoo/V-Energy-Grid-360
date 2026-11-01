@@ -48,7 +48,7 @@ if (!saude) {
 
 await passo('filtros', () => api.filtros(), (r) => `${r.municipios.length} municípios, ${r.competencias.length} competências`)
 await passo('dashboard.kpis', () => api.dashboard.kpis(), (r) => `${r.kpis.length} indicadores`)
-await passo('dashboard.serie', () => api.dashboard.serie({ classe: 'B1' }), (r) => `${r.length} meses`)
+await passo('dashboard.serie', () => api.dashboard.serie({ classe: 'RESIDENCIAL' }), (r) => `${r.length} meses`)
 for (const agrupar_por of ['municipio', 'bairro', 'classe'] as const) {
   await passo(`receita.variacao (${agrupar_por})`, () => api.receita.variacao({ agrupar_por }), (r) => `${r.linhas.length} linhas`)
 }

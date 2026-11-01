@@ -228,3 +228,14 @@ def test_endpoint_sem_comparacao_serializa_nulos_de_um_periodo_incompleto(client
     assert itens["UCs faturadas"]["valor_atual"] == 9
     for item in itens.values():
         assert item["valor_base"] is item["variacao_abs"] is item["variacao_pct"] is item["variacao_pp"] is None
+
+
+def test_endpoint_executivo_mantem_ucs_faturadas_sem_consultar_continuidade(client, repo):
+    repo.indicadores_continuidade.side_effect = AssertionError("Visão executiva não depende da A8")
+    resposta = client.get("/api/dashboard/kpis", params={
+        "indicador": "executivo", "comparar": False, "atual_inicio": "2026-01", "atual_fim": "2026-02",
+    })
+    assert resposta.status_code == 200
+    assert len(resposta.json()["kpis"]) == 5
+    ucs = next(k for k in resposta.json()["kpis"] if k["nome"] == "UCs faturadas")
+    assert ucs["valor_atual"] == 9

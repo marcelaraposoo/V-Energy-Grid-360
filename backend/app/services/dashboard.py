@@ -304,7 +304,7 @@ def _inadimplencia_kpi(
     )
 
 
-def kpis(repo, base: Periodo | None, atual: Periodo, f: Filtros, indicador: Literal["inadimplencia"] | None = None) -> KpisResponse:
+def kpis(repo, base: Periodo | None, atual: Periodo, f: Filtros, indicador: Literal["inadimplencia", "executivo"] | None = None) -> KpisResponse:
     if indicador == "inadimplencia":
         return KpisResponse(periodo_base=base, periodo_atual=atual, kpis=[_inadimplencia_kpi(repo, base, atual, f)])
 
@@ -324,6 +324,9 @@ def kpis(repo, base: Periodo | None, atual: Periodo, f: Filtros, indicador: Lite
     ):
         comparacao = comparacoes[campo] if b else ComparacaoIndicador(valor_base=None, valor_atual=getattr(a, campo))
         principais.append(_kpi_calculado(nome, unidade, comparacao, casas))
+
+    if indicador == "executivo":
+        return KpisResponse(periodo_base=base, periodo_atual=atual, kpis=[*principais, inadimplencia])
 
     # DEC/FEC preservam o resumo da A8 por município, sem depender das faturas globais.
     continuidade_atual = resumo_periodo(repo.indicadores_continuidade(atual.inicio, atual.fim, municipio=f.municipio))

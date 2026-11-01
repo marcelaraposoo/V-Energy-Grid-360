@@ -52,6 +52,39 @@ class SeriePonto(BaseModel):
     tarifa_media: float | None
 
 
+class CadastroGdMes(BaseModel):
+    competencia: Competencia
+    qtd_ucs_cadastradas: int | None
+    qtd_ucs_com_gd: int | None
+    percentual_gd: float | None
+
+
+class CadastroGdResponse(BaseModel):
+    atual: CadastroGdMes
+    referencia: CadastroGdMes | None
+    variacao_cadastradas_pct: float | None
+
+
+ClasseConsumo = Literal["RESIDENCIAL", "COMERCIAL", "INDUSTRIAL", "PODER PUBLICO", "RURAL"]
+
+
+class ConsumoClasse(BaseModel):
+    classe: ClasseConsumo
+    consumo_kwh: float | None
+    participacao_pct: float | None
+    consumo_referencia_kwh: float | None
+    variacao_pct: float | None
+    competencias_ausentes: list[Competencia]
+    competencias_ausentes_referencia: list[Competencia] | None
+
+
+class ConsumoClassesResponse(BaseModel):
+    periodo_atual: Periodo
+    periodo_base: Periodo | None
+    consumo_total_kwh: float | None
+    classes: list[ConsumoClasse]
+
+
 class VariacaoLinha(BaseModel):
     chave: str
     receita_base: float

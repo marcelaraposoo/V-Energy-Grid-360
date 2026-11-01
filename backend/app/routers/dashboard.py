@@ -3,16 +3,28 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Request
 
 from app.routers.deps import dashboard_periodos_dep, filtros_dep, periodos_dep, repo_dep
-from app.schemas import KpisResponse, SeriePonto, VariacaoResponse
-from app.services import dashboard, receita
+from app.schemas import CadastroGdResponse, ConsumoClassesResponse, KpisResponse, SeriePonto, VariacaoResponse
+from app.services import dashboard, dashboard_complementares, receita
 
 router = APIRouter(prefix="/api", tags=["dashboard e receita"])
 
 
 @router.get("/dashboard/kpis", response_model=KpisResponse)
-def kpis(indicador: Literal["inadimplencia"] | None = None, periodos=Depends(dashboard_periodos_dep), f=Depends(filtros_dep), repo=Depends(repo_dep)):
+def kpis(indicador: Literal["inadimplencia", "executivo"] | None = None, periodos=Depends(dashboard_periodos_dep), f=Depends(filtros_dep), repo=Depends(repo_dep)):
     base, atual = periodos
     return dashboard.kpis(repo, base, atual, f, indicador=indicador)
+
+
+@router.get("/dashboard/cadastro-gd", response_model=CadastroGdResponse)
+def cadastro_gd(periodos=Depends(dashboard_periodos_dep), repo=Depends(repo_dep)):
+    base, atual = periodos
+    return dashboard_complementares.cadastro_gd(repo, base, atual)
+
+
+@router.get("/dashboard/consumo-classes", response_model=ConsumoClassesResponse)
+def consumo_classes(periodos=Depends(dashboard_periodos_dep), repo=Depends(repo_dep)):
+    base, atual = periodos
+    return dashboard_complementares.consumo_classes(repo, base, atual)
 
 
 @router.get("/dashboard/serie", response_model=list[SeriePonto])

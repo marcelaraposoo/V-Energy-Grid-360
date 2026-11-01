@@ -200,8 +200,9 @@ def periodos_padrao(repo) -> tuple[Periodo, Periodo]:
 
 
 def _kpi(nome, unidade, atual, base) -> Kpi:
-    return Kpi(nome=nome, unidade=unidade, valor_atual=round(atual, 2), valor_base=round(base, 2),
-               variacao_abs=round(atual - base, 2), variacao_pct=round((atual / base - 1) * 100, 2) if base else None)
+    return Kpi(nome=nome, unidade=unidade, valor_atual=round(atual, 2), valor_base=round(base, 2) if base is not None else None,
+               variacao_abs=round(atual - base, 2) if base is not None else None,
+               variacao_pct=round((atual / base - 1) * 100, 2) if base else None)
 
 
 def _calc(repo, p: Periodo, f: Filtros) -> dict:
@@ -217,8 +218,9 @@ def _calc(repo, p: Periodo, f: Filtros) -> dict:
     }
 
 
-def kpis(repo, base: Periodo, atual: Periodo, f: Filtros) -> KpisResponse:
-    b, a = _calc(repo, base, f), _calc(repo, atual, f)
+def kpis(repo, base: Periodo | None, atual: Periodo, f: Filtros) -> KpisResponse:
+    a = _calc(repo, atual, f)
+    b = _calc(repo, base, f) if base is not None else defaultdict(lambda: None)
     return KpisResponse(periodo_base=base, periodo_atual=atual, kpis=[
         _kpi("Receita faturada", "R$", a["receita"], b["receita"]),
         _kpi("Energia faturada", "kWh", a["kwh"], b["kwh"]),
@@ -230,10 +232,16 @@ def kpis(repo, base: Periodo, atual: Periodo, f: Filtros) -> KpisResponse:
     ])
 
 
-def serie(repo, f: Filtros) -> list[SeriePonto]:
+def serie(repo, f: Filtros, periodos: tuple[Periodo | None, Periodo] | None = None) -> list[SeriePonto]:
     comps = repo.competencias()
+    if periodos is not None:
+        comps = [c for c in comps if any(p is not None and p.inicio <= c <= p.fim for p in periodos)]
+    if not comps:
+        return []
     acc = {c: [0.0, 0.0] for c in comps}
     for r in repo.faturas(comps[0], comps[-1], f.municipio, f.bairro, f.classe):
+        if r["competencia"] not in acc:
+            continue
         acc[r["competencia"]][0] += r["consumo_kwh"]
         acc[r["competencia"]][1] += r["valor"]
     return [SeriePonto(competencia=c, receita=round(v[1], 2), energia_kwh=round(v[0], 1),

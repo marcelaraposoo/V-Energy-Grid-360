@@ -24,13 +24,13 @@ class Kpi(BaseModel):
     nome: str
     unidade: str
     valor_atual: float
-    valor_base: float
-    variacao_abs: float
+    valor_base: float | None
+    variacao_abs: float | None
     variacao_pct: float | None
 
 
 class KpisResponse(BaseModel):
-    periodo_base: Periodo
+    periodo_base: Periodo | None
     periodo_atual: Periodo
     kpis: list[Kpi]
 

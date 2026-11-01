@@ -10,6 +10,7 @@ nova: é `fetch` puro, com tipos TypeScript que espelham o `backend/app/schemas.
 | `types.ts` | Tipos das respostas e dos parâmetros |
 | `http.ts` | `fetch` com tratamento de erro (`ApiError`) |
 | `useApi.ts` | Hook que carrega dados de uma tela (loading, erro, cancelamento e `reload`) |
+| `dashboardPeriodos.ts` | Validação temporal das chamadas do Dashboard e remoção de referências desativadas |
 
 Os tipos da Visão 360 têm uma única definição em `types.ts`, também reexportada por
 `features/unidades/types.ts`. Os nomes anteriores, como `UnidadeConsumidora` e `Atendimento`,
@@ -29,6 +30,11 @@ Se o backend estiver em outro endereço, copie `frontend/.env.example` para `fro
 
 ## Dashboard Executivo
 
+A integração atende à [versão base do Dashboard](../../README.md#dashboard-executivo--versão-base).
+O atalho para a Análise da Receita e a respectiva tela são evoluções previstas do frontend;
+não estão implementados. O cliente `api.receita.variacao(...)` já existe, mas seu adaptador
+SQLite ainda depende da implementação da consulta global de faturas no backend.
+
 A tela envia somente períodos. `api.dashboard.kpis({ ...params, indicador: 'executivo' }, signal)`
 retorna os KPIs principais e o faturamento em aberto sem depender da A8. O contrato padrão
 sem esse parâmetro permanece disponível, incluindo UCs faturadas e os indicadores de continuidade.
@@ -43,6 +49,33 @@ Ausência de uma classe em qualquer competência invalida seu consolidado. A par
 fica nula quando o total está incompleto ou é zero; referência zero ou ausente não produz
 variação percentual. Os DTOs compartilhados em `types.ts` representam essas indisponibilidades.
 As funções existentes da API continuam aceitando filtros regionais nas telas que os utilizam.
+As rotas `cadastro-gd` e `consumo-classes` atendem à visão geral, somente com parâmetros temporais.
+
+A tela inicia sem referência e explicita `comparar: false`. Por exemplo:
+
+```ts
+const params = {
+  atual_inicio: '2025-07',
+  atual_fim: '2026-06',
+  comparar: false,
+}
+api.dashboard.kpis({ ...params, indicador: 'executivo' }, signal)
+```
+
+Com `comparar: false`, nenhum `base_inicio` ou `base_fim` é enviado. Quando a comparação
+está ativa, os intervalos precisam ter a mesma duração (até 12 meses) e não podem se sobrepor.
+Sem comparação, são permitidos até 24 meses. O cliente valida os períodos antes de enviar;
+o backend também os valida. Os limites são jul/2022–jun/2026.
+
+Os tipos `KpisResponse`, `SeriePonto[]`, `CadastroGdResponse` e `ConsumoClassesResponse`
+representam os quatro carregamentos da tela. `periodo_base` e a posição cadastral de referência
+podem ser nulos. Métricas indisponíveis permanecem nulas; a interface não deve convertê-las em zero.
+No KPI de inadimplência, `variacao_pp` compara os consolidados; `inadimplencia` contém o
+detalhe da última competência e a completude. Não há segunda comparação da taxa final.
+
+O padrão da tela difere das chamadas sem parâmetros do backend: a rota de KPIs mantém a
+comparação do case, e a rota de série sem parâmetros temporais retorna o catálogo completo.
+Para reproduzir a tela, informe seus períodos e `comparar` explicitamente.
 
 ## Como usar
 
@@ -109,6 +142,7 @@ Toda resposta que não for 2xx vira um `ApiError` com `status` e `detail` (texto
 | `404` | UC, ordem ou alimentador inexistente |
 | `409` | Ação inválida para o estado atual (ex.: cancelar ordem concluída) |
 | `422` | Parâmetro inválido (ex.: município que não existe, período invertido) |
+| `501` | Fonte Gold sem tabela/coluna necessária ou consulta SQLite ainda não implementada |
 
 ## Convenções
 
@@ -130,7 +164,8 @@ node scripts/smoke-api.ts                 # só leitura
 node scripts/smoke-api.ts --com-ordens    # também cria e conclui uma ordem de inspeção
 ```
 
-Ele chama todas as rotas pelo mesmo cliente e mostra `ok` ou `FALHA` em cada uma.
+Ele chama as rotas listadas no script pelo mesmo cliente e mostra `ok` ou `FALHA` em cada uma.
+Não cobre automaticamente todas as rotas novas, incluindo `cadastro-gd` e `consumo-classes`.
 
 ## Quando o backend mudar
 

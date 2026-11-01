@@ -1,7 +1,7 @@
 # Backend — V-Energy Grid 360 (FastAPI)
 
 API do portal. Roda com **dados mockados** (`DATA_SOURCE=mock`, o padrão) ou com a Gold local
-(`DATA_SOURCE=sqlite`). A leitura das tabelas necessárias à Visão 360 está implementada;
+(`DATA_SOURCE=sqlite`). A leitura das tabelas necessárias ao Dashboard e à Visão 360 está implementada;
 a homologação com a exportação oficial continua pendente.
 
 ## Rodar
@@ -47,6 +47,8 @@ docs/contrato-gold.md
 |---|---|---|
 | GET | `/filtros` | selects de filtros |
 | GET | `/dashboard/kpis`, `/dashboard/serie` | visão do diretor |
+| GET | `/dashboard/cadastro-gd` | UCs cadastradas e GD na última competência de cada período |
+| GET | `/dashboard/consumo-classes` | consumo consolidado por classe, participação e comparação |
 | GET | `/receita/variacao?agrupar_por=municipio\|bairro\|classe` | efeito preço × volume (drill-down) |
 | GET | `/unidades?q=`, `/unidades/{uc}/visao-360` | atendente |
 | GET | `/unidades/{uc}/faturas?aba=recentes\|historico&pagina=1` | faturas paginadas, com resumo de pendências e filtros de ano/situação no histórico |
@@ -57,7 +59,65 @@ docs/contrato-gold.md
 | POST/GET | `/ia/perguntar` (stub), `/ia/insights?tela=` | módulo de IA |
 
 Filtros comuns: `municipio`, `bairro`, `classe`; períodos: `base_inicio/base_fim/atual_inicio/atual_fim` (`YYYY-MM`).
-Padrão: base = primeiros 12 meses, atual = últimos 12 (como na pergunta do diretor).
+O padrão da rota de KPIs sem parâmetros mantém base = primeiros 12 meses e atual = últimos
+12 meses, com comparação (como na pergunta do diretor). O frontend inicia sem comparação e
+envia isso explicitamente; não depende desse padrão da API.
+
+### Períodos e KPIs do Dashboard
+
+Os quatro endpoints do Dashboard aceitam `atual_inicio`, `atual_fim`, `base_inicio`,
+`base_fim` e `comparar`. Os limites da base do case são jul/2022 a jun/2026, com duração
+calculada em competências mensais inclusivas:
+
+- `comparar=false`: de 1 a 24 meses, sem parâmetros `base_*` na consulta da tela e sem variações.
+- Com comparação: mês × mês ou períodos de 2 a 12 meses cada, durações iguais e sem sobreposição.
+  Não é necessário selecionar os mesmos meses do calendário.
+- Períodos inválidos retornam 422 antes da leitura dos indicadores.
+
+`GET /api/dashboard/kpis?indicador=executivo` retorna receita, consumo, preço médio,
+UCs faturadas e inadimplência, sem depender da A8. O frontend reutiliza essa resposta para
+os três KPIs principais e faturamento em aberto; UCs faturadas permanecem na API.
+`indicador=inadimplencia` consulta somente esse indicador. Sem `indicador`, o contrato
+mantém também DEC/FEC. Os nomes dos KPIs e campos da resposta são preservados.
+
+Na visão geral, receita, consumo, preço e UCs faturadas usam a A5 (`kpis_mensal`).
+Com filtros regionais ou de classe, usam a A3 (`fato_segmento_mensal`), agregada por mês.
+Receita de energia e consumo são somados exclusivamente nos meses selecionados;
+preço médio = soma de `receita_energia` / soma do consumo, sem média simples dos preços.
+UCs faturadas usam a última competência, sem somar contagens mensais.
+
+Uma competência ausente invalida os acumulados que dependem dela. Valores nulos permanecem
+indisponíveis, zeros presentes são preservados, e denominador zero não produz uma razão.
+Sem referência ou sem os valores necessários, a variação fica nula; uma referência zero
+não produz variação percentual relativa. A homologação com a Gold oficial continua pendente.
+
+### Cadastro e geração distribuída
+
+`GET /api/dashboard/cadastro-gd` consulta exclusivamente a competência final de cada intervalo
+na A5, usando `qtd_ucs_cadastradas` e `qtd_ucs_com_gd`. Não soma meses nem substitui uma
+competência ausente. `percentual_gd = qtd_ucs_com_gd / qtd_ucs_cadastradas * 100`;
+denominador zero ou valor indisponível resulta em percentual nulo.
+
+`CadastroGdResponse` contém `atual`, `referencia` opcional e `variacao_cadastradas_pct`,
+comparando as posições finais quando válidas. Essa rota é global, somente com filtros temporais.
+
+### Consumo por classe
+
+`GET /api/dashboard/consumo-classes` soma `consumo_kwh` da A3 por classe e intervalo.
+Retorna RESIDENCIAL, COMERCIAL, INDUSTRIAL, PODER PUBLICO e RURAL em ordem decrescente
+de volume principal, com indisponíveis ao final. Não aplica filtros regionais ou de classe.
+
+- Participação: `consumo_classe / consumo_total * 100`.
+- Variação: `(consumo_principal - consumo_referencia) / consumo_referencia * 100`.
+- Ausência de uma classe em qualquer mês selecionado invalida seu volume consolidado;
+  não é interpretada como zero. Se algum volume está indisponível, o total e as participações
+  também ficam nulos. Um zero registrado continua válido; total zero não produz participação.
+- Referência zero ou ausente não produz variação percentual. A resposta inclui os volumes
+  de referência e listas de competências ausentes. Segmentos duplicados e classes desconhecidas
+  são reportados, evitando agregações silenciosamente incorretas.
+
+`ConsumoClassesResponse` fornece uma única série principal para as barras; o volume de
+referência serve à variação e ao tooltip, sem exigir barras duplas.
 
 ### Série mensal do Dashboard
 
@@ -77,7 +137,8 @@ Uma competência ausente mantém seu ponto com valores `null`; não é preenchid
 nem substituída por outro mês. Nulos de uma métrica preservam as demais quando disponíveis.
 Zeros presentes são mantidos, e consumo zero torna `tarifa_media` nula. Uma agregada necessária
 ausente continua retornando 501. A consulta não depende de faturas globais nem da A8.
-Os gráficos do frontend continuam com os mocks de apresentação até a etapa de integração.
+Os gráficos do frontend já consomem essa série pela API. A fonte continua sendo mock ou SQLite,
+conforme `DATA_SOURCE`; a integração da tela não equivale à homologação da exportação oficial.
 
 ### Faturamento em aberto no Dashboard
 
@@ -86,7 +147,6 @@ O KPI `Inadimplência` usa a A3 (`fato_segmento_mensal`), inclusive na visão ge
 A consulta preserva as competências selecionadas e a situação conhecida até 30/06/2026;
 inclui todas as faturas em aberto, mesmo ainda não vencidas, sem usar `dias_atraso`.
 Esse consolidado é derivado para o intervalo solicitado; não substitui o indicador mensal da A5.
-
 
 - `valor_atual`/`valor_base`: taxas consolidadas, ou `null` quando indisponíveis.
 - `variacao_pp`: principal menos referência, em pontos percentuais; `variacao_pct` e
@@ -98,7 +158,9 @@ Uma competência ausente invalida o consolidado inteiro, preservando a taxa fina
 disponível. Valores monetários nulos, não finitos ou negativos invalidam a razão afetada;
 denominador zero não produz uma taxa. Registros presentes com zero não são lacunas.
 Segmentos duplicados são reportados em vez de agregados duas vezes.
-Os demais KPIs mantêm seus cálculos anteriores; a homologação da exportação oficial é pendente.
+Para um único mês, a tela apresenta apenas a taxa mensal. Em vários meses, destaca o consolidado
+e mostra a última competência como informação secundária. Os cálculos dos outros indicadores
+seguem as fontes descritas acima; a homologação da exportação oficial é pendente.
 
 ### Diagnóstico de conta alta
 

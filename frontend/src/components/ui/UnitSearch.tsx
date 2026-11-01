@@ -31,7 +31,7 @@ export function UnitSearch({ compact = false }: UnitSearchProps) {
       <input
         id={compact ? 'global-uc-search' : 'page-uc-search'}
         aria-label="Identificador da unidade consumidora"
-        placeholder={compact ? 'Buscar UC...' : 'Ex.: 000001 ou UC000001'}
+        placeholder={compact ? 'Buscar UC...' : 'Ex.: UC100000'}
         value={value}
         onChange={(event) => {
           event.currentTarget.setCustomValidity('')

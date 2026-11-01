@@ -92,6 +92,15 @@
 .field-search input {
   width: 100%;
   padding-left: 34px;
+  font-weight: 400;
+}
+.field-search input::placeholder {
+  font-weight: inherit;
+}
+@media (max-width: 767px) {
+  .field-search input {
+    font-size: 12px;
+  }
 }
 .field-hint {
   font-size: 11px;

@@ -10,27 +10,27 @@ from app.agent.schemas import (
 @pytest.mark.parametrize(
     "sql",
     [
-        "SELECT * FROM consumo_energia;",
-        "-- consulta segura\nSELECT * FROM consumo_energia",
+        "SELECT * FROM fato_consumo_faturamento;",
+        "-- consulta segura\nSELECT * FROM fato_consumo_faturamento",
         (
             "SELECT * "
-            "FROM consumo_energia "
+            "FROM fato_consumo_faturamento "
             "/* comentário interno */"
         ),
         (
-            "SELECT municipio FROM consumo_energia "
+            "SELECT municipio FROM fato_consumo_faturamento "
             "UNION "
-            "SELECT municipio FROM faturamento"
+            "SELECT municipio FROM kpis_mensal"
         ),
         (
-            "SELECT municipio FROM consumo_energia "
+            "SELECT municipio FROM fato_consumo_faturamento "
             "INTERSECT "
-            "SELECT municipio FROM faturamento"
+            "SELECT municipio FROM kpis_mensal"
         ),
         (
-            "SELECT municipio FROM consumo_energia "
+            "SELECT municipio FROM fato_consumo_faturamento "
             "EXCEPT "
-            "SELECT municipio FROM faturamento"
+            "SELECT municipio FROM kpis_mensal"
         ),
     ],
 )
@@ -46,21 +46,21 @@ def test_allows_safe_read_only_variations(sql):
     "sql",
     [
         (
-            "SELECT * FROM consumo_energia; "
-            "DROP TABLE consumo_energia"
+            "SELECT * FROM fato_consumo_faturamento; "
+            "DROP TABLE fato_consumo_faturamento"
         ),
         (
-            "SELECT * FROM consumo_energia; "
-            "UPDATE faturamento SET valor_fatura = 0"
+            "SELECT * FROM fato_consumo_faturamento; "
+            "UPDATE kpis_mensal SET valor_fatura = 0"
         ),
         (
-            "SELECT * FROM consumo_energia; "
-            "INSERT INTO faturamento "
+            "SELECT * FROM fato_consumo_faturamento; "
+            "INSERT INTO kpis_mensal "
             "(id_faturamento) VALUES (1)"
         ),
         (
-            "SELECT * FROM consumo_energia; "
-            "DELETE FROM faturamento"
+            "SELECT * FROM fato_consumo_faturamento; "
+            "DELETE FROM kpis_mensal"
         ),
     ],
 )
@@ -78,7 +78,7 @@ def test_blocks_read_query_followed_by_write_operation(sql):
 @pytest.mark.parametrize(
     "sql",
     [
-        "PRAGMA table_info(consumo_energia)",
+        "PRAGMA table_info(fato_consumo_faturamento)",
         "VACUUM",
         "ATTACH DATABASE 'outro.db' AS outro",
         "DETACH DATABASE outro",
@@ -102,7 +102,7 @@ def test_blocks_non_read_only_or_administrative_commands(sql):
 
 def test_dangerous_words_inside_string_do_not_trigger_block():
     sql = (
-        "SELECT * FROM atendimentos "
+        "SELECT * FROM fato_atendimento "
         "WHERE tipo_atendimento = "
         "'DELETE FROM faturamento'"
     )
@@ -115,8 +115,8 @@ def test_dangerous_words_inside_string_do_not_trigger_block():
 
 def test_dangerous_words_inside_comment_do_not_trigger_block():
     sql = (
-        "SELECT * FROM consumo_energia "
-        "/* DROP TABLE faturamento */"
+        "SELECT * FROM fato_consumo_faturamento "
+        "/* DROP TABLE kpis_mensal */"
     )
 
     result = validate_sql(sql)
@@ -127,7 +127,7 @@ def test_dangerous_words_inside_comment_do_not_trigger_block():
 
 def test_semicolon_inside_string_is_not_multiple_statements():
     sql = (
-        "SELECT * FROM atendimentos "
+        "SELECT * FROM fato_atendimento "
         "WHERE tipo_atendimento = 'falha; urgente'"
     )
 
@@ -139,8 +139,8 @@ def test_semicolon_inside_string_is_not_multiple_statements():
 
 def test_multiple_safe_selects_are_still_blocked():
     sql = (
-        "SELECT * FROM consumo_energia; "
-        "SELECT * FROM faturamento"
+        "SELECT * FROM fato_consumo_faturamento; "
+        "SELECT * FROM kpis_mensal"
     )
 
     result = validate_sql(sql)

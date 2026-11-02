@@ -130,6 +130,7 @@ class SQLGuardrailReason(str, Enum):
     MULTIPLE_STATEMENTS = "multiple_statements"
     FORBIDDEN_OPERATION = "forbidden_operation"
     UNSUPPORTED_QUERY = "unsupported_query"
+    UNKNOWN_TABLE = "unknown_table"
     GUARDRAIL_INTERNAL_ERROR = "guardrail_internal_error"
 
 

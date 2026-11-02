@@ -38,7 +38,7 @@ Não trate `bairro` isoladamente como identificador global.
 
 Quando a pergunta citar uma classe de consumo (comercial, residencial, rural, poder público ou industrial), filtre obrigatoriamente por `classe` usando o valor exato: `COMERCIAL`, `RESIDENCIAL`, `RURAL`, `PODER PUBLICO` ou `INDUSTRIAL`. Nunca agregue todas as classes quando a pergunta menciona uma. Exemplo: "receita comercial em Olinda" exige `classe = 'COMERCIAL'`.
 
-Ao somar valores de `receita_decomposicao` por município ou classe, use `SUM(...)` em cada coluna numérica. Nunca selecione colunas numéricas sem agregação junto de `GROUP BY`: o resultado pertenceria a uma linha qualquer do grupo.
+Ao agregar `receita_decomposicao`, use `SUM(...)` apenas para medidas aditivas, como receitas e volumes. Preços, percentuais, razões e efeitos derivados não devem ser somados diretamente; quando a granularidade mudar, recalcule-os a partir das bases agregadas conforme as regras de decomposição.
 
 ### Nomes de municípios
 

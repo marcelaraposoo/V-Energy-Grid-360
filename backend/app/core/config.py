@@ -4,6 +4,14 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from app.agent.state.cache import (
+    DEFAULT_CACHE_TTL_SECONDS,
+    DEFAULT_CACHE_TIMEOUT_SECONDS,
+    validate_cache_ttl,
+    validate_cache_timeout,
+)
+from app.agent.state.cache_key import has_data_version
+
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -28,6 +36,27 @@ CORS_PADRAO = (
 class Settings:
     # Aplicação
     app_name: str = "V-Energy Grid 360 API"
+
+    # C2: sem URL, o agente funciona sem cache. Snapshot explícito se habilitado.
+    redis_url: str | None = field(
+        default_factory=lambda: os.getenv("REDIS_URL", "").strip() or None
+    )
+    gold_data_version: str | None = field(
+        default_factory=lambda: os.getenv("GOLD_DATA_VERSION")
+    )
+    cache_ttl_seconds: int = field(
+        default_factory=lambda: int(os.getenv("CACHE_TTL_SECONDS", str(DEFAULT_CACHE_TTL_SECONDS)))
+    )
+    cache_timeout_seconds: float = field(
+        default_factory=lambda: float(os.getenv("CACHE_TIMEOUT_SECONDS", str(DEFAULT_CACHE_TIMEOUT_SECONDS)))
+    )
+
+    def __post_init__(self) -> None:
+        if self.redis_url:
+            if not has_data_version(self.gold_data_version):
+                raise ValueError("GOLD_DATA_VERSION é obrigatória com REDIS_URL configurada.")
+            validate_cache_ttl(self.cache_ttl_seconds)
+            validate_cache_timeout(self.cache_timeout_seconds)
 
     # Dados
     data_source: str = field(

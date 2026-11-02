@@ -9,6 +9,10 @@ services:
       DATA_SOURCE: sqlite
       SQLITE_PATH: /data/gold/gold.db
       PORTAL_DB_PATH: /data/portal/portal.db
+      REDIS_URL: redis://redis:6379/0
+      GOLD_DATA_VERSION: ${GOLD_DATA_VERSION:-}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
+      CACHE_TIMEOUT_SECONDS: ${CACHE_TIMEOUT_SECONDS:-1}
     expose:
       - "8000"
     volumes:
@@ -32,6 +36,19 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    # A imagem declara VOLUME /data; tmpfs evita volume anônimo persistente.
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    # Sem porta publicada, volume ou dependência de startup do backend.
 
   frontend:
     build:

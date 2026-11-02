@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def perguntar(pergunta: str, sessao_id: str | None = None) -> RespostaOut:
     from app.agent.pipeline import PipelineStatus, answer_question
 
-    resultado = asyncio.run(answer_question(pergunta))
+    resultado = asyncio.run(answer_question(pergunta, session_id=sessao_id))
 
     if resultado.status == PipelineStatus.ANSWERED:
         logger.info("Pergunta respondida. sql=%s", resultado.sql)

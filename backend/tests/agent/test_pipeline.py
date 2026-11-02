@@ -1,13 +1,15 @@
 import asyncio
 from dataclasses import replace
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
+from types import SimpleNamespace
 
 import pytest
 
 from app.agent import pipeline
 from app.agent.pipeline import PipelineStage, PipelineStatus
 from app.agent.schemas import (
+    AgentOutcome,
     GuardrailReason,
     OutputGuardrailDecision,
     OutputGuardrailReason,
@@ -25,8 +27,11 @@ from app.agent.schemas import (
     SQLGuardrailReason,
     SynthesisResult,
     SynthesisStatus,
+    PostProcessingResult,
 )
 from app.agent.synthesis_orchestrator import SynthesisFlowResult
+from app.agent.state.dependencies import AgentStateDependencies
+from app.agent.state.cache_key import build_cache_key
 
 
 SQL = "SELECT classe, COUNT(*) FROM dim_uc GROUP BY classe"
@@ -95,8 +100,8 @@ def _install(monkeypatch, *, flow=None, synthesis=None):
     return calls
 
 
-def _ask(question="Quantas UCs por classe?"):
-    return asyncio.run(pipeline.answer_question(question))
+def _ask(question="Quantas UCs por classe?", **kwargs):
+    return asyncio.run(pipeline.answer_question(question, **kwargs))
 
 
 def test_full_flow_returns_the_approved_answer(monkeypatch):
@@ -440,3 +445,192 @@ def test_missing_clarification_text_falls_back(monkeypatch):
     )
 
     assert _ask().message == pipeline._CLARIFICATION_FALLBACK
+
+
+def _cache_dependencies(value=None, **kwargs):
+    cache = SimpleNamespace(get=AsyncMock(return_value=value), set=AsyncMock())
+    return AgentStateDependencies(cache_store=cache, data_version="gold-v1", **kwargs)
+
+
+def test_cache_miss_runs_pipeline_and_sets_original_key(monkeypatch):
+    calls = _install(monkeypatch)
+    deps = _cache_dependencies()
+    key_builder = Mock(wraps=build_cache_key)
+    monkeypatch.setattr("app.agent.state.request_state.build_cache_key", key_builder)
+
+    result = _ask("  Quantas\tUCs por classe?  ", session_id="s1", state_dependencies=deps)
+
+    assert result.outcome == AgentOutcome.ANSWERED
+    assert result.cache_hit is False
+    assert result.request_id
+    assert calls == {"flow": 1, "synthesis": 1}
+    key = deps.cache_store.get.await_args.args[0]
+    args = deps.cache_store.set.await_args.args
+    assert args[0] == key
+    assert args[1].answer == result.message
+    assert args[1].visualization == result.visualization
+    assert args[2] == 300
+    key_builder.assert_called_once_with(
+        normalized_question="Quantas UCs por classe?", session_id="s1",
+        memory_context=None, data_version="gold-v1",
+    )
+
+
+def test_cache_hit_skips_all_expensive_steps_and_keeps_new_request_id(monkeypatch):
+    cached = PostProcessingResult(answer="Resposta aprovada.", assumptions=["Snapshot fixo."])
+    deps = _cache_dependencies(cached)
+    traps = []
+    for name in ("generate_validate_and_execute", "synthesize_and_validate"):
+        trap = AsyncMock(side_effect=AssertionError("HIT executou o pipeline"))
+        monkeypatch.setattr(pipeline, name, trap)
+        traps.append(trap)
+    for name in ("process_approved_response", "load_database_context"):
+        trap = Mock(side_effect=AssertionError("HIT executou o pipeline"))
+        monkeypatch.setattr(pipeline, name, trap)
+        traps.append(trap)
+    for path in (
+        "app.agent.sql_generator.generate_sql",
+        "app.agent.guardrails.sql_guardrail.validate_sql",
+        "app.agent.sql_executor.execute_sql",
+        "app.agent.answer_synthesizer.synthesize_answer",
+        "app.agent.guardrails.output_guardrail.validate_output",
+        "app.agent.post_processor.post_process",
+        "app.agent.providers.router.run_with_fallback",
+    ):
+        trap = Mock(side_effect=AssertionError("HIT chamou etapa cara"))
+        monkeypatch.setattr(path, trap)
+        traps.append(trap)
+
+    first = _ask(state_dependencies=deps)
+    second = _ask(state_dependencies=deps)
+
+    for result in (first, second):
+        assert result.message == cached.answer
+        assert result.assumptions == tuple(cached.assumptions)
+        assert result.cache_hit is True
+        assert result.outcome == AgentOutcome.ANSWERED
+        assert result.sql is None
+        assert result.provider_attempts == ()
+    assert first.request_id != second.request_id
+    for trap in traps:
+        trap.assert_not_called()
+    deps.cache_store.set.assert_not_awaited()
+
+
+def test_c1_still_blocks_before_cache_get(monkeypatch):
+    deps = _cache_dependencies(PostProcessingResult(answer="Não deve sair."))
+    result = _ask("SELECT * FROM dim_uc", state_dependencies=deps)
+    assert result.stage == PipelineStage.INPUT_GUARDRAIL
+    deps.cache_store.get.assert_not_awaited()
+    deps.cache_store.set.assert_not_awaited()
+
+
+@pytest.mark.parametrize("operation", ["get", "set"])
+@pytest.mark.parametrize("failure", ["exception", "timeout"])
+def test_cache_failure_never_loses_approved_answer(monkeypatch, operation, failure):
+    calls = _install(monkeypatch)
+    deps = _cache_dependencies(cache_timeout_seconds=0.01)
+    command = getattr(deps.cache_store, operation)
+    if failure == "exception":
+        command.side_effect = ConnectionError("Redis indisponível")
+    else:
+        async def hang(*args, **kwargs):
+            await asyncio.Event().wait()
+        command.side_effect = hang
+
+    result = _ask(state_dependencies=deps)
+
+    assert result.outcome == AgentOutcome.ANSWERED
+    assert result.message == _approved_synthesis().synthesis.answer
+    assert result.cache_hit is False
+    assert calls == {"flow": 1, "synthesis": 1}
+    deps.cache_store.set.assert_awaited_once()
+
+
+@pytest.mark.parametrize("value", ["JSON inválido", {"answer": "antigo"},
+    PostProcessingResult.model_construct(answer="")])
+def test_invalid_cache_payload_is_miss_in_pipeline(monkeypatch, value):
+    calls = _install(monkeypatch)
+    deps = _cache_dependencies(value)
+    assert _ask(state_dependencies=deps).cache_hit is False
+    assert calls == {"flow": 1, "synthesis": 1}
+
+
+@pytest.mark.parametrize("policy", ["truncated", "incomplete", "no_data",
+    "clarification", "generation_error", "sql_block", "execution_error",
+    "output_block", "post_processing_error"])
+def test_ineligible_pipeline_response_is_not_cached(monkeypatch, policy):
+    flow = _executed_flow()
+    synthesis = _approved_synthesis()
+    if policy == "truncated":
+        flow.outcome.result.truncated = True
+    elif policy == "incomplete":
+        flow.outcome.result.row_count = 3
+    elif policy == "no_data":
+        synthesis = replace(synthesis, synthesis=SynthesisResult(
+            status=SynthesisStatus.NO_DATA, answer="Sem dados.",
+        ), guardrail=None)
+    elif policy == "clarification":
+        flow.outcome = None
+        flow.generation_status = SQLGenerationStatus.NEEDS_CLARIFICATION
+    elif policy == "generation_error":
+        flow.provider_error = ProviderErrorType.TIMEOUT
+    elif policy == "sql_block":
+        flow.guardrail_reason = SQLGuardrailReason.UNKNOWN_TABLE
+    elif policy == "execution_error":
+        flow.outcome = SQLExecutionOutcome(
+            status=SQLExecutionStatus.FAILED, error_type=SQLExecutionErrorType.TIMEOUT,
+        )
+    elif policy == "output_block":
+        synthesis = replace(synthesis, guardrail=OutputGuardrailResult(
+            decision=OutputGuardrailDecision.BLOCK,
+            reason=OutputGuardrailReason.UNSUPPORTED_NUMBER, original_answer="Resposta.",
+        ))
+    elif policy == "post_processing_error":
+        monkeypatch.setattr(pipeline, "process_approved_response", lambda **kwargs: None)
+    _install(monkeypatch, flow=flow, synthesis=synthesis)
+    deps = _cache_dependencies()
+
+    result = _ask(state_dependencies=deps)
+
+    assert result.cache_hit is False
+    if policy == "no_data":
+        assert result.outcome == AgentOutcome.NO_DATA
+    deps.cache_store.set.assert_not_awaited()
+
+
+def test_memory_unavailable_bypasses_cache_but_pipeline_continues(monkeypatch):
+    _install(monkeypatch)
+    deps = _cache_dependencies(
+        PostProcessingResult(answer="Não reutilizar."),
+        memory_store=SimpleNamespace(get_context=AsyncMock(side_effect=ConnectionError)),
+    )
+    result = _ask(session_id="s1", state_dependencies=deps)
+    assert result.outcome == AgentOutcome.ANSWERED
+    assert not result.cache_hit
+    deps.cache_store.get.assert_not_awaited()
+    deps.cache_store.set.assert_not_awaited()
+
+
+def test_effective_context_and_session_reach_cache_and_generation(monkeypatch):
+    _install(monkeypatch)
+    generation = AsyncMock(return_value=_executed_flow())
+    monkeypatch.setattr(pipeline, "generate_validate_and_execute", generation)
+    deps = _cache_dependencies()
+    _ask(session_id="s1", memory_context="Contexto exato\nWEB", state_dependencies=deps)
+
+    assert generation.await_args.kwargs["memory_context"] == "Contexto exato\nWEB"
+    assert deps.cache_store.get.await_args.args[0] == build_cache_key(
+        normalized_question="Quantas UCs por classe?", session_id="s1",
+        memory_context="Contexto exato\nWEB", data_version="gold-v1",
+    )
+
+
+def test_pipeline_gold_version_change_causes_different_key(monkeypatch):
+    _install(monkeypatch)
+    deps = _cache_dependencies()
+    _ask(session_id="s1", state_dependencies=deps)
+    first = deps.cache_store.get.await_args.args[0]
+    _ask(session_id="s1", state_dependencies=replace(deps, data_version="gold-v2"))
+    second = deps.cache_store.get.await_args.args[0]
+    assert first != second

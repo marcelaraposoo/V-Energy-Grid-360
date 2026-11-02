@@ -1,5 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from uuid import uuid4
 
 from app.agent.context.loader import load_database_context
 from app.agent.execution_responses import get_execution_message
@@ -19,6 +20,7 @@ from app.agent.post_processing_orchestrator import (
 from app.agent.provider_responses import get_provider_message
 from app.agent.responses import get_guardrail_message
 from app.agent.schemas import (
+    AgentOutcome,
     GuardrailDecision,
     GuardrailReason,
     PostProcessingResult,
@@ -31,6 +33,9 @@ from app.agent.sql_execution_orchestrator import (
     generate_validate_and_execute,
 )
 from app.agent.synthesis_orchestrator import synthesize_and_validate
+from app.agent.state.cache import should_store_in_cache, write_cache
+from app.agent.state.dependencies import AgentStateDependencies, get_state_dependencies
+from app.agent.state.request_state import prepare_request_state
 
 
 class PipelineStatus(str, Enum):
@@ -68,6 +73,9 @@ class PipelineResult:
     # Metadado interno para o futuro mapeamento central de outcomes/auditoria.
     input_guardrail_reason: GuardrailReason | None = None
     provider_attempts: tuple[ProviderAttempt, ...] = ()
+    request_id: str = field(default_factory=lambda: uuid4().hex)
+    cache_hit: bool = False
+    outcome: AgentOutcome | None = None
 
 
 # Mensagens de perguntas que o agente decide não responder.
@@ -157,12 +165,14 @@ async def answer_question(
     *,
     memory_context: str | None = None,
     database_path: str | None = None,
+    session_id: str | None = None,
+    state_dependencies: AgentStateDependencies | None = None,
 ) -> PipelineResult:
     """
     Fluxo completo do agente:
 
-    Input Guardrail → 4.1 geração → 4.2 guardrail do SQL →
-    4.3 execução → 4.4 síntese → Camada 5 → Camada 6.
+    Input Guardrail → C2 GET/HIT → 4.1 geração → 4.2 guardrail do SQL →
+    4.3 execução → 4.4 síntese → Camada 5 → Camada 6 → C2 SET elegível.
 
     Qualquer etapa que falhar devolve uma mensagem segura, que não
     revela provedor, SQL de erro, prompt nem detalhes internos.
@@ -180,11 +190,31 @@ async def answer_question(
 
     clean_question = entry.normalized_input or question
 
+    # ----- Camada 2: contexto efetivo e chave imutável desta requisição -----
+    dependencies = state_dependencies if state_dependencies is not None else get_state_dependencies()
+    state = await prepare_request_state(
+        normalized_question=clean_question,
+        session_id=session_id,
+        dependencies=dependencies,
+        memory_context=memory_context,
+    )
+    if state.cached_response is not None:
+        cached = state.cached_response
+        return PipelineResult(
+            status=PipelineStatus.ANSWERED,
+            message=cached.answer,
+            stage=PipelineStage.DONE,
+            assumptions=tuple(cached.assumptions),
+            visualization=cached.visualization,
+            cache_hit=True,
+            outcome=AgentOutcome.ANSWERED,
+        )
+
     # ----- 4.1, 4.2 e 4.3 -----
     flow = await generate_validate_and_execute(
         question=clean_question,
         database_context=load_database_context(),
-        memory_context=memory_context,
+        memory_context=state.memory_context,
         database_path=database_path,
     )
 
@@ -265,6 +295,32 @@ async def answer_question(
             provider_attempts=provider_attempts,
         )
 
+    outcome = (
+        AgentOutcome.ANSWERED
+        if synthesis_flow.synthesis.status == SynthesisStatus.ANSWERED
+        else AgentOutcome.NO_DATA
+    )
+    if (
+        dependencies.cache_store is not None
+        and state.cache_key is not None
+        and should_store_in_cache(
+            outcome,
+            truncated=query_result.truncated,
+            response_complete=(
+                synthesis_flow.approved
+                and synthesis_flow.synthesis.status == SynthesisStatus.ANSWERED
+                and query_result.row_count == len(query_result.rows)
+            ),
+        )
+    ):
+        await write_cache(
+            dependencies.cache_store,
+            state.cache_key,
+            processed,
+            ttl_seconds=dependencies.cache_ttl_seconds,
+            timeout_seconds=dependencies.cache_timeout_seconds,
+        )
+
     return PipelineResult(
         status=PipelineStatus.ANSWERED,
         message=processed.answer,
@@ -273,4 +329,5 @@ async def answer_question(
         assumptions=tuple(processed.assumptions),
         visualization=processed.visualization,
         provider_attempts=provider_attempts,
+        outcome=outcome,
     )

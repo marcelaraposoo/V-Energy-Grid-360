@@ -215,6 +215,7 @@ def test_ia_perguntar_usa_o_agente(monkeypatch):
     from app.agent.pipeline import PipelineResult, PipelineStage, PipelineStatus
 
     async def agente_falso(pergunta, **kwargs):
+        assert kwargs["session_id"] == "sessao-cache"
         return PipelineResult(
             status=PipelineStatus.ANSWERED,
             message="Resposta de teste.",
@@ -224,7 +225,9 @@ def test_ia_perguntar_usa_o_agente(monkeypatch):
 
     monkeypatch.setattr("app.agent.pipeline.answer_question", agente_falso)
 
-    r = client.post("/api/ia/perguntar", json={"pergunta": "teste de pergunta"}).json()
+    r = client.post("/api/ia/perguntar", json={
+        "pergunta": "teste de pergunta", "sessao_id": "sessao-cache",
+    }).json()
 
     assert r["status"] == "ok"
     assert r["resposta"] == "Resposta de teste."

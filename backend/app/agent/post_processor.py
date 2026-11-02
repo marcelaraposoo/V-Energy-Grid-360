@@ -22,7 +22,7 @@ _TOKEN_SPLIT = re.compile(r"[^a-z0-9]+")
 _NO_UNIT_TOKENS = {
     "atipica", "corrigido", "explicada", "aberto", "possui",
     "troca", "ranking", "prioridade", "score", "qtd",
-    "quantidade", "posicao", "nota", "ano", "mes",
+    "quantidade", "posicao", "nota",
 }
 
 _READABLE = {
@@ -131,6 +131,18 @@ def _infer_unit(metric_column: str) -> str | None:
 
     if "fec" in tokens:
         return "vezes"
+
+    if "kwp" in tokens:
+        return "kWp"
+
+    if "anos" in tokens:
+        return "anos"
+
+    if "dias" in tokens:
+        return "dias"
+
+    if "kwh" in tokens and "mes" in tokens:
+        return "kWh/mês"
 
     if tokens & {"consumo", "energia", "kwh", "volume"}:
         return "kWh"

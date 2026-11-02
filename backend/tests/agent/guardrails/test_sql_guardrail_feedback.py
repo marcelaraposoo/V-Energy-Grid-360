@@ -24,7 +24,7 @@ from app.agent.schemas import (
             SQLGuardrailReason.MULTIPLE_STATEMENTS,
         ),
         (
-            "DELETE FROM faturamento",
+            "DELETE FROM fato_consumo_faturamento",
             SQLGuardrailReason.FORBIDDEN_OPERATION,
         ),
         (

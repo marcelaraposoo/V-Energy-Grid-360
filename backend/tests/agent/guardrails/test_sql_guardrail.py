@@ -17,10 +17,10 @@ from app.agent.schemas import (
             "GROUP BY municipio"
         ),
         (
-            "SELECT c.municipio, f.valor_fatura "
-            "FROM fato_consumo_faturamento AS c "
-            "JOIN kpis_mensal AS f "
-            "ON c.id_unidade = f.id_unidade"
+            "SELECT c.municipio, f.valor_total "
+            "FROM dim_uc AS c "
+            "JOIN fato_consumo_faturamento AS f "
+            "ON c.id_uc = f.id_uc"
         ),
         (
             "SELECT municipio, "
@@ -33,7 +33,7 @@ from app.agent.schemas import (
         (
             "SELECT municipio, AVG(consumo_kwh) "
             "FROM fato_consumo_faturamento "
-            "WHERE ano_referencia = 2026 "
+            "WHERE ano = 2026 "
             "GROUP BY municipio "
             "HAVING AVG(consumo_kwh) > 500 "
             "ORDER BY municipio "
@@ -53,7 +53,7 @@ def test_allows_read_only_queries(sql):
 @pytest.mark.parametrize(
     "sql",
     [
-        "INSERT INTO fato_consumo_faturamento VALUES (1)",
+        "INSERT INTO fato_consumo_faturamento (id_uc) VALUES ('UC_TESTE')",
         (
             "UPDATE fato_consumo_faturamento "
             "SET consumo_kwh = 0"

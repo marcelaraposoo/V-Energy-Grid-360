@@ -20,17 +20,17 @@ from app.agent.schemas import (
         (
             "SELECT municipio FROM fato_consumo_faturamento "
             "UNION "
-            "SELECT municipio FROM kpis_mensal"
+            "SELECT municipio FROM dim_uc"
         ),
         (
             "SELECT municipio FROM fato_consumo_faturamento "
             "INTERSECT "
-            "SELECT municipio FROM kpis_mensal"
+            "SELECT municipio FROM dim_uc"
         ),
         (
             "SELECT municipio FROM fato_consumo_faturamento "
             "EXCEPT "
-            "SELECT municipio FROM kpis_mensal"
+            "SELECT municipio FROM dim_uc"
         ),
     ],
 )
@@ -51,12 +51,12 @@ def test_allows_safe_read_only_variations(sql):
         ),
         (
             "SELECT * FROM fato_consumo_faturamento; "
-            "UPDATE kpis_mensal SET valor_fatura = 0"
+            "UPDATE kpis_mensal SET receita_total = 0"
         ),
         (
             "SELECT * FROM fato_consumo_faturamento; "
             "INSERT INTO kpis_mensal "
-            "(id_faturamento) VALUES (1)"
+            "(mes_referencia) VALUES ('2026-06')"
         ),
         (
             "SELECT * FROM fato_consumo_faturamento; "
@@ -103,8 +103,8 @@ def test_blocks_non_read_only_or_administrative_commands(sql):
 def test_dangerous_words_inside_string_do_not_trigger_block():
     sql = (
         "SELECT * FROM fato_atendimento "
-        "WHERE tipo_atendimento = "
-        "'DELETE FROM faturamento'"
+        "WHERE assunto = "
+        "'DELETE FROM fato_consumo_faturamento'"
     )
 
     result = validate_sql(sql)
@@ -128,7 +128,7 @@ def test_dangerous_words_inside_comment_do_not_trigger_block():
 def test_semicolon_inside_string_is_not_multiple_statements():
     sql = (
         "SELECT * FROM fato_atendimento "
-        "WHERE tipo_atendimento = 'falha; urgente'"
+        "WHERE assunto = 'falha; urgente'"
     )
 
     result = validate_sql(sql)

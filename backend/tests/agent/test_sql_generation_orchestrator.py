@@ -18,7 +18,7 @@ DATABASE_CONTEXT = """
 Tabela: dim_uc
 Colunas:
 - municipio
-- consumo_kwh
+- consumo_medio_12m_kwh
 """.strip()
 
 

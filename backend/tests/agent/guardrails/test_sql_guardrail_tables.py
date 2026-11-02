@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from app.agent.guardrails.allowed_tables import ALLOWED_TABLES
@@ -9,6 +12,20 @@ from app.agent.schemas import (
     SQLGuardrailDecision,
     SQLGuardrailReason,
 )
+
+
+def test_allowed_tables_match_gold_agent_contract():
+    contract_path = (
+        Path(__file__).resolve().parents[2]
+        / "fixtures"
+        / "gold_agent_contract.json"
+    )
+    contract_tables = set(
+        json.loads(contract_path.read_text(encoding="utf-8"))["tables"]
+    )
+
+    assert ALLOWED_TABLES == contract_tables
+    assert "fato_segmento_mensal" not in contract_tables
 
 
 @pytest.mark.parametrize("table", sorted(ALLOWED_TABLES))

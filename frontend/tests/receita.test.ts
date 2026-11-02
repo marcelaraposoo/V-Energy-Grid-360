@@ -1,24 +1,20 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { decompor } from '../src/features/receita/decomposicao.ts'
+import { createApi } from '../src/api/endpoints.ts'
+import { createHttp } from '../src/api/http.ts'
 import { aprofundar, filtrar, recorteInicial } from '../src/features/receita/drilldown.ts'
-import { analiseReceitaMock } from '../src/features/receita/mockData.ts'
 import { periodosDiagnostico } from '../src/features/receita/periodos.ts'
-import type { ConsultaReceita } from '../src/features/receita/tipos.ts'
+import { parametrosReceita } from '../src/features/receita/tipos.ts'
+import type { LinhaReceita } from '../src/features/receita/tipos.ts'
 
-const proximo = (a: number, b: number) => Math.abs(a - b) < 1e-6 * Math.max(1, Math.abs(a), Math.abs(b))
-
-test('decomposição: efeito volume + efeito preço = variação da receita', () => {
-  const d = decompor(1000, 500, 900, 540)
-  assert.ok(proximo(d.efeito_volume, (900 - 1000) * 0.5))
-  assert.ok(proximo(d.efeito_preco, (0.6 - 0.5) * 900))
-  assert.ok(proximo(d.efeito_volume + d.efeito_preco, 40))
-})
-
-test('decomposição: volume zero deixa o preço nulo e atribui tudo ao volume (regra da A4)', () => {
-  assert.deepEqual(decompor(0, 0, 200, 120), { preco_base_kwh: null, preco_atual_kwh: 0.6, efeito_volume: 120, efeito_preco: 0 })
-  assert.deepEqual(decompor(200, 100, 0, 0), { preco_base_kwh: 0.5, preco_atual_kwh: null, efeito_volume: -100, efeito_preco: 0 })
-})
+function linha(campos: Partial<LinhaReceita>): LinhaReceita {
+  return {
+    chave: 'x', rotulo: 'x', municipio: null, bairro: null, classe: null,
+    receita_base: 100, receita_atual: 110, variacao_receita: 10, variacao_receita_pct: 10,
+    efeito_preco: 15, efeito_volume: -5, energia_base_kwh: 200, energia_atual_kwh: 190, variacao_energia_pct: -5,
+    preco_base_kwh: 0.5, preco_atual_kwh: 0.58, qtd_ucs_base: 10, qtd_ucs_atual: 10, ...campos,
+  }
+}
 
 test('drill-down: município → bairro → classe; voltar limpa os níveis abaixo', () => {
   const municipio = filtrar(recorteInicial, { municipio: 'Recife' })
@@ -38,31 +34,30 @@ test('drill-down: classe preserva o agrupamento e não pode ser agrupamento quan
 })
 
 test('drill-down: clicar na linha desce um nível e para no bairro agrupado por classe', () => {
-  const consulta: ConsultaReceita = { ...recorteInicial, ...periodosDiagnostico }
-  const analise = analiseReceitaMock(consulta)
-  const destino = aprofundar(recorteInicial, analise.linhas[0])
-  assert.equal(destino?.agrupar_por, 'bairro')
-  assert.equal(destino?.municipio, analise.linhas[0].municipio)
-  const noBairro = { municipio: 'Recife', bairro: 'Madalena', classe: null, agrupar_por: 'classe' as const }
-  const linhaClasse = analiseReceitaMock({ ...noBairro, ...periodosDiagnostico }).linhas[0]
-  assert.equal(aprofundar(noBairro, linhaClasse), null)
+  const destino = aprofundar(recorteInicial, linha({ chave: 'Recife', rotulo: 'Recife', municipio: 'Recife' }))
+  assert.deepEqual(destino, { municipio: 'Recife', bairro: null, classe: null, agrupar_por: 'bairro' })
+  const noBairro = aprofundar(destino!, linha({ chave: 'Madalena - Recife', rotulo: 'Madalena', municipio: 'Recife', bairro: 'Madalena' }))
+  assert.deepEqual(noBairro, { municipio: 'Recife', bairro: 'Madalena', classe: null, agrupar_por: 'classe' })
+  assert.equal(aprofundar(noBairro!, linha({ chave: 'RESIDENCIAL', classe: 'RESIDENCIAL' })), null)
+  // Sem território, a classe filtra e volta ao nível de município.
+  const porClasse = aprofundar({ ...recorteInicial, agrupar_por: 'classe' }, linha({ chave: 'COMERCIAL', classe: 'COMERCIAL' }))
+  assert.deepEqual(porClasse, { municipio: null, bairro: null, classe: 'COMERCIAL', agrupar_por: 'municipio' })
 })
 
-test('dados de layout são coerentes: linhas somam o total e os efeitos fecham a variação', () => {
-  for (const agrupar_por of ['municipio', 'bairro', 'classe'] as const) {
-    const analise = analiseReceitaMock({ ...recorteInicial, agrupar_por, ...periodosDiagnostico })
-    const soma = (campo: 'receita_base' | 'receita_atual' | 'energia_base_kwh' | 'energia_atual_kwh') =>
-      analise.linhas.reduce((t, l) => t + l[campo], 0)
-    for (const campo of ['receita_base', 'receita_atual', 'energia_base_kwh', 'energia_atual_kwh'] as const) {
-      assert.ok(proximo(soma(campo), analise.total[campo]), `${agrupar_por}: ${campo}`)
-    }
-    for (const linha of [analise.total, ...analise.linhas]) {
-      assert.ok(proximo(linha.efeito_volume + linha.efeito_preco, linha.variacao_receita), `${agrupar_por}: ${linha.chave}`)
-    }
-    assert.equal(analise.fonte, 'receita_decomposicao')
-    assert.deepEqual(analise.linhas.map((l) => l.variacao_receita), [...analise.linhas].map((l) => l.variacao_receita).sort((a, b) => a - b))
-  }
-  const personalizado = analiseReceitaMock({ ...recorteInicial, periodo: { inicio: '2026-01', fim: '2026-06' }, referencia: { inicio: '2025-01', fim: '2025-06' } })
-  assert.equal(personalizado.fonte, 'fato_segmento_mensal')
-  assert.equal(personalizado.serie.length, 12)
+test('consulta envia períodos, filtros e agrupamento; filtros vazios não saem do cliente', async () => {
+  const urls: string[] = []
+  const api = createApi(createHttp('http://test', async (url) => { urls.push(String(url)); return new Response('{}') }))
+  await api.receita.variacao(parametrosReceita({ ...recorteInicial, ...periodosDiagnostico }))
+  await api.receita.variacao(parametrosReceita({
+    municipio: 'Jaboatão dos Guararapes', bairro: 'Piedade', classe: 'PODER PUBLICO', agrupar_por: 'classe',
+    periodo: { inicio: '2026-01', fim: '2026-06' }, referencia: { inicio: '2025-01', fim: '2025-06' },
+  }))
+  const [padrao, filtrada] = urls.map((url) => Object.fromEntries(new URL(url).searchParams))
+  assert.deepEqual(padrao, {
+    base_inicio: '2022-07', base_fim: '2023-06', atual_inicio: '2025-07', atual_fim: '2026-06', agrupar_por: 'municipio',
+  })
+  assert.deepEqual(filtrada, {
+    base_inicio: '2025-01', base_fim: '2025-06', atual_inicio: '2026-01', atual_fim: '2026-06',
+    municipio: 'Jaboatão dos Guararapes', bairro: 'Piedade', classe: 'PODER PUBLICO', agrupar_por: 'classe',
+  })
 })

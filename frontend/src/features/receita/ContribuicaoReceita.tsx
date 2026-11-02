@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowDown, ArrowUp, ChevronRight, Table2, X } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Panel } from '../../components/ui/Panel'
+import { formatarCompetencia } from '../dashboard/formatacao'
 import { agrupamentosDisponiveis, aprofundar, filtrar } from './drilldown'
 import type { Recorte } from './drilldown'
 import { nomesClasse, quantidade, reais, reaisComSinal, tendencia, variacao } from './formatacao'
@@ -76,7 +77,7 @@ export function ContribuicaoReceita({ analise, recorte, onRecorte }: Props) {
                     </button>
                   </th>
                 })}
-                <th scope="col" className="num">UCs</th>
+                <th scope="col" className="num" title="UCs faturadas na última competência do período atual">UCs em {formatarCompetencia(analise.periodo_atual.fim)}</th>
               </tr>
             </thead>
             <tbody>

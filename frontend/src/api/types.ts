@@ -100,24 +100,56 @@ export type ConsumoClassesResponse = {
 
 export type AgruparPor = 'municipio' | 'bairro' | 'classe'
 
+/** Análise de Receita (`GET /api/receita/variacao`). Espelha backend/app/schemas.py.
+ * Receita sem tributos (R$) e energia em kWh; nulo = indisponível, nunca zero.
+ */
 export type VariacaoLinha = {
+  /** Município, "Bairro - Município" ou classe; "TOTAL" na linha de total. */
   chave: string
+  rotulo: string
+  municipio: string | null
+  bairro: string | null
+  classe: ClasseConsumo | null
   receita_base: number
   receita_atual: number
   variacao_receita: number
+  variacao_receita_pct: number | null
   efeito_preco: number
   efeito_volume: number
   energia_base_kwh: number
   energia_atual_kwh: number
   variacao_energia_pct: number | null
+  /** Nulo quando o período não tem volume (regra de volume zero da A4). */
+  preco_base_kwh: number | null
+  preco_atual_kwh: number | null
+  /** UCs faturadas na última competência de cada período. */
+  qtd_ucs_base: number
+  qtd_ucs_atual: number
+}
+
+export type FatoresReceita = {
+  /** UCs com GD conectada até a última competência do período atual. */
+  qtd_ucs_com_gd: number
+  /** Volume dessas mesmas UCs em cada período (A2); nulo só sem a A2 exportada. */
+  energia_ucs_gd_base_kwh: number | null
+  energia_ucs_gd_atual_kwh: number | null
+  qtd_trocas_medidor_atual: number
+  pct_faturas_bandeira_nao_verde_base: number | null
+  pct_faturas_bandeira_nao_verde_atual: number | null
 }
 
 export type VariacaoResponse = {
   agrupar_por: AgruparPor
   periodo_base: Periodo
   periodo_atual: Periodo
+  /** diagnostico = 2022-07 a 2023-06 × 2025-07 a 2026-06 (contrato da Gold). */
+  recorte: 'diagnostico' | 'personalizado'
   total: VariacaoLinha
+  /** Ordenadas da maior queda de receita para a maior alta. */
   linhas: VariacaoLinha[]
+  fatores: FatoresReceita
+  /** Referência e depois o período atual; mês sem dados vem com valores nulos. */
+  serie: SeriePonto[]
 }
 
 export type VariacaoParams = PeriodosParams &

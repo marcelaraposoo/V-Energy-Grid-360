@@ -6,7 +6,6 @@ import { Panel } from '../../components/ui/Panel'
 import { valoresMensais } from '../dashboard/consultas'
 import { EvolucaoChart } from '../dashboard/EvolucaoChart'
 import { escalaGrafico, unidadeDaEscala } from '../dashboard/escalaGrafico'
-import type { PontoMensalReceita } from './tipos'
 
 type Metrica = 'energia_kwh' | 'preco' | 'receita'
 const metricas: { valor: Metrica; rotulo: string; descricao: string }[] = [
@@ -15,13 +14,10 @@ const metricas: { valor: Metrica; rotulo: string; descricao: string }[] = [
   { valor: 'receita', rotulo: 'Receita', descricao: 'Receita de energia sem tributos' },
 ]
 
-export function EvolucaoReceita({ serie, periodo, referencia }: { serie: PontoMensalReceita[]; periodo: Periodo; referencia: Periodo }) {
+export function EvolucaoReceita({ serie, periodo, referencia }: { serie: SeriePonto[]; periodo: Periodo; referencia: Periodo }) {
   const [metrica, setMetrica] = useState<Metrica>('energia_kwh')
-  // O gráfico do Dashboard lê `receita` ou `energia_kwh`; o preço entra no lugar da receita.
-  const pontos: SeriePonto[] = serie.map((p) => ({
-    competencia: p.competencia, energia_kwh: p.energia_kwh, tarifa_media: null,
-    receita: metrica === 'preco' ? (p.receita !== null && p.energia_kwh ? p.receita / p.energia_kwh : null) : p.receita,
-  }))
+  // O gráfico do Dashboard lê `receita` ou `energia_kwh`; o preço médio (tarifa_media da API) entra no lugar da receita.
+  const pontos = metrica === 'preco' ? serie.map((p) => ({ ...p, receita: p.tarifa_media })) : serie
   const campo = metrica === 'energia_kwh' ? 'energia_kwh' : 'receita'
   const atual = valoresMensais(pontos, periodo, campo)
   const base = valoresMensais(pontos, referencia, campo)

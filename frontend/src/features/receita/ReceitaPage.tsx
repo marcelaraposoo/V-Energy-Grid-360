@@ -1,6 +1,6 @@
 import { useReducer, useState } from 'react'
 import { CalendarRange, RotateCcw } from 'lucide-react'
-import { useApi } from '../../api'
+import { api, useApi } from '../../api'
 import type { ClasseConsumo } from '../../api/types'
 import { SelectField } from '../../components/ui/Controls'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -16,11 +16,10 @@ import { filtrar, recorteInicial } from './drilldown'
 import type { Recorte } from './drilldown'
 import { EvolucaoReceita } from './EvolucaoReceita'
 import { FatoresReceita } from './FatoresReceita'
-import { nomesClasse } from './formatacao'
-import { catalogoReceitaMock, consultarReceitaMock } from './mockData'
 import { periodosDiagnostico } from './periodos'
 import { RankingQuedas } from './RankingQuedas'
 import { ResumoReceita } from './ResumoReceita'
+import { parametrosReceita } from './tipos'
 import { WaterfallReceita } from './WaterfallReceita'
 import '../dashboard/dashboard.css'
 import './receita.css'
@@ -35,10 +34,11 @@ export function ReceitaPage() {
   const [recorte, setRecorte] = useState<Recorte>(recorteInicial)
   const { periodo, referencia, aviso } = temporal
   const analise = useApi(
-    (signal) => referencia ? consultarReceitaMock({ ...recorte, periodo, referencia }, signal) : Promise.resolve(null),
+    (signal) => referencia ? api.receita.variacao(parametrosReceita({ ...recorte, periodo, referencia }), signal) : Promise.resolve(null),
     [periodo.inicio, periodo.fim, referencia?.inicio, referencia?.fim, recorte.municipio, recorte.bairro, recorte.classe, recorte.agrupar_por],
   )
-  const bairros = catalogoReceitaMock.municipios.find((m) => m.nome === recorte.municipio)?.bairros ?? []
+  const catalogo = useApi((signal) => api.filtros(signal), [])
+  const bairros = catalogo.data?.municipios.find((m) => m.nome === recorte.municipio)?.bairros ?? []
 
   return (
     <div className="receita-page">
@@ -60,16 +60,20 @@ export function ReceitaPage() {
           validar={(base) => validarPeriodosDashboard(periodo, base, true, limites)}
           onChange={(valor) => dispatch({ tipo: 'referencia', valor })} />
         <SelectField label="Município" value={recorte.municipio ?? ''} placeholder="Todos os municípios"
-          options={catalogoReceitaMock.municipios.map((m) => ({ value: m.nome, label: m.nome }))}
+          options={catalogo.data?.municipios.map((m) => ({ value: m.nome, label: m.nome })) ?? []}
           onChange={(valor) => setRecorte(filtrar(recorte, { municipio: valor || null }))} />
         <SelectField label="Bairro" value={recorte.bairro ?? ''} placeholder={recorte.municipio ? 'Todos os bairros' : 'Escolha o município'}
           disabled={!recorte.municipio} options={bairros.map((b) => ({ value: b, label: b }))}
           onChange={(valor) => setRecorte(filtrar(recorte, { bairro: valor || null }))} />
         <SelectField label="Classe" value={recorte.classe ?? ''} placeholder="Todas as classes"
-          options={catalogoReceitaMock.classes.map((c) => ({ value: c, label: nomesClasse[c] }))}
+          options={catalogo.data?.classes.map((c) => ({ value: c.codigo, label: c.descricao })) ?? []}
           onChange={(valor) => setRecorte(filtrar(recorte, { classe: (valor || null) as ClasseConsumo | null }))} />
         <button type="reset" className="button button--secondary"><RotateCcw size={14} aria-hidden="true" /> Limpar</button>
         {aviso && <p className="receita-filtros-nota" role="status" aria-live="polite">{aviso}</p>}
+        {catalogo.error && <p className="receita-filtros-nota" role="alert">
+          Não foi possível carregar os municípios e as classes.{' '}
+          <button type="button" className="link-button" onClick={catalogo.reload}>Tentar novamente</button>
+        </p>}
       </form>
 
       {!referencia ? <Panel title="Comparação indisponível">

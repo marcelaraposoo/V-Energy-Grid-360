@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   ScanLine,
   Sparkles,
+  TrendingUpDown,
 } from 'lucide-react'
 import { matchPath } from 'react-router-dom'
 
@@ -15,7 +16,10 @@ export const navigation = [
   },
   {
     group: 'Análises',
-    items: [{ title: 'Visão 360 da UC', to: '/uc', icon: ScanLine }],
+    items: [
+      { title: 'Análise de Receita', to: '/receita', icon: TrendingUpDown },
+      { title: 'Visão 360 da UC', to: '/uc', icon: ScanLine },
+    ],
   },
   {
     group: 'Operações',

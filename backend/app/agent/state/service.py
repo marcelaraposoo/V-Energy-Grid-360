@@ -11,7 +11,7 @@ from app.agent.state.cache import (
     DEFAULT_CACHE_TIMEOUT_SECONDS,
 )
 from app.agent.state.finalizer import finalize
-from app.agent.state.memory import MemoryStore
+from app.agent.state.memory import MemoryStore, DEFAULT_MEMORY_TIMEOUT_SECONDS
 from app.agent.state.records import (
     build_audit_record,
     build_memory_entry,
@@ -20,7 +20,7 @@ from app.agent.state.records import (
 
 async def finalize_request(
     *,
-    audit_store: AuditStore,
+    audit_store: AuditStore | None,
     request_id: str,
     question: str,
     outcome: AgentOutcome,
@@ -39,6 +39,7 @@ async def finalize_request(
     cache_timeout_seconds: float = DEFAULT_CACHE_TIMEOUT_SECONDS,
     cache_data_version: str | None = None,
     cache_response_complete: bool = False,
+    memory_timeout_seconds: float = DEFAULT_MEMORY_TIMEOUT_SECONDS,
 ) -> None:
     """
     Ponte entre o fluxo do agente e a Camada 7.
@@ -78,4 +79,5 @@ async def finalize_request(
         cache_timeout_seconds=cache_timeout_seconds,
         cache_data_version=cache_data_version,
         cache_response_complete=cache_response_complete,
+        memory_timeout_seconds=memory_timeout_seconds,
     )

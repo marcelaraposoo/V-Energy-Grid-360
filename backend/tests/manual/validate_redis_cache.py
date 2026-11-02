@@ -53,7 +53,8 @@ async def main(mode):
     spy(sql_execution_orchestrator, "execute_sql", "execution")
     spy(synthesis_orchestrator, "validate_output", "output_guardrail")
     spy(pipeline, "process_approved_response", "post_processing")
-    deps = get_state_dependencies()
+    # Ensaio isolado da C2: fixa contexto e não grava auditoria do portal.
+    deps = replace(get_state_dependencies(), memory_store=None, audit_store=None)
     store = deps.cache_store
     keys = []
 

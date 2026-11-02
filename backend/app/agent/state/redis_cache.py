@@ -4,10 +4,9 @@ import asyncio
 import logging
 
 from redis.asyncio import Redis
-from redis.asyncio.retry import Retry
-from redis.backoff import NoBackoff
 
 from app.agent.schemas import PostProcessingResult
+from app.agent.state.redis_client import create_redis_client
 from app.agent.state.cache import (
     DEFAULT_CACHE_TIMEOUT_SECONDS,
     deserialize_cache_value,
@@ -31,12 +30,7 @@ class RedisCacheStore:
     def _client(self) -> Redis:
         # O HTTP atual usa asyncio.run por pergunta: não compartilhar pools
         # entre event loops. O contexto de cada operação fecha seu próprio pool.
-        return Redis.from_url(
-            self._url,
-            socket_connect_timeout=self._timeout_seconds,
-            socket_timeout=self._timeout_seconds,
-            retry=Retry(NoBackoff(), 0),
-        )
+        return create_redis_client(self._url, self._timeout_seconds)
 
     async def get(self, key: str) -> PostProcessingResult | None:
         try:

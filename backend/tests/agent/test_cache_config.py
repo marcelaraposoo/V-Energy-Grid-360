@@ -3,6 +3,8 @@ import pytest
 from app.core.config import Settings
 from app.agent.state.dependencies import get_state_dependencies
 from app.agent.state.redis_cache import RedisCacheStore
+from app.agent.state.redis_memory import RedisMemoryStore
+from app.agent.state.sqlite_audit import SQLiteAuditStore
 
 
 def test_cache_is_disabled_without_url(monkeypatch):
@@ -36,8 +38,11 @@ def test_environment_configures_one_runtime_cache(monkeypatch):
     assert deps.data_version == "snapshot-v2"
     assert deps.cache_ttl_seconds == 60
     assert deps.cache_timeout_seconds == 0.5
-    assert deps.memory_store is None
-    assert deps.audit_store is None
+    assert isinstance(deps.memory_store, RedisMemoryStore)
+    assert isinstance(deps.audit_store, SQLiteAuditStore)
+    assert deps.audit_store.path == config.portal_db_path
+    assert config.memory_ttl_seconds == 86400
+    assert config.memory_timeout_seconds == 1
 
 
 @pytest.mark.parametrize("field,value", [
@@ -46,5 +51,24 @@ def test_environment_configures_one_runtime_cache(monkeypatch):
     ("cache_timeout_seconds", float("inf")),
 ])
 def test_invalid_enabled_cache_settings_fail_at_startup(field, value):
+    with pytest.raises(ValueError):
+        Settings(redis_url="redis://redis", gold_data_version="v1", **{field: value})
+
+
+def test_memory_environment_configuration(monkeypatch):
+    monkeypatch.setenv("MEMORY_TTL_SECONDS", "120")
+    monkeypatch.setenv("MEMORY_TIMEOUT_SECONDS", "0.25")
+    config = Settings(redis_url="redis://redis", gold_data_version="v1")
+    monkeypatch.setattr("app.core.config.settings", config)
+    assert config.memory_ttl_seconds == 120
+    assert get_state_dependencies().memory_timeout_seconds == 0.25
+
+
+@pytest.mark.parametrize("field,value", [
+    ("memory_ttl_seconds", 0), ("memory_ttl_seconds", -1),
+    ("memory_timeout_seconds", 0), ("memory_timeout_seconds", float("nan")),
+    ("memory_timeout_seconds", float("inf")),
+])
+def test_invalid_memory_configuration_is_rejected(field, value):
     with pytest.raises(ValueError):
         Settings(redis_url="redis://redis", gold_data_version="v1", **{field: value})

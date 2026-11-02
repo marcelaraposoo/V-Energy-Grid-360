@@ -9,15 +9,15 @@ from app.agent.state.cache import (
     validate_cache_timeout,
 )
 from app.agent.state.cache_key import has_data_version
-from app.agent.state.memory import MemoryStore
+from app.agent.state.memory import MemoryStore, DEFAULT_MEMORY_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True, slots=True)
 class AgentStateDependencies:
     """
-    Contratos de estado compartilhados pela C2 e pela futura finalização.
+    Stores e limites usados pela C2 e pela finalização C7.
 
-    A auditoria é uma interface opcional para a futura C7. A versão Gold é um
+    Stores opcionais permitem injeção isolada nos testes. A versão Gold é um
     identificador explícito fornecido pela integração, nunca mtime/hash por GET.
     """
 
@@ -27,8 +27,11 @@ class AgentStateDependencies:
     cache_ttl_seconds: int = DEFAULT_CACHE_TTL_SECONDS
     cache_timeout_seconds: float = DEFAULT_CACHE_TIMEOUT_SECONDS
     data_version: str | None = None
+    memory_timeout_seconds: float = DEFAULT_MEMORY_TIMEOUT_SECONDS
 
     def __post_init__(self) -> None:
+        if self.memory_store is not None:
+            validate_cache_timeout(self.memory_timeout_seconds)
         if self.cache_store is None:
             return
 
@@ -41,11 +44,21 @@ class AgentStateDependencies:
 
 
 def get_state_dependencies() -> AgentStateDependencies:
-    """Configuração operacional da C2, sem conexão antecipada com Redis."""
+    """Adapters C2/C7, sem conexão antecipada com Redis ou SQLite."""
     from app.core.config import settings
     from app.agent.state.redis_cache import RedisCacheStore
+    from app.agent.state.redis_memory import RedisMemoryStore
+    from app.agent.state.sqlite_audit import SQLiteAuditStore
 
     return AgentStateDependencies(
+        audit_store=SQLiteAuditStore(settings.portal_db_path),
+        memory_store=(
+            RedisMemoryStore(
+                settings.redis_url, ttl_seconds=settings.memory_ttl_seconds,
+                timeout_seconds=settings.memory_timeout_seconds,
+            ) if settings.redis_url else None
+        ),
+        memory_timeout_seconds=settings.memory_timeout_seconds,
         cache_store=(
             RedisCacheStore(settings.redis_url, timeout_seconds=settings.cache_timeout_seconds)
             if settings.redis_url else None

@@ -35,17 +35,17 @@ export function UnitSearch({ compact = false }: UnitSearchProps) {
         value={value}
         onChange={(event) => {
           event.currentTarget.setCustomValidity('')
-          setValue(normalizarIdentificadorUC(event.target.value))
+          setValue(event.target.value.trim().toUpperCase())
         }}
         onInvalid={(event) => {
           event.currentTarget.setCustomValidity(
             event.currentTarget.validity.valueMissing
               ? 'Informe o identificador da UC.'
-              : 'Use UC seguido de seis dígitos, como UC100000.',
+              : 'Use seis dígitos, com ou sem UC, como 000001 ou UC000001.',
           )
         }}
-        pattern="UC[0-9]{6}"
-        title="UC seguido de seis dígitos, como UC100000"
+        pattern="(UC)?[0-9]{6}"
+        title="Seis dígitos, com ou sem UC, como 000001 ou UC000001"
         autoComplete="off"
         maxLength={100}
         required

@@ -1,9 +1,13 @@
 """Repositório sobre o SQLite exportado da camada Gold (`data/gold.db`).
 
-ETAPA 1 (esta): só o que a Gold já entrega na `main`, a `dim_uc` (1 linha = 1 UC). Cobre catálogos,
-busca de UC, medidor ativo e geração distribuída. O que depende de tabelas que ainda não estão na `main`
-(fato_consumo_faturamento, fato_interrupcao, fila_inspecao...) levanta `NaoDisponivelNaGold` (HTTP 501),
-em vez de devolver lista vazia: vazio pareceria "UC sem consumo", e não "dado que ainda não chegou".
+Cobre cadastro, catálogos, medidor e GD pela dim_uc; consumo e faturas da UC pela
+fato_consumo_faturamento; trocas de medidor pela A6; rede pelas A7/A8; atendimentos pela B1;
+fila de suspeitas pela fila_inspecao.
+Dashboard: leitura mensal das agregadas kpis_mensal (A5) e fato_segmento_mensal (A3);
+a integração dessas leituras aos endpoints ainda está pendente.
+A consulta paginada de faturas
+faz contagens em SQL e usa LIMIT/OFFSET. Métodos ainda não integrados ou tabelas ausentes
+levantam `NaoDisponivelNaGold` (HTTP 501), sem apresentar indisponibilidade como histórico vazio.
 
 Decisões:
 - Conexão aberta a cada chamada e SOMENTE LEITURA (`mode=ro`): a exportação da Gold pode trocar o arquivo
@@ -12,8 +16,7 @@ Decisões:
 - Leitura tolerante: coluna opcional ausente vira None, e booleanos aceitam 1/0, true/false e t/f.
   O formato exato do export (`04_export_banco_local`) ainda não existe.
 - LGPD: a `dim_uc` só tem colunas mascaradas; nada aqui lê nome ou documento completos.
-- `competencias()` vem do período coberto pelas leituras (primeiro e último mês da `dim_uc`),
-  já que a fato de faturamento ainda não está disponível.
+- `competencias()` vem do período coberto pelas leituras (primeiro e último mês da `dim_uc`).
 """
 from __future__ import annotations
 
@@ -23,11 +26,16 @@ from contextlib import closing
 from pathlib import Path
 
 from app.core.errors import NaoDisponivelNaGold
+from app.repositories.atendimento import atendimento_publico
 from app.repositories.base import OrdensStore
+from app.repositories.dashboard import COLUNAS_KPIS, COLUNAS_SEGMENTOS, COLUNAS_TEXTO, validar_filtro_bairro
+from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES, TAMANHO_PAGINA, consumo_publico, fatura_publica
 from app.repositories.ordens_store import MemoriaOrdensStore
+from app.repositories.rede import ocorrencia_publica
 
 TABELA_UC = "dim_uc"
 TABELA_FILA = "fila_inspecao"
+TABELA_FATURAMENTO = "fato_consumo_faturamento"
 COLUNAS_OBRIGATORIAS = ("id_uc", "nome_titular_mascarado", "municipio", "bairro", "classe", "alimentador")
 
 DESCRICAO_CLASSE = {
@@ -140,6 +148,7 @@ class SqliteRepository:
             "classe": classe,
             "classe_descricao": DESCRICAO_CLASSE.get(classe, classe.title() if classe else None),
             "subgrupo_tarifario": d.get("subgrupo_tarifario"),
+            "possui_gd": None if d.get("possui_gd") is None else _bool(d["possui_gd"]),
             "municipio": d["municipio"],
             "bairro": d["bairro"],
             "logradouro": d.get("logradouro"),
@@ -196,6 +205,50 @@ class SqliteRepository:
                 saida.append({"id": alim, "municipio": principal, "ucs_total": sum(p[0] for p in partes)})
         return saida
 
+    # ---------- dashboard (A5/A3) ----------
+    def _dashboard_mensal(self, tabela, colunas, inicio, fim, municipio=None, bairro=None, classe=None):
+        # Tabela, colunas e ordenação vêm somente das constantes internas A5/A3.
+        # Todos os valores recebidos do chamador usam parâmetros SQL.
+        cond = ["mes_referencia BETWEEN ? AND ?"]
+        args = [inicio, fim]
+        for coluna, valor in (("municipio", municipio), ("bairro", bairro), ("classe", classe)):
+            if valor is not None:
+                cond.append(f"{coluna} = ?")
+                args.append(valor)
+        ordem = [c for c in ("mes_referencia", "municipio", "bairro", "classe") if c in colunas]
+        with closing(self._conectar()) as con:
+            disponiveis = {r["name"] for r in con.execute(f"PRAGMA table_info({tabela})")}
+            if not disponiveis:
+                raise _sem_gold("Dados mensais do Dashboard", tabela)
+            faltantes = [c for c in colunas if c not in disponiveis]
+            if faltantes:
+                raise NaoDisponivelNaGold(
+                    f"A tabela {tabela} está incompleta para o Dashboard. Colunas ausentes: {', '.join(faltantes)}."
+                )
+            registros = con.execute(
+                f"SELECT {', '.join(colunas)} FROM {tabela} WHERE {' AND '.join(cond)} ORDER BY {', '.join(ordem)}",
+                args,
+            ).fetchall()
+        linhas = []
+        for registro in registros:
+            linha = {}
+            for coluna in colunas:
+                valor = registro[coluna]
+                if coluna not in COLUNAS_TEXTO:
+                    valor = _num(valor)
+                    if valor is not None and coluna.startswith("qtd_"):
+                        valor = int(valor)
+                linha[coluna] = valor
+            linhas.append(linha)
+        return linhas
+
+    def kpis_mensais(self, inicio, fim):
+        return self._dashboard_mensal("kpis_mensal", COLUNAS_KPIS, inicio, fim)
+
+    def segmentos_mensais(self, inicio, fim, municipio=None, bairro=None, classe=None):
+        validar_filtro_bairro(municipio, bairro)
+        return self._dashboard_mensal("fato_segmento_mensal", COLUNAS_SEGMENTOS, inicio, fim, municipio, bairro, classe)
+
     # ---------- unidades consumidoras (dim_uc) ----------
     def buscar_ucs(self, q: str | None, municipio: str | None, classe: str | None, limite: int) -> list[dict]:
         cond: list[str] = []
@@ -234,6 +287,16 @@ class SqliteRepository:
             "trocado_recentemente": _bool(d.get("medidor_trocado_recentemente")),
         }
 
+    def trocas_medidor_uc(self, uc_id: str) -> list[dict]:
+        tabela = "fato_troca_medidor"
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Trocas de medidor da UC", tabela)
+            return [dict(r) for r in con.execute(f"""
+                SELECT * FROM {tabela} WHERE id_uc = ? COLLATE NOCASE
+                ORDER BY mes_troca DESC, id_medidor_novo DESC
+            """, (uc_id.strip(),))]
+
     def gd_uc(self, uc_id: str) -> dict | None:
         d = self._linha_uc(uc_id)
         if not d or not _bool(d.get("possui_gd")):
@@ -247,24 +310,129 @@ class SqliteRepository:
             "energia_injetada_atipica": _bool(d.get("energia_injetada_atipica")),
         }
 
-    # ---------- ainda sem tabela na Gold ----------
-    def faturas(self, inicio, fim, municipio=None, bairro=None, classe=None):
-        raise _sem_gold("Faturamento", "fato_consumo_faturamento")
+    # ---------- consumo e faturas da UC (A2) ----------
+    def _faturamento_uc(self, uc_id):
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (TABELA_FATURAMENTO,)).fetchone():
+                raise _sem_gold("Consumo e faturas da UC", TABELA_FATURAMENTO)
+            return [dict(r) for r in con.execute(f"""
+                SELECT * FROM {TABELA_FATURAMENTO} WHERE id_uc = ? COLLATE NOCASE
+                ORDER BY mes_referencia, id_fatura
+            """, (uc_id.strip(),))]
 
     def consumo_uc(self, uc_id):
-        raise _sem_gold("Consumo da UC", "fato_consumo_faturamento")
+        return consumo_publico([
+            {**f, "troca_medidor": None if f["troca_medidor"] is None else _bool(f["troca_medidor"])}
+            for f in self._faturamento_uc(uc_id)
+        ])
 
     def faturas_uc(self, uc_id):
-        raise _sem_gold("Faturas da UC", "fato_consumo_faturamento")
+        linhas = self._faturamento_uc(uc_id)
+        if not linhas:
+            return []
+        uc = self._linha_uc(uc_id)
+        return [fatura_publica(f, uc) for f in linhas]
 
-    def atendimentos_uc(self, uc_id):
-        raise _sem_gold("Atendimentos da UC", "fato_atendimento")
+    def pagina_faturas_uc(self, uc_id, aba, ano, situacao, pagina):
+        tabela = TABELA_FATURAMENTO
+        uc = self._linha_uc(uc_id)
+        with closing(self._conectar()) as con:
+            con.execute("BEGIN")
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Faturas da UC", tabela)
+            resumo = dict(con.execute(f"""
+                SELECT COALESCE(SUM(status_fatura = 'EM ABERTO' AND faixa_atraso IN (?, ?, ?)), 0)
+                           AS pendencias_recentes,
+                       COALESCE(SUM(status_fatura = 'EM ABERTO' AND faixa_atraso = ?), 0)
+                           AS pendencias_antigas
+                FROM {tabela} WHERE id_uc = ? COLLATE NOCASE
+            """, (*FAIXAS_RECENTES, FAIXA_ANTIGA, uc_id)).fetchone())
+            anos = [r[0] for r in con.execute(f"""
+                SELECT DISTINCT CAST(substr(mes_referencia, 1, 4) AS INTEGER)
+                FROM {tabela} WHERE id_uc = ? COLLATE NOCASE ORDER BY 1 DESC
+            """, (uc_id,))]
+            where = "id_uc = ? COLLATE NOCASE"
+            params = [uc_id]
+            if aba == "recentes":
+                where += f""" AND mes_referencia IN (
+                    SELECT DISTINCT mes_referencia FROM {tabela}
+                    WHERE id_uc = ? COLLATE NOCASE ORDER BY mes_referencia DESC LIMIT 12
+                ) AND (status_fatura = 'PAGA' OR (
+                    status_fatura = 'EM ABERTO' AND faixa_atraso IN (?, ?, ?)
+                ))"""
+                params.extend((uc_id, *FAIXAS_RECENTES))
+            else:
+                if ano is not None:
+                    where += " AND mes_referencia >= ? AND mes_referencia <= ?"
+                    params.extend((f"{ano:04d}-01", f"{ano:04d}-12"))
+                if situacao != "todas":
+                    where += " AND status_fatura = ?"
+                    params.append("PAGA" if situacao == "paga" else "EM ABERTO")
+            total = con.execute(f"SELECT COUNT(*) FROM {tabela} WHERE {where}", params).fetchone()[0]
+            linhas = con.execute(f"""
+                SELECT * FROM {tabela} WHERE {where}
+                ORDER BY mes_referencia DESC, id_fatura DESC LIMIT ? OFFSET ?
+            """, (*params, TAMANHO_PAGINA, (pagina - 1) * TAMANHO_PAGINA)).fetchall()
+        return {
+            "itens": [fatura_publica(dict(f), uc) for f in linhas],
+            "total": total, "pagina": pagina, "tamanho": TAMANHO_PAGINA,
+            "resumo": resumo, "anos_disponiveis": anos,
+        }
 
+    # ---------- rede (A7 e A8) ----------
     def ocorrencias(self, inicio, fim, alimentador_id=None, municipio=None, uc_id=None):
-        raise _sem_gold("Ocorrências de rede", "fato_interrupcao")
+        tabela = "fato_interrupcao"
+        where = "mes_referencia BETWEEN ? AND ?"
+        params = [inicio, fim]
+        if alimentador_id is not None:
+            where += " AND alimentador = ? COLLATE NOCASE"
+            params.append(alimentador_id)
+        if municipio is not None:
+            where += " AND municipio = ?"
+            params.append(municipio)
+        if uc_id is not None:
+            where += " AND id_uc = ? COLLATE NOCASE"
+            params.append(uc_id.strip())
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Ocorrências de rede", tabela)
+            linhas = [dict(r) for r in con.execute(f"""
+                SELECT * FROM {tabela} WHERE {where} ORDER BY data_hora_inicio, id_ocorrencia
+            """, params)]
+        return [ocorrencia_publica({**r, "causa_evitavel": _bool(r["causa_evitavel"])}) for r in linhas]
 
     def indicadores_continuidade(self, inicio, fim, alimentador_id=None, municipio=None):
-        raise _sem_gold("Indicadores de continuidade (DEC/FEC)", "dec_fec_alimentador_mensal")
+        tabela = "dec_fec_alimentador_mensal"
+        where = "mes_referencia BETWEEN ? AND ?"
+        params = [inicio, fim]
+        if alimentador_id is not None:
+            where += " AND alimentador = ? COLLATE NOCASE"
+            params.append(alimentador_id)
+        if municipio is not None:
+            where += " AND municipio = ?"
+            params.append(municipio)
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Indicadores de continuidade (DEC/FEC)", tabela)
+            return [dict(r) for r in con.execute(f"""
+                SELECT * FROM {tabela} WHERE {where} ORDER BY mes_referencia, alimentador
+            """, params)]
+
+    # ---------- atendimentos da UC (B1) ----------
+    def atendimentos_uc(self, uc_id):
+        tabela = "fato_atendimento"
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Atendimentos da UC", tabela)
+            linhas = [dict(r) for r in con.execute(f"""
+                SELECT * FROM {tabela} WHERE id_uc = ? COLLATE NOCASE
+                ORDER BY data_hora_abertura DESC, protocolo DESC
+            """, (uc_id.strip(),))]
+        return [atendimento_publico({**a, "aberto": _bool(a["aberto"])}) for a in linhas]
+
+    # ---------- métodos ainda não integrados ----------
+    def faturas(self, inicio, fim, municipio=None, bairro=None, classe=None):
+        raise _sem_gold("Faturamento", TABELA_FATURAMENTO)
 
     def suspeitas(self):
         """Fila de suspeitas da Gold (`fila_inspecao`, 1 linha = 1 UC), no formato que o serviço de perdas usa.

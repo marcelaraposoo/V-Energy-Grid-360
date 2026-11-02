@@ -115,7 +115,6 @@ export function AssistentePage() {
   return (
     <>
       <PageHeader
-        eyebrow="INTELIGÊNCIA"
         title="Assistente IA"
         description="Pergunte em português sobre consumo, faturamento, interrupções e atendimento."
       />

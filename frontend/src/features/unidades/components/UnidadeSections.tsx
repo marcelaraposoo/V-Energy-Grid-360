@@ -1,4 +1,4 @@
-import { FileText, Gauge, Headphones, Sun, Unplug } from 'lucide-react'
+import { FileText, Gauge, Sun, Unplug } from 'lucide-react'
 import { Panel } from '../../../components/ui/Panel'
 import { EmptyState } from '../../../components/ui/EmptyState'
 import {
@@ -8,7 +8,8 @@ import {
   formatarMoeda,
   formatarPrecoKwh,
   formatarNumero,
-  formatarNotaSatisfacao,
+  formatarPercentual,
+  situacoesFatura,
 } from '../formatters'
 import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
 import { ConsumoChart } from './ConsumoChart'
@@ -18,7 +19,6 @@ import { FiltroPeriodoHistorico } from './FiltroPeriodoHistorico'
 import { UnidadeFields } from './UnidadeFields'
 
 type SectionProps = { dados: Visao360 }
-const situacoesFatura = { paga: 'Paga', aberta: 'Em aberto', atrasada: 'Atrasada' }
 type ConsumoSectionProps = SectionProps & {
   comparacao: SelecaoContaAlta
   onComparacaoChange: (value: SelecaoContaAlta) => void
@@ -106,84 +106,67 @@ export function ConsumoSection({
   )
 }
 
-export function FaturasSection({ dados }: SectionProps) {
-  const faturas = [
-    ...new Map(
-      [...dados.faturas, ...dados.faturas_em_aberto].map((f) => [
-        f.competencia,
-        f,
-      ]),
-    ).values(),
-  ].sort((a, b) => b.competencia.localeCompare(a.competencia))
-
-  return (
-    <Panel
-      title="Faturas e pagamentos"
-      description="Últimas faturas e pendências de pagamento, inclusive de competências anteriores"
-    >
-      <HistoryTable
-        title="Histórico de faturas e pagamentos"
-        columns={[
-          'Competência',
-          'Energia (R$)',
-          'Total (R$)',
-          'Bandeira',
-          'Vencimento',
-          'Pagamento',
-          'Situação',
-        ]}
-        icon={FileText}
-        description="Não há faturas disponíveis para esta unidade."
-        empty={!faturas.length}
-      >
-        {faturas.map((fatura) => (
-          <tr key={fatura.competencia}>
-            <th scope="row">{formatarCompetencia(fatura.competencia)}</th>
-            <td>{formatarMoeda(fatura.valor_energia)}</td>
-            <td>{formatarMoeda(fatura.valor_total)}</td>
-            <td>{fatura.bandeira}</td>
-            <td>{formatarData(fatura.vencimento)}</td>
-            <td>{formatarData(fatura.data_pagamento)}</td>
-            <td>
-              <span className={`badge ucv-fatura--${fatura.status}`}>
-                {situacoesFatura[fatura.status]}
-              </span>
-            </td>
-          </tr>
-        ))}
-      </HistoryTable>
-    </Panel>
-  )
-}
-
 export function MedidorSection({ dados }: SectionProps) {
   const medidor = dados.medidor
   return (
-    <Panel
-      title="Medidor atual"
-      description="Equipamento instalado na unidade consumidora"
-      className="ucv-medidor"
-    >
-      {medidor ? (
-        <UnidadeFields
-          fields={[
-            { label: 'Identificador do medidor', value: medidor.medidor_id },
-            { label: 'Tipo do medidor', value: medidor.tipo },
-            {
-              label: 'Data de instalação',
-              value: formatarData(medidor.data_instalacao),
-            },
-            { label: 'Situação', value: medidor.status.toUpperCase() },
-          ]}
-        />
-      ) : (
-        <EmptyState
-          icon={Gauge}
-          title="Medidor não disponível"
-          description="Não há informações do medidor instalado nesta unidade."
-        />
-      )}
-    </Panel>
+    <div className="ucv-medidores">
+      <Panel
+        title="Medidor atual"
+        description="Equipamento instalado na unidade consumidora"
+        className="ucv-medidor"
+      >
+        {medidor ? (
+          <UnidadeFields
+            fields={[
+              { label: 'Identificador do medidor', value: medidor.medidor_id },
+              { label: 'Tipo do medidor', value: medidor.tipo },
+              {
+                label: 'Data de instalação',
+                value: formatarData(medidor.data_instalacao),
+              },
+              { label: 'Situação', value: medidor.status.toUpperCase() },
+            ]}
+          />
+        ) : (
+          <EmptyState
+            icon={Gauge}
+            title="Medidor não disponível"
+            description="Não há informações do medidor instalado nesta unidade."
+          />
+        )}
+      </Panel>
+      <Panel title="Histórico de trocas de medidor" description="Médias de consumo antes e depois de cada troca">
+        {dados.trocas_medidor.length ? (
+          <>
+            <HistoryTable title="Trocas de medidor da UC"
+              columns={['Competência', 'Medidor retirado', 'Medidor instalado', 'Média antes (kWh)', 'Média depois (kWh)', 'Variação']}
+              icon={Gauge} description="Não há trocas de medidor registradas para esta unidade." empty={false}>
+              {dados.trocas_medidor.map(troca => (
+                <tr key={`${troca.mes_troca}-${troca.id_medidor_novo}`}>
+                  <th scope="row">{formatarCompetencia(troca.mes_troca)}</th>
+                  <td>
+                    {troca.id_medidor_antigo}
+                    <small className="ucv-medidor-detail">{troca.tipo_medidor_antigo}</small>
+                    <small className="ucv-medidor-detail">
+                      Idade na retirada: {troca.idade_medidor_antigo_anos === null
+                        ? 'Não disponível' : `${formatarNumero(troca.idade_medidor_antigo_anos)} anos`}
+                    </small>
+                  </td>
+                  <td>
+                    {troca.id_medidor_novo}
+                    <small className="ucv-medidor-detail">{troca.tipo_medidor_novo}</small>
+                  </td>
+                  <td>{formatarNumero(troca.consumo_medio_6m_antes)}</td>
+                  <td>{formatarNumero(troca.consumo_medio_6m_depois)}</td>
+                  <td>{formatarPercentual(troca.variacao_consumo_pct)}</td>
+                </tr>
+              ))}
+            </HistoryTable>
+            <p className="ucv-troca-note">Médias dos seis meses anteriores e de até seis meses posteriores, sem incluir o mês da troca. </p>
+          </>
+        ) : <EmptyState compact icon={Gauge} title="Sem trocas de medidor" description="Não há trocas de medidor registradas para esta unidade." />}
+      </Panel>
+    </div>
   )
 }
 
@@ -325,114 +308,24 @@ export function InterrupcoesSection({
                     label: 'FEC acumulado',
                     value: formatarNumero(interrupcoes.fec_vezes),
                   },
+                  {
+                    label: 'UCs do alimentador',
+                    value: formatarNumero(interrupcoes.qtd_ucs_alimentador_mes),
+                  },
+                  {
+                    label: 'Competência da base de UCs',
+                    value: interrupcoes.competencia_base_ucs
+                      ? formatarCompetencia(interrupcoes.competencia_base_ucs)
+                      : 'Não disponível',
+                  },
+                  {
+                    label: 'Impacto acumulado (UC × horas)',
+                    value: formatarNumero(interrupcoes.horas_interrompidas),
+                  },
                 ]}
               />
             </Panel>
           </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-type AtendimentosSectionProps = SectionProps & {
-  periodoAtendimentos: PeriodoHistorico
-  onPeriodoAtendimentosChange: (value: PeriodoHistorico) => void
-  carregando: boolean
-  erro: string | null
-  onRetry: () => void
-}
-
-export function AtendimentosSection({
-  dados,
-  periodoAtendimentos,
-  onPeriodoAtendimentosChange,
-  carregando,
-  erro,
-  onRetry,
-}: AtendimentosSectionProps) {
-  return (
-    <div className="ucv-atendimentos">
-      <FiltroPeriodoHistorico
-        title="Período dos atendimentos"
-        value={periodoAtendimentos}
-        onChange={onPeriodoAtendimentosChange}
-        periodo={dados.periodo_atendimentos}
-        carregando={carregando}
-        erro={erro}
-      />
-      <div
-        className="ucv-history-results"
-        aria-busy={carregando}
-        aria-live="polite"
-      >
-        {erro ? (
-          <div role="alert" className="ucv-diagnostic-error">
-            <p>{erro}</p>
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={onRetry}
-            >
-              Tentar novamente
-            </button>
-          </div>
-        ) : (
-          <Panel
-            title="Chamados de atendimento"
-            description="Solicitações e últimas ações registradas para a unidade · por data de abertura"
-          >
-            <HistoryTable
-              title="Histórico de chamados de atendimento"
-              columns={[
-                'Protocolo',
-                'Assunto',
-                'Subassunto',
-                'Canal',
-                'Abertura',
-                'Fechamento',
-                'Situação',
-                'Última ação',
-                'Satisfação',
-              ]}
-              icon={Headphones}
-              description="Não há chamados registrados para esta unidade no período selecionado."
-              empty={!dados.atendimentos.length}
-            >
-              {dados.atendimentos.map((atendimento) => (
-                <tr key={atendimento.protocolo}>
-                  <th scope="row">{atendimento.protocolo}</th>
-                  <td>{atendimento.assunto}</td>
-                  <td>{atendimento.subassunto}</td>
-                  <td>{atendimento.canal}</td>
-                  <td>{formatarDataHora(atendimento.data)}</td>
-                  <td>
-                    {atendimento.data_fechamento
-                      ? formatarDataHora(atendimento.data_fechamento)
-                      : 'Em aberto'}
-                  </td>
-                  <td>
-                    <span
-                      className="badge ucv-atendimento"
-                      data-status={atendimento.aberto ? 'Em aberto' : 'Fechado'}
-                    >
-                      {atendimento.aberto ? 'Em aberto' : 'Fechado'}
-                    </span>
-                  </td>
-                  <td>
-                    {atendimento.ultima_acao}
-                    <small className="ucv-atendimento-detail">
-                      {atendimento.qtd_tratativas}{' '}
-                      {atendimento.qtd_tratativas === 1
-                        ? 'ação registrada'
-                        : 'ações registradas'}
-                    </small>
-                  </td>
-                  <td>{formatarNotaSatisfacao(atendimento.nota_satisfacao)}</td>
-                </tr>
-              ))}
-            </HistoryTable>
-          </Panel>
         )}
       </div>
     </div>

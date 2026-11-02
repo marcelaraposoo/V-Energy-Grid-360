@@ -14,7 +14,6 @@ export function OrdensPage() {
   return (
     <>
       <PageHeader
-        eyebrow="OPERAÇÕES · PERDAS"
         title="Fila e Ordens de Inspeção"
         description="Escolha as unidades mais promissoras, gere as ordens, acompanhe o campo e registre o que foi encontrado."
       />

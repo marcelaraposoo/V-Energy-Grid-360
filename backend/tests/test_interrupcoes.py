@@ -99,8 +99,11 @@ def test_base_sem_competencias_retorna_historico_vazio(cenario, monkeypatch):
 
     assert interrupcoes.qtd_ocorrencias == 0
     assert interrupcoes.historico == []
-    assert interrupcoes.dec_horas == 0
-    assert interrupcoes.fec_vezes == 0
+    assert interrupcoes.dec_horas is None
+    assert interrupcoes.fec_vezes is None
+    assert interrupcoes.horas_interrompidas is None
+    assert interrupcoes.qtd_ucs_alimentador_mes is None
+    assert interrupcoes.competencia_base_ucs is None
     assert interrupcoes.periodo_inicio is None
     assert interrupcoes.periodo_fim is None
 
@@ -131,4 +134,7 @@ def test_filtro_compartilhado_atualiza_uc_e_alimentador(
     assert sum(r["horas_interrompidas"] for r in mensais) == qtd_alimentador
     assert interrupcoes.dec_horas == round(qtd_alimentador / alimentador["ucs_total"], 6)
     assert interrupcoes.fec_vezes == round(qtd_alimentador / alimentador["ucs_total"], 6)
+    assert interrupcoes.horas_interrompidas == qtd_alimentador
+    assert interrupcoes.qtd_ucs_alimentador_mes == alimentador["ucs_total"]
+    assert interrupcoes.competencia_base_ucs == "2026-06"
     assert resposta.model_dump(exclude={"interrupcoes"}) == padrao.model_dump(exclude={"interrupcoes"})

@@ -1,5 +1,6 @@
 import { CircleHelp } from 'lucide-react'
 import {
+  formatarCompetencia,
   formatarMoeda,
   formatarNumero,
   formatarPercentual,
@@ -104,6 +105,18 @@ export function ContaAltaCard({
           </div>
         ) : (
           <>
+            {(diagnostico.troca_medidor_atual || diagnostico.troca_medidor_referencia) && (
+              <p className="ucv-troca-note">
+                Troca de medidor em{' '}
+                {[
+                  diagnostico.troca_medidor_referencia && diagnostico.competencia_referencia
+                    ? `${formatarCompetencia(diagnostico.competencia_referencia)} (referência)` : null,
+                  diagnostico.troca_medidor_atual && diagnostico.competencia_atual
+                    ? `${formatarCompetencia(diagnostico.competencia_atual)} (mês analisado)` : null,
+                ].filter(Boolean).join(' e ')}.
+                {' '}No mês da troca, o consumo usa a leitura atual do medidor novo.
+              </p>
+            )}
             {(
               [
                 {

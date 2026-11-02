@@ -1,5 +1,6 @@
 export function normalizarIdentificadorUC(value: string): string {
-  return value.trim().toUpperCase()
+  const identificador = value.trim().toUpperCase()
+  return /^\d{6}$/.test(identificador) ? `UC${identificador}` : identificador
 }
 
 export function identificadorUCValido(value: string): boolean {

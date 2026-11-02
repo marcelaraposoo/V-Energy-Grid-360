@@ -108,7 +108,7 @@ conflito com Dev, e o contrato com o front não muda.
 | GET | `/health` | Dev | implementada | infraestrutura (API no ar e `data_source` ativo) |
 | GET | `/filtros` | Dev | implementada (mock) | selects de filtros |
 | GET | `/dashboard/kpis`, `/dashboard/serie` | Dev | implementada (mock) | visão do diretor |
-| GET | `/receita/variacao?agrupar_por=municipio\|bairro\|classe` | Dev | implementada (mock) | efeito preço x volume (drill-down) |
+| GET | `/receita/variacao?agrupar_por=municipio\|bairro\|classe` | Dev | implementada (A3; GD pela A2) | efeito preço x volume (drill-down), fatores e série mensal |
 | GET | `/unidades?q=`, `/unidades/{uc}/visao-360` | Dev | implementada (mock) | atendente |
 | GET | `/perdas/fila?q=&pagina=&tamanho=` | Dev | implementada (mock) | fila priorizada, com busca e paginação (total no cabeçalho `X-Total-Count`) |
 | POST/GET | `/perdas/ordens`, `/perdas/ordens/{id}` | Dev | implementada (em memória) | criar, listar e consultar ordens |

@@ -44,15 +44,13 @@ distribuidora, com indicadores consolidados e acompanhamento mensal. Ela já con
 não utiliza os mocks locais de apresentação. A fonte dos dados é definida no backend
 (`DATA_SOURCE=mock` ou `sqlite`). A homologação com a exportação oficial da Gold permanece pendente.
 
-**Evolução prevista:** haverá um atalho do Dashboard para a **Análise da Receita**, onde
-será possível aprofundar a investigação da variação da receita, incluindo efeito preço × volume
-e recortes por município, bairro e classe. O atalho e a tela de destino ainda não estão
-implementados no frontend. A existência do endpoint de receita não significa que essa navegação
-já esteja disponível. O Dashboard base permanece dedicado à visão geral, somente com filtros temporais.
+O Dashboard permanece dedicado à visão geral, somente com filtros temporais. Os recortes por
+município, bairro e classe ficam na [Análise de Receita](#análise-de-receita).
 
 ### Períodos e comparação
 
-O período inicial é jul/2025–jun/2026, sem referência; “Limpar” restaura essa seleção.
+O período inicial é jul/2025–jun/2026, comparado com jul/2022–jun/2023 (os períodos do
+diagnóstico no contrato da Gold); “Limpar” restaura essa seleção.
 Os limites disponíveis são jul/2022 a jun/2026, contando competências mensais inclusivas.
 
 - Sem comparação: de 1 a 24 meses contínuos.
@@ -103,6 +101,21 @@ meses; nos demais casos, mostra “Mês 1”, “Mês 2” etc. Os tooltips iden
 reais de cada série, e a legenda identifica os intervalos. Períodos longos reduzem apenas os
 rótulos visíveis, preservando todos os pontos. Os gráficos mostram valores mensais, sem
 acumulação progressiva; os totais ficam nos KPIs.
+
+## Análise de Receita
+
+A tela `/receita` (`src/features/receita/`) responde quanto da variação da receita foi preço e
+quanto foi volume, e onde ela aconteceu. Consulta `api.receita.variacao(...)` e o catálogo
+`api.filtros()`; os cálculos ficam no backend (`GET /api/receita/variacao`).
+
+- **Períodos:** abre nos períodos do diagnóstico (jul/2022–jun/2023 × jul/2025–jun/2026). Períodos
+  livres precisam ter a mesma duração (até 12 meses) e não podem se sobrepor.
+- **Filtros:** município, bairro (só depois do município, porque a chave é município + bairro) e classe.
+- **Conteúdo:** resumo, ponte da receita (waterfall), fatores associados (GD nas mesmas UCs,
+  bandeira e troca de medidor), tabela de contribuição com detalhamento município → bairro →
+  classe, ranking das maiores perdas por volume e evolução mensal.
+- **Cores:** receita e volume em verde quando sobem e vermelho quando caem; o preço fica neutro.
+- O waterfall não parte do zero, para os efeitos ficarem visíveis, e avisa isso abaixo do gráfico.
 
 ## Estrutura
 

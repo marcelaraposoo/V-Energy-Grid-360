@@ -43,6 +43,11 @@ def periodos_dep(
     for p in (base, atual):
         if p.inicio > p.fim:
             raise HTTPException(422, f"Período inválido: início {p.inicio} é maior que o fim {p.fim}")
+    # Preço × volume só é comparável entre períodos de mesma duração, sem sobreposição e dentro da base.
+    try:
+        validar_periodos(atual, base, sorted(set(repo.competencias())))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     return base, atual
 
 

@@ -37,6 +37,9 @@ TABELA_UC = "dim_uc"
 TABELA_FILA = "fila_inspecao"
 TABELA_FATURAMENTO = "fato_consumo_faturamento"
 COLUNAS_OBRIGATORIAS = ("id_uc", "nome_titular_mascarado", "municipio", "bairro", "classe", "alimentador")
+COLUNAS_GD_MESMAS_UCS = ("id_uc", "mes_referencia", "possui_gd_no_mes", "consumo_kwh", "municipio", "bairro", "classe")
+# Mesma tolerância de `_bool`: o booleano pode chegar como 0/1, 1.0 ou texto, conforme a exportação.
+VERDADEIROS = ("1", "1.0", "true", "t", "sim", "s", "yes", "y")
 
 DESCRICAO_CLASSE = {
     "RESIDENCIAL": "Residencial",
@@ -248,6 +251,35 @@ class SqliteRepository:
     def segmentos_mensais(self, inicio, fim, municipio=None, bairro=None, classe=None):
         validar_filtro_bairro(municipio, bairro)
         return self._dashboard_mensal("fato_segmento_mensal", COLUNAS_SEGMENTOS, inicio, fim, municipio, bairro, classe)
+
+    # ---------- receita: GD nas mesmas UCs (A2) ----------
+    def gd_mesmas_ucs(self, base_inicio, base_fim, atual_inicio, atual_fim, municipio=None, bairro=None, classe=None):
+        """UCs com GD na última competência do período atual e o volume delas nos dois períodos.
+        None se a A2 não foi exportada: o fator só complementa a A3, então a tela segue sem ele."""
+        validar_filtro_bairro(municipio, bairro)
+        cond = ["mes_referencia = ?", f"lower(trim(CAST(possui_gd_no_mes AS TEXT))) IN ({', '.join('?' * len(VERDADEIROS))})"]
+        args = [atual_fim, *VERDADEIROS]
+        for coluna, valor in (("municipio", municipio), ("bairro", bairro), ("classe", classe)):
+            if valor is not None:
+                cond.append(f"{coluna} = ?")
+                args.append(valor)
+        with closing(self._conectar()) as con:
+            disponiveis = {r["name"] for r in con.execute(f"PRAGMA table_info({TABELA_FATURAMENTO})")}
+            if not disponiveis:
+                return None
+            faltantes = [c for c in COLUNAS_GD_MESMAS_UCS if c not in disponiveis]
+            if faltantes:
+                raise NaoDisponivelNaGold(f"A tabela {TABELA_FATURAMENTO} está incompleta. Colunas ausentes: {', '.join(faltantes)}.")
+            r = con.execute(f"""
+                WITH gd AS (SELECT DISTINCT id_uc FROM {TABELA_FATURAMENTO} WHERE {' AND '.join(cond)})
+                SELECT (SELECT COUNT(*) FROM gd) AS qtd_ucs,
+                       COALESCE(SUM(CASE WHEN f.mes_referencia BETWEEN ? AND ? THEN f.consumo_kwh END), 0) AS energia_base_kwh,
+                       COALESCE(SUM(CASE WHEN f.mes_referencia BETWEEN ? AND ? THEN f.consumo_kwh END), 0) AS energia_atual_kwh
+                FROM {TABELA_FATURAMENTO} f JOIN gd ON gd.id_uc = f.id_uc
+                WHERE f.mes_referencia BETWEEN ? AND ? OR f.mes_referencia BETWEEN ? AND ?
+            """, (*args, base_inicio, base_fim, atual_inicio, atual_fim, base_inicio, base_fim, atual_inicio, atual_fim)).fetchone()
+        return {"qtd_ucs": int(r["qtd_ucs"]), "energia_base_kwh": _num(r["energia_base_kwh"]) or 0.0,
+                "energia_atual_kwh": _num(r["energia_atual_kwh"]) or 0.0}
 
     # ---------- unidades consumidoras (dim_uc) ----------
     def buscar_ucs(self, q: str | None, municipio: str | None, classe: str | None, limite: int) -> list[dict]:

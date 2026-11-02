@@ -1,0 +1,367 @@
+.receita-page {
+  display: grid;
+  gap: 20px;
+}
+.receita-page .page-header {
+  margin-bottom: 4px;
+}
+.receita-page [data-tendencia='favoravel'] {
+  color: var(--success);
+}
+.receita-page [data-tendencia='desfavoravel'] {
+  color: var(--danger);
+}
+
+/* Filtros */
+.receita-filtros {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1.2fr)) repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 14px 12px;
+  padding: 20px;
+}
+.panel.receita-filtros {
+  overflow: visible;
+}
+.receita-filtros .button {
+  min-height: 38px;
+  font-size: 12px;
+}
+.receita-filtros-nota {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Resumo */
+.receita-resumo {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.receita-resumo-efeitos {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 0;
+  font-size: 12px;
+}
+.receita-resumo-efeitos div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.receita-resumo-efeitos dt {
+  color: var(--text-secondary);
+}
+.receita-resumo-efeitos dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Waterfall e fatores */
+.receita-decomposicao,
+.receita-detalhe {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 20px;
+}
+.receita-detalhe {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.receita-ponte {
+  display: flex;
+  flex-direction: column;
+}
+.receita-waterfall {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.receita-waterfall .dashboard-chart-scroll svg {
+  min-width: 520px;
+}
+.receita-waterfall-barra--base {
+  fill: var(--text-muted);
+  opacity: 0.65;
+}
+.receita-waterfall-barra--atual {
+  fill: var(--chart-current);
+}
+.receita-waterfall-barra[data-tendencia='favoravel'] {
+  fill: var(--success);
+}
+.receita-waterfall-barra[data-tendencia='desfavoravel'] {
+  fill: var(--danger);
+}
+.receita-waterfall [data-active='true'] .receita-waterfall-barra {
+  stroke: var(--text-primary);
+  stroke-width: 1.5;
+}
+.receita-waterfall g[role='button']:focus-visible {
+  outline: none;
+}
+.receita-waterfall g[role='button']:focus-visible .receita-waterfall-barra {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.receita-waterfall .receita-waterfall-titulo {
+  fill: var(--text-secondary);
+  font-weight: 500;
+}
+.receita-waterfall-conector {
+  stroke: var(--text-muted);
+  stroke-dasharray: 3 3;
+}
+.receita-waterfall-quebra {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+}
+.receita-waterfall-nota {
+  padding: 4px 22px 20px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.receita-waterfall-tooltip {
+  display: grid;
+  gap: 6px;
+  line-height: 1.5;
+}
+.receita-waterfall-tooltip span {
+  color: var(--text-secondary);
+}
+.receita-fatores-lista {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0 22px;
+  list-style: none;
+}
+.receita-fatores-lista li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 12px;
+}
+.receita-fatores-lista li + li {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.receita-fatores-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+.receita-fatores-lista h3 {
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+.receita-fatores-lista p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.receita-fatores-lista strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.receita-fatores-destaque {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--accent);
+  background: var(--subtle-overlay);
+}
+.receita-nota {
+  padding: 16px 22px 20px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Contribuição */
+.receita-page .panel-header {
+  flex-wrap: wrap;
+}
+.receita-trilha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 0 22px 14px;
+  font-size: 12px;
+}
+.receita-trilha ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.receita-trilha li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+}
+.receita-trilha [aria-current='page'] {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.receita-chip button {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.receita-chip button:hover {
+  color: var(--text-primary);
+}
+.receita-tabela td small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.receita-tabela th small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.receita-tabela td[data-tendencia] small {
+  color: inherit;
+  opacity: 0.85;
+}
+.receita-ordenar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.receita-ordenar:hover {
+  color: var(--text-primary);
+}
+.receita-tabela-detalhar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+}
+.receita-tabela-detalhar svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.receita-tabela-detalhar:hover .receita-tabela-rotulo {
+  color: var(--accent);
+}
+.receita-tabela-rotulo {
+  font-weight: 500;
+}
+.receita-tabela-total th,
+.receita-tabela-total td {
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+}
+
+/* Ranking */
+.receita-ranking {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 22px 20px;
+  list-style: none;
+}
+.receita-ranking-item {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+}
+button.receita-ranking-item:hover {
+  background: var(--hover-overlay);
+}
+.receita-ranking-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+}
+.receita-ranking-nome {
+  font-weight: 500;
+}
+.receita-ranking-nome small,
+.receita-ranking-valor small {
+  margin-left: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.receita-ranking-valor {
+  white-space: nowrap;
+}
+.receita-ranking-trilho {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--border-subtle);
+}
+.receita-ranking-barra {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--danger);
+}
+
+@media (max-width: 1279px) {
+  .receita-filtros {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .receita-filtros .button {
+    justify-self: start;
+  }
+  .receita-resumo {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1023px) {
+  .receita-decomposicao,
+  .receita-detalhe {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 767px) {
+  .receita-filtros,
+  .receita-resumo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .receita-filtros {
+    padding: 18px;
+  }
+}

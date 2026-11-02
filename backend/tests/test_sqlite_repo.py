@@ -73,6 +73,54 @@ def test_conexao_e_somente_leitura(repo):
         con.close()
 
 
+def test_busca_por_id_canonico_nao_varre_o_cadastro(tmp_path, monkeypatch):
+    # Limite por instruções SQLite, sem depender da velocidade da máquina.
+    ucs = [dict(id_uc=f"UC{i:05d}", nome_titular_mascarado="TESTE",
+                municipio="RECIFE", bairro="CENTRO", classe="RESIDENCIAL",
+                alimentador="AL001") for i in range(3000)]
+    path = criar_gold_db(tmp_path / "gold.db", ucs=ucs)
+    with sqlite3.connect(path) as con:
+        con.execute("CREATE UNIQUE INDEX ux_dim_uc_id_uc ON dim_uc(id_uc)")
+    repository = SqliteRepository(path)
+    connect = repository._conectar
+
+    def conectar_com_limite():
+        con = connect()
+        con.set_progress_handler(lambda: 1, 300)
+        return con
+
+    monkeypatch.setattr(repository, "_conectar", conectar_com_limite)
+    assert repository.uc("UC02999")["uc_id"] == "UC02999"
+
+
+def test_cadastros_em_lote_usam_uma_conexao_e_toleram_grafia(repo, monkeypatch):
+    from unittest.mock import Mock
+
+    connect = Mock(wraps=repo._conectar)
+    monkeypatch.setattr(repo, "_conectar", connect)
+    result = repo.ucs_por_ids(["UC00001", "UC00002", "UC00001"])
+    assert set(result) == {"UC00001", "UC00002"}
+    assert connect.call_count == 1
+    tolerant = repo.ucs_por_ids(["uc00001", " UC00002 ", "INEXISTENTE"])
+    assert tolerant["uc00001"]["uc_id"] == "UC00001"
+    assert tolerant[" UC00002 "]["uc_id"] == "UC00002"
+    assert "INEXISTENTE" not in tolerant
+
+
+def test_cadastros_em_lote_consultam_todos_os_lotes(tmp_path, monkeypatch):
+    from unittest.mock import Mock
+
+    ucs = [dict(id_uc=f"UC{i:05d}", nome_titular_mascarado="TESTE",
+                municipio="RECIFE", bairro="CENTRO", classe="RESIDENCIAL",
+                alimentador="AL001") for i in range(1001)]
+    repository = SqliteRepository(criar_gold_db(tmp_path / "gold.db", ucs=ucs))
+    connect = Mock(wraps=repository._conectar)
+    monkeypatch.setattr(repository, "_conectar", connect)
+    result = repository.ucs_por_ids([uc["id_uc"] for uc in ucs])
+    assert len(result) == 1001 and "UC01000" in result
+    assert connect.call_count == 1
+
+
 def test_colunas_opcionais_ausentes_viram_none(tmp_path):
     opcionais = {"variacao_consumo_12m_pct", "consumo_medio_12m_kwh", "documento_mascarado", "possui_gd"}
     r = SqliteRepository(criar_gold_db(tmp_path / "g.db", colunas=[c for c in COLUNAS if c not in opcionais]))

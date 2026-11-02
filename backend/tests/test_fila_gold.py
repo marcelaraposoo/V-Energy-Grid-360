@@ -120,3 +120,16 @@ def test_api_insights_de_perdas_traz_o_resumo_da_fila():
 
     insights = TestClient(app).get("/api/ia/insights?tela=perdas").json()
     assert insights and insights[0]["tipo"] == "destaque"
+
+
+def test_fila_em_lote_preserva_filtros_ordem_total_e_paginacao(gold, monkeypatch):
+    from unittest.mock import Mock
+
+    repo = SqliteRepository(gold)
+    expected = perdas.fila(repo, municipio="OLINDA", q="uc", tamanho=1)
+    batch = Mock(wraps=repo.ucs_por_ids)
+    monkeypatch.setattr(repo, "ucs_por_ids", batch)
+    monkeypatch.setattr(repo, "uc", Mock(side_effect=AssertionError("Consulta unitária na fila")))
+    assert perdas.fila(repo, municipio="OLINDA", q="uc", tamanho=1) == expected
+    batch.assert_called_once()
+    assert expected[1] == 2

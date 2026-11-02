@@ -28,10 +28,12 @@ def fila(repo, municipio: str | None = None, classe: str | None = None, min_prob
     com_ordem = {o["uc_id"] for o in repo.listar_ordens() if o["status"] in ATIVAS}
     termo = normalizar(q) if q else ""
     itens = []
-    for s in repo.suspeitas():
-        if s["uc_id"] in com_ordem or s["probabilidade"] < min_prob:
-            continue
-        uc = repo.uc(s["uc_id"])
+    suspeitas = [s for s in repo.suspeitas()
+                 if s["uc_id"] not in com_ordem and s["probabilidade"] >= min_prob]
+    carregar_lote = getattr(repo, "ucs_por_ids", None)
+    cadastros = carregar_lote([s["uc_id"] for s in suspeitas]) if callable(carregar_lote) else None
+    for s in suspeitas:
+        uc = cadastros.get(s["uc_id"]) if cadastros is not None else repo.uc(s["uc_id"])
         if uc is None:  # suspeita de uma UC que não está no cadastro: não dá para localizar nem inspecionar
             continue
         if (municipio and uc["municipio"] != municipio) or (classe and uc["classe"] != classe):

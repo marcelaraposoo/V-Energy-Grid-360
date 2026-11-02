@@ -123,9 +123,16 @@ class SqliteRepository:
 
     def _linha_uc(self, uc_id: str) -> dict | None:
         with closing(self._conectar()) as con:
+            # IDs vindos da Gold já têm a grafia canônica. A igualdade exata
+            # aproveita o índice de id_uc; NOCASE sozinho provoca table scan.
             r = con.execute(
-                f"SELECT * FROM {TABELA_UC} WHERE id_uc = ? COLLATE NOCASE LIMIT 1", (uc_id.strip(),)
+                f"SELECT * FROM {TABELA_UC} WHERE id_uc = ? LIMIT 1", (uc_id.strip(),)
             ).fetchone()
+            if r is None:
+                # Mantém a busca manual por UC sem diferenciar maiúsculas.
+                r = con.execute(
+                    f"SELECT * FROM {TABELA_UC} WHERE id_uc = ? COLLATE NOCASE LIMIT 1", (uc_id.strip(),)
+                ).fetchone()
         return dict(r) if r else None
 
     @staticmethod
@@ -219,6 +226,30 @@ class SqliteRepository:
     def uc(self, uc_id: str) -> dict | None:
         d = self._linha_uc(uc_id)
         return self._uc_publica(d) if d else None
+
+    def ucs_por_ids(self, uc_ids: list[str]) -> dict[str, dict]:
+        """Carrega cadastros da fila em lote, sem abrir uma conexão por UC."""
+        ids = list(dict.fromkeys(uc_ids))
+        if not ids:
+            return {}
+        por_id = {}
+        with closing(self._conectar()) as con:
+            # Mantém cada consulta abaixo do limite de parâmetros do SQLite.
+            for inicio in range(0, len(ids), 500):
+                lote = ids[inicio:inicio + 500]
+                placeholders = ",".join("?" for _ in lote)
+                for row in con.execute(
+                    f"SELECT * FROM {TABELA_UC} WHERE id_uc IN ({placeholders})", lote,
+                ):
+                    d = dict(row)
+                    por_id[d["id_uc"]] = self._uc_publica(d)
+        # Casos não canônicos continuam com a mesma tolerância da busca unitária.
+        for uc_id in ids:
+            if uc_id not in por_id:
+                uc = self.uc(uc_id)
+                if uc is not None:
+                    por_id[uc_id] = uc
+        return por_id
 
     def medidor_uc(self, uc_id: str) -> dict | None:
         d = self._linha_uc(uc_id)

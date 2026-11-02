@@ -49,11 +49,33 @@ def test_detects_spelled_out_numbers(text):
 @pytest.mark.parametrize(
     "text",
     [
+        "cento e vinte e cinco unidades",
+        "duzentos e trinta e oito clientes",
+        "dois mil trezentos e vinte unidades",
+        "cento e vinte e cinco por cento",
+        "duzentas faturas",
+        "trezentas unidades",
+        "cento e uma unidades",
+        "quatrocentas e vinte faturas",
+    ],
+)
+def test_detects_complete_compound_spelled_out_number(text):
+    match = rules._SPELLED_NUMBER.search(text)
+
+    assert match is not None
+    assert match.group() == text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
         "Em Olinda, 98 unidades tiveram queda de 30%.",
         "Há um alimentador com DEC alto.",
         "Isso aconteceu uma vez em junho.",
         "O mil-folhas estava bom.",
         "Recife concentra a maior parte das interrupções.",
+        "Cento e vinte e cinco foi o título escolhido.",
+        "Há dois pontos importantes sobre os clientes.",
     ],
 )
 def test_ordinary_text_is_not_a_spelled_out_number(text):

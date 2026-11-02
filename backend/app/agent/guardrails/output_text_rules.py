@@ -20,16 +20,23 @@ URL_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 
-_SPELLED_NUMBER = re.compile(
-    r"\b(?:dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|onze|"
+_SPELLED_NUMBER_WORD = (
+    r"(?:dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|onze|"
     r"doze|treze|catorze|quatorze|quinze|dezesseis|dezessete|dezoito|"
     r"dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|"
-    r"noventa|cem|cento|duzentos|trezentos|quatrocentos|quinhentos|"
-    r"seiscentos|setecentos|oitocentos|novecentos|mil|milh[aã]o|milh[oõ]es)"
-    r"(?:\s+e\s+\w+)?\s+"
+    r"noventa|cem|cento|duzent[oa]s|trezent[oa]s|quatrocent[oa]s|"
+    r"quinhent[oa]s|seiscent[oa]s|setecent[oa]s|oitocent[oa]s|"
+    r"novecent[oa]s|mil|milh[aã]o|milh[oõ]es)"
+)
+
+_SPELLED_NUMBER = re.compile(
+    r"\b" + _SPELLED_NUMBER_WORD
+    # Só palavras numéricas podem compor a sequência. "um"/"uma"
+    # entram após outro numeral, sem bloquear "um alimentador" ou "uma vez".
+    + rf"(?:\s+(?:e\s+)?(?:{_SPELLED_NUMBER_WORD}|um|uma))*\s+"
     r"(?:unidades?|faturas?|ucs?|chamados?|alimentadores?|clientes?|"
     r"interrup[cç][oõ]es|reais|horas?|minutos?|quilowatts?|"
-    r"por\s+cento|%)",
+    r"por\s+cento|%)(?!\w)",
     re.IGNORECASE,
 )
 

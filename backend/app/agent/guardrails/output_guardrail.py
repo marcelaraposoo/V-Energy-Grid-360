@@ -17,6 +17,7 @@ from app.agent.guardrails.output_text_rules import (
     contains_url,
     echoes_executed_sql,
     exceeds_max_length,
+    has_spelled_out_number,
     lacks_useful_content,
     leaks_prompt,
     mentions_provider_or_model,
@@ -107,6 +108,11 @@ RETRY_MESSAGES = {
     OutputGuardrailReason.URL_IN_ANSWER: (
         "A resposta anterior continha um link. Reescreva "
         "sem links."
+    ),
+    OutputGuardrailReason.SPELLED_OUT_NUMBER: (
+        "A resposta escreve números por extenso. Reescreva usando "
+        "apenas dígitos (por exemplo, 98 e 30%), com R$ para valores "
+        "e kWh para energia."
     ),
 }
 
@@ -223,6 +229,12 @@ def validate_output(
         for rule, reason in RULES:
             if rule(ctx):
                 return _block(answer, reason)
+
+        if has_spelled_out_number(text):
+            return _block(
+                answer,
+                OutputGuardrailReason.SPELLED_OUT_NUMBER,
+            )
 
         allowed = build_allowed_numbers(question, sql, result)
         unsupported = find_unsupported_numbers(text, allowed)

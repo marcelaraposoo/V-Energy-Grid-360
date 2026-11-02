@@ -67,6 +67,16 @@ def test_allows_faithful_answer():
     assert result.reason is None
 
 
+def test_blocks_spelled_out_number():
+    result = _validate("Há noventa e oito unidades com painel solar.")
+
+    assert _is_blocked(
+        result, OutputGuardrailReason.SPELLED_OUT_NUMBER
+    )
+    assert result.retryable is True
+    assert build_output_retry_feedback(result) is not None
+
+
 def test_allows_derived_sum_when_result_is_complete():
     result = _validate(
         "No total são 6.130 unidades: 4.820 em Recife "

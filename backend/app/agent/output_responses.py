@@ -36,6 +36,9 @@ OUTPUT_GUARDRAIL_MESSAGES = {
     OutputGuardrailReason.TECHNICAL_ERROR_LEAK: (
         DEFAULT_OUTPUT_MESSAGE
     ),
+    OutputGuardrailReason.SPELLED_OUT_NUMBER: (
+        DEFAULT_OUTPUT_MESSAGE
+    ),
     OutputGuardrailReason.SQL_IN_ANSWER: DEFAULT_OUTPUT_MESSAGE,
     OutputGuardrailReason.URL_IN_ANSWER: DEFAULT_OUTPUT_MESSAGE,
     OutputGuardrailReason.GUARDRAIL_INTERNAL_ERROR: (

@@ -20,6 +20,19 @@ URL_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 
+_SPELLED_NUMBER = re.compile(
+    r"\b(?:dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|onze|"
+    r"doze|treze|catorze|quatorze|quinze|dezesseis|dezessete|dezoito|"
+    r"dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|"
+    r"noventa|cem|cento|duzentos|trezentos|quatrocentos|quinhentos|"
+    r"seiscentos|setecentos|oitocentos|novecentos|mil|milh[aã]o|milh[oõ]es)"
+    r"(?:\s+e\s+\w+)?\s+"
+    r"(?:unidades?|faturas?|ucs?|chamados?|alimentadores?|clientes?|"
+    r"interrup[cç][oõ]es|reais|horas?|minutos?|quilowatts?|"
+    r"por\s+cento|%)",
+    re.IGNORECASE,
+)
+
 
 SQL_PATTERNS = tuple(
     re.compile(pattern, flags=re.IGNORECASE)
@@ -114,6 +127,10 @@ def exceeds_max_length(answer: str) -> bool:
 
 def contains_url(text: str) -> bool:
     return bool(URL_PATTERN.search(text))
+
+
+def has_spelled_out_number(text: str) -> bool:
+    return bool(_SPELLED_NUMBER.search(text))
 
 
 def contains_sql(text: str) -> bool:

@@ -10,17 +10,17 @@ from app.agent.schemas import (
 @pytest.mark.parametrize(
     "sql",
     [
-        "SELECT * FROM consumo_energia",
+        "SELECT * FROM fato_consumo_faturamento",
         (
             "SELECT municipio, SUM(consumo_kwh) "
-            "FROM consumo_energia "
+            "FROM fato_consumo_faturamento "
             "GROUP BY municipio"
         ),
         (
-            "SELECT c.municipio, f.valor_fatura "
-            "FROM consumo_energia AS c "
-            "JOIN faturamento AS f "
-            "ON c.id_unidade = f.id_unidade"
+            "SELECT c.municipio, f.valor_total "
+            "FROM dim_uc AS c "
+            "JOIN fato_consumo_faturamento AS f "
+            "ON c.id_uc = f.id_uc"
         ),
         (
             "SELECT municipio, "
@@ -28,12 +28,12 @@ from app.agent.schemas import (
             "WHEN consumo_kwh > 1000 THEN 'alto' "
             "ELSE 'baixo' "
             "END AS faixa_consumo "
-            "FROM consumo_energia"
+            "FROM fato_consumo_faturamento"
         ),
         (
             "SELECT municipio, AVG(consumo_kwh) "
-            "FROM consumo_energia "
-            "WHERE ano_referencia = 2026 "
+            "FROM fato_consumo_faturamento "
+            "WHERE ano = 2026 "
             "GROUP BY municipio "
             "HAVING AVG(consumo_kwh) > 500 "
             "ORDER BY municipio "
@@ -53,19 +53,19 @@ def test_allows_read_only_queries(sql):
 @pytest.mark.parametrize(
     "sql",
     [
-        "INSERT INTO consumo_energia VALUES (1)",
+        "INSERT INTO fato_consumo_faturamento (id_uc) VALUES ('UC_TESTE')",
         (
-            "UPDATE consumo_energia "
+            "UPDATE fato_consumo_faturamento "
             "SET consumo_kwh = 0"
         ),
-        "DELETE FROM consumo_energia",
-        "DROP TABLE consumo_energia",
+        "DELETE FROM fato_consumo_faturamento",
+        "DROP TABLE fato_consumo_faturamento",
         (
-            "ALTER TABLE consumo_energia "
+            "ALTER TABLE fato_consumo_faturamento "
             "ADD COLUMN teste TEXT"
         ),
         "CREATE TABLE teste (id INTEGER)",
-        "TRUNCATE TABLE consumo_energia",
+        "TRUNCATE TABLE fato_consumo_faturamento",
     ],
 )
 def test_blocks_forbidden_operations(sql):
@@ -82,8 +82,8 @@ def test_blocks_forbidden_operations(sql):
 
 def test_blocks_multiple_statements():
     sql = (
-        "SELECT * FROM consumo_energia; "
-        "DELETE FROM consumo_energia;"
+        "SELECT * FROM fato_consumo_faturamento; "
+        "DELETE FROM fato_consumo_faturamento;"
     )
 
     result = validate_sql(sql)
@@ -121,7 +121,7 @@ def test_blocks_empty_sql(sql):
     "sql",
     [
         "SELECT FROM",
-        "SELECT * FORM consumo_energia",
+        "SELECT * FORM fato_consumo_faturamento",
         "THIS IS NOT SQL",
     ],
 )
@@ -144,7 +144,7 @@ def test_blocks_window_functions():
         "PARTITION BY municipio "
         "ORDER BY consumo_kwh DESC"
         ") AS posicao "
-        "FROM consumo_energia"
+        "FROM fato_consumo_faturamento"
     )
 
     result = validate_sql(sql)
@@ -160,8 +160,8 @@ def test_blocks_window_functions():
 
 def test_blocks_select_with_embedded_delete():
     sql = (
-        "SELECT * FROM consumo_energia; "
-        "DELETE FROM faturamento"
+        "SELECT * FROM fato_consumo_faturamento; "
+        "DELETE FROM kpis_mensal"
     )
 
     result = validate_sql(sql)
@@ -177,7 +177,7 @@ def test_blocks_select_with_embedded_delete():
 def test_preserves_original_sql():
     sql = (
         "  SELECT * "
-        "FROM consumo_energia  "
+        "FROM fato_consumo_faturamento  "
     )
 
     result = validate_sql(sql)
@@ -198,7 +198,7 @@ def test_internal_error_is_not_retryable(
         fake_parse,
     )
 
-    sql = "SELECT * FROM consumo_energia"
+    sql = "SELECT * FROM fato_consumo_faturamento"
 
     result = validate_sql(sql)
 

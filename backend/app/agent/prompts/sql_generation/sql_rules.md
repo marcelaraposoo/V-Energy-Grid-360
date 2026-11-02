@@ -2,6 +2,11 @@
 
 Toda consulta deve ser exclusivamente de leitura e utilizar somente estruturas presentes no contexto fornecido.
 
+Utilize exclusivamente o dialeto SQLite. Não use `DATE_TRUNC`, `EXTRACT`,
+`INTERVAL` ou `ILIKE`; use as funções SQLite quando necessário.
+Nunca use `SELECT *` no caminho normal: projete apenas as colunas necessárias.
+`COUNT(*)` é permitido para contar registros no grão correto.
+
 ### Permitido
 
 A complexidade suportada é intermediária.
@@ -58,6 +63,15 @@ Nunca invente estruturas ou relacionamentos.
 
 Consultas multidomínio são permitidas somente quando o relacionamento necessário estiver claro no schema.
 
+Não autorize JOIN apenas por nomes semelhantes. Respeite o grão e as
+cardinalidades documentadas: consumo, interrupções e atendimentos não são 1:1,
+mesmo por UC/mês. Ao combinar fatos, pré-agregue cada lado ou use `EXISTS`.
+Não some indicadores agregados depois de JOIN com fatos detalhados.
+
+Não some razões, preços, percentuais ou indicadores prontos sem uma regra
+explícita do contexto. Para conjuntos, some as bases e recalcule as razões;
+respeite as regras específicas de decomposição e DEC/FEC.
+
 ### Contexto e filtros
 
 Não invente filtros.
@@ -76,5 +90,7 @@ Quando o status for `READY`:
 - não utilize Markdown;
 - não inclua comentários ou explicações;
 - produza exatamente uma consulta.
+
+Use aliases legíveis que indiquem a medida e, quando útil, a unidade.
 
 Prefira SQL simples e verificável.

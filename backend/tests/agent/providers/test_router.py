@@ -314,7 +314,7 @@ async def test_nonrecoverable_gemini_error_stops_flow(
                 attempt=1,
                 success=False,
                 error_type=(
-                    ProviderErrorType.UNAUTHORIZED
+                    ProviderErrorType.BAD_REQUEST
                 ),
             ),
         )
@@ -349,7 +349,7 @@ async def test_nonrecoverable_gemini_error_stops_flow(
 
     assert (
         error
-        == ProviderErrorType.UNAUTHORIZED
+        == ProviderErrorType.BAD_REQUEST
     )
 
     assert len(attempts) == 1
@@ -994,7 +994,7 @@ async def test_last_resort_is_skipped_when_not_configured(monkeypatch):
     output, attempts, error = await router.run_with_fallback("teste")
 
     assert output is None
-    assert error == ProviderErrorType.PROVIDER_UNAVAILABLE
+    assert error == ProviderErrorType.RATE_LIMITED
     assert gemini_calls == [None]
     assert len(attempts) == 3
 

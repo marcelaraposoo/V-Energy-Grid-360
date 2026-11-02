@@ -17,13 +17,34 @@ from app.agent.schemas import (
 
 MAX_VISUALIZATION_POINTS = 30
 
-COLUMN_LABELS = {
+_TOKEN_SPLIT = re.compile(r"[^a-z0-9]+")
+
+_NO_UNIT_TOKENS = {
+    "atipica", "corrigido", "explicada", "aberto", "possui",
+    "troca", "ranking", "prioridade", "score", "qtd",
+    "quantidade", "posicao", "nota",
+}
+
+_READABLE = {
     "mes_referencia": "Mês de referência",
     "municipio": "Município",
+    "bairro": "Bairro",
+    "classe": "Classe",
+    "alimentador": "Alimentador",
+    "receita": "Receita",
+    "receita_energia": "Receita de energia",
+    "receita_total": "Receita total",
+    "consumo_kwh": "Consumo",
+    "dec_horas": "DEC",
+    "fec": "FEC",
+    "qtd_ucs": "Quantidade de UCs",
+    "variacao_receita": "Variação de receita",
+    "efeito_preco": "Efeito preço",
+    "efeito_volume": "Efeito volume",
 }
 
 _TEMPORAL_PATTERN = re.compile(
-    r"^\d{4}-(?:0[1-9]|1[0-2])(?:-\d{2})?$"
+    r"^\d{4}-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?$"
 )
 
 _UNSAFE_VISUALIZATION_TEXT = re.compile(
@@ -32,19 +53,6 @@ _UNSAFE_VISUALIZATION_TEXT = re.compile(
     r"|(\bselect\b|\binsert\b|\bupdate\b|\bdelete\b|\bdrop\b)"
     r"|(\bopenrouter\b|\bgemini\b|\bprovider\b)"
 )
-
-_CURRENCY_TERMS = (
-    "receita",
-    "faturamento",
-    "valor",
-)
-
-_ENERGY_TERMS = (
-    "consumo",
-    "energia",
-    "kwh",
-)
-
 
 def _is_number(value: Any) -> bool:
     if isinstance(value, bool):
@@ -82,49 +90,62 @@ def _is_safe_visualization_text(value: str) -> bool:
 
 
 def _humanize_column(column: str) -> str:
-    normalized = column.strip().lower()
+    known = _READABLE.get(column.lower())
 
-    if normalized in COLUMN_LABELS:
-        return COLUMN_LABELS[normalized]
+    if known:
+        return known
 
     return column.replace("_", " ").strip().capitalize()
 
 
 def _infer_unit(metric_column: str) -> str | None:
-    name = metric_column.lower()
+    tokens = {
+        t for t in _TOKEN_SPLIT.split(metric_column.lower()) if t
+    }
 
-    if (
-        "percent" in name
-        or "percentual" in name
-        or name.endswith("_pct")
-    ):
+    # Percentual vem antes de tudo: "variacao_receita_pct" é %.
+    if tokens & {"pct", "percent", "percentual"}:
         return "%"
 
-    if "preco" in name and "kwh" in name:
-        return "R$/kWh"
+    # "valor_em_aberto" é dinheiro; só o booleano "em_aberto" não tem unidade.
+    if "valor" in tokens:
+        return "R$"
 
-    if (
-        "ranking" in name
-        or "qtd" in name
-        or "quantidade" in name
-    ):
+    if tokens & _NO_UNIT_TOKENS:
         return None
 
-    if (
-        "dec" in name
-        or "duracao_h" in name
-        or "horas" in name
-    ):
+    if "preco" in tokens and ("kwh" in tokens or "medio" in tokens):
+        return "R$/kWh"
+
+    if tokens & {
+        "receita", "faturamento", "valor", "tributos",
+        "efeito", "variacao_receita",
+    }:
+        return "R$"
+
+    if "min" in tokens:
+        return "min"
+
+    if tokens & {"dec", "horas", "interrompidas"}:
         return "h"
 
-    if "fec" in name:
+    if "fec" in tokens:
         return "vezes"
 
-    if any(term in name for term in _ENERGY_TERMS):
-        return "kWh"
+    if "kwp" in tokens:
+        return "kWp"
 
-    if any(term in name for term in _CURRENCY_TERMS):
-        return "R$"
+    if "anos" in tokens:
+        return "anos"
+
+    if "dias" in tokens:
+        return "dias"
+
+    if "kwh" in tokens and "mes" in tokens:
+        return "kWh/mês"
+
+    if tokens & {"consumo", "energia", "kwh", "volume"}:
+        return "kWh"
 
     return None
 
@@ -206,22 +227,13 @@ def _build_visualization(
         else VisualizationType.BAR
     )
 
-    pairs = list(
-        zip(
-            labels,
-            values,
-            strict=True,
-        )
-    )
+    pairs = list(zip(labels, values, strict=True))
 
     if visualization_type == VisualizationType.LINE:
-        pairs.sort(key=lambda item: item[0])
+        pairs.sort(key=lambda pair: pair[0])
 
     points = [
-        VisualizationPoint(
-            label=label,
-            value=value,
-        )
+        VisualizationPoint(label=label, value=value)
         for label, value in pairs
     ]
 

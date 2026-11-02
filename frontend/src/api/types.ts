@@ -265,11 +265,22 @@ export type ContinuidadeParams = {
 // ---------- inteligência artificial ----------
 export type PerguntaIa = { pergunta: string; sessao_id?: string | null }
 
+// Especificação de gráfico que o agente (Camada 6) devolve; o backend não desenha, só diz o que desenhar.
+export type Visualizacao = {
+  type: 'line' | 'bar'
+  title: string
+  x_label?: string | null
+  y_label?: string | null
+  unit?: string | null
+  points: { label: string; value: number }[]
+}
+
 export type RespostaIa = {
   status: 'ok' | 'nao_sei' | 'nao_implementado'
   resposta: string
   sql_executado: string | null
   fontes: string[]
+  visualizacao?: Visualizacao | null
 }
 
 export type TelaInsight =

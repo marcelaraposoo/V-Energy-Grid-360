@@ -1,6 +1,7 @@
 from sqlglot import exp, parse
 from sqlglot.errors import ParseError
 
+from app.agent.guardrails.allowed_tables import ALLOWED_TABLES
 from app.agent.schemas import (
     SQLGuardrailDecision,
     SQLGuardrailReason,
@@ -44,6 +45,10 @@ RETRY_MESSAGES = {
         "A consulta anterior utiliza uma estrutura SQL não "
         "suportada nesta etapa. Gere uma versão mais simples "
         "utilizando apenas as estruturas permitidas."
+    ),
+    SQLGuardrailReason.UNKNOWN_TABLE: (
+        "A consulta usa uma tabela que não existe no contrato. "
+        "Use apenas as tabelas listadas no contexto do banco."
     ),
 }
 
@@ -101,6 +106,27 @@ def _is_read_only_query(
             exp.Except,
         ),
     )
+
+
+def _references_unknown_table(
+    statement: exp.Expression,
+) -> bool:
+    # CTEs criam nomes locais que não são tabelas do banco.
+    cte_names = {
+        cte.alias_or_name.lower()
+        for cte in statement.find_all(exp.CTE)
+    }
+
+    for table in statement.find_all(exp.Table):
+        name = table.name.lower()
+
+        if not name or name in cte_names:
+            continue
+
+        if name not in ALLOWED_TABLES:
+            return True
+
+    return False
 
 
 def build_retry_feedback(
@@ -191,6 +217,12 @@ def validate_sql(
             return _block(
                 sql,
                 SQLGuardrailReason.UNSUPPORTED_QUERY,
+            )
+
+        if _references_unknown_table(statement):
+            return _block(
+                sql,
+                SQLGuardrailReason.UNKNOWN_TABLE,
             )
 
         return _allow(sql)

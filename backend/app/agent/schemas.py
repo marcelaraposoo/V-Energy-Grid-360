@@ -57,7 +57,13 @@ class ProviderErrorType(str, Enum):
     UNKNOWN = "unknown"
 
 
+class ProviderPhase(str, Enum):
+    SQL_GENERATION = "sql_generation"
+    SYNTHESIS = "synthesis"
+
+
 class ProviderAttempt(BaseModel):
+    phase: ProviderPhase | None = None
     provider: ProviderName
     model: str
     attempt: int
@@ -93,6 +99,9 @@ class SQLGenerationResult(BaseModel):
                     "sql é obrigatório quando o status é READY."
                 )
 
+            if self.reason is not None:
+                raise ValueError("reason deve ser None quando o status é READY.")
+
             return self
 
         if self.sql is not None:
@@ -120,6 +129,7 @@ class SQLGuardrailReason(str, Enum):
     MULTIPLE_STATEMENTS = "multiple_statements"
     FORBIDDEN_OPERATION = "forbidden_operation"
     UNSUPPORTED_QUERY = "unsupported_query"
+    UNKNOWN_TABLE = "unknown_table"
     GUARDRAIL_INTERNAL_ERROR = "guardrail_internal_error"
 
 
@@ -240,6 +250,7 @@ class SQLExecutionFlowResult(BaseModel):
     outcome: SQLExecutionOutcome | None = None
     provider_error: ProviderErrorType | None = None
     regenerations: int = 0
+    provider_attempts: list[ProviderAttempt] = Field(default_factory=list)
 
     @property
     def executed(self) -> bool:
@@ -286,6 +297,7 @@ class OutputGuardrailReason(str, Enum):
     EMPTY_ANSWER = "empty_answer"
     ANSWER_TOO_LONG = "answer_too_long"
     UNSUPPORTED_NUMBER = "unsupported_number"
+    SPELLED_OUT_NUMBER = "spelled_out_number"
     URL_IN_ANSWER = "url_in_answer"
     SQL_IN_ANSWER = "sql_in_answer"
     PROMPT_LEAK = "prompt_leak"

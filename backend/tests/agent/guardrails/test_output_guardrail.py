@@ -67,6 +67,98 @@ def test_allows_faithful_answer():
     assert result.reason is None
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Há noventa e oito unidades com painel solar.",
+        "Foram quarenta e cinco clientes afetados.",
+        "Há cento e vinte e cinco unidades.",
+        "Foram duzentos e trinta e oito clientes afetados.",
+        "Há dois mil trezentos e vinte unidades.",
+        "A variação foi de cento e vinte e cinco por cento.",
+        "Há duzentas faturas em aberto.",
+        "Há trezentas unidades com painel solar.",
+    ],
+)
+def test_blocks_spelled_out_number(answer):
+    result = _validate(answer)
+
+    assert _is_blocked(
+        result, OutputGuardrailReason.SPELLED_OUT_NUMBER
+    )
+    assert result.retryable is True
+    feedback = build_output_retry_feedback(result)
+
+    assert feedback is not None
+    assert "apenas dígitos" in feedback
+    assert answer not in feedback
+
+
+def test_spelled_out_numbers_in_assumptions_are_checked():
+    result = _validate(
+        "Recife tem 4.820 unidades.",
+        assumptions=["Considera duzentas faturas em aberto."],
+    )
+
+    assert _is_blocked(result, OutputGuardrailReason.SPELLED_OUT_NUMBER)
+    assert result.retryable is True
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Há um alimentador com DEC alto.",
+        "Isso aconteceu uma vez em junho.",
+        "Recife concentra a maior parte das interrupções.",
+    ],
+)
+def test_allows_ordinary_text_without_spelled_out_metrics(answer):
+    assert _validate(answer).decision == OutputGuardrailDecision.ALLOW
+
+
+@pytest.mark.parametrize(
+    ("answer", "column", "table", "value", "raw"),
+    [
+        (
+            "A receita foi R$ 3.320.356,85.",
+            "receita_total", "kpis_mensal", 3320356.85, "3.320.356,85",
+        ),
+        (
+            "O consumo foi 1.234,50 kWh.",
+            "consumo_total_kwh", "kpis_mensal", 1234.5, "1.234,50",
+        ),
+        (
+            "A variação foi 30%.",
+            "variacao_receita_pct", "receita_decomposicao", 30, "30",
+        ),
+    ],
+)
+def test_brazilian_format_is_validated_against_numeric_source(
+    answer, column, table, value, raw,
+):
+    query_result = QueryExecutionResult(
+        columns=[column], rows=[[value]], row_count=1,
+    )
+    result = _validate(
+        answer, sql=f"SELECT {column} FROM {table}", result=query_result,
+    )
+
+    assert result.decision == OutputGuardrailDecision.ALLOW
+    assert result.reason is None
+    assert result.unsupported_values == []
+
+    unsupported = _validate(
+        answer,
+        sql=f"SELECT {column} FROM {table}",
+        result=QueryExecutionResult(
+            columns=[column], rows=[[1000]], row_count=1,
+        ),
+    )
+
+    assert _is_blocked(unsupported, OutputGuardrailReason.UNSUPPORTED_NUMBER)
+    assert unsupported.unsupported_values == [raw]
+
+
 def test_allows_derived_sum_when_result_is_complete():
     result = _validate(
         "No total são 6.130 unidades: 4.820 em Recife "

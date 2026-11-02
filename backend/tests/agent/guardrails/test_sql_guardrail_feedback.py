@@ -19,12 +19,12 @@ from app.agent.schemas import (
             SQLGuardrailReason.INVALID_SQL,
         ),
         (
-            "SELECT * FROM consumo; "
-            "SELECT * FROM faturamento",
+            "SELECT * FROM fato_consumo_faturamento; "
+            "SELECT * FROM kpis_mensal",
             SQLGuardrailReason.MULTIPLE_STATEMENTS,
         ),
         (
-            "DELETE FROM faturamento",
+            "DELETE FROM fato_consumo_faturamento",
             SQLGuardrailReason.FORBIDDEN_OPERATION,
         ),
         (
@@ -33,7 +33,7 @@ from app.agent.schemas import (
                 "ROW_NUMBER() OVER ("
                 "ORDER BY consumo_kwh"
                 ") AS posicao "
-                "FROM consumo_energia"
+                "FROM fato_consumo_faturamento"
             ),
             SQLGuardrailReason.UNSUPPORTED_QUERY,
         ),
@@ -57,7 +57,7 @@ def test_builds_retry_feedback(
 
 def test_allow_does_not_generate_retry_feedback():
     result = validate_sql(
-        "SELECT * FROM consumo_energia"
+        "SELECT * FROM fato_consumo_faturamento"
     )
 
     assert (
@@ -76,7 +76,7 @@ def test_internal_error_does_not_generate_retry_feedback():
         ),
         retryable=False,
         original_sql=(
-            "SELECT * FROM consumo_energia"
+            "SELECT * FROM fato_consumo_faturamento"
         ),
     )
 

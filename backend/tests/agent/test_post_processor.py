@@ -1,8 +1,10 @@
+import pytest
+
 from app.agent.post_processor import (
     MAX_VISUALIZATION_POINTS,
     _humanize_column,
-    post_process,
     _infer_unit,
+    post_process,
 )
 from app.agent.schemas import (
     QueryExecutionResult,
@@ -314,3 +316,105 @@ def test_infer_unit_recognizes_price_per_kwh():
 
 def test_infer_unit_ranking_has_no_unit():
     assert _infer_unit("ranking_dec_mes") is None
+
+
+@pytest.mark.parametrize(
+    ("column", "unit"),
+    [
+        ("receita_energia", "R$"),
+        ("valor_energia", "R$"),
+        ("valor_total", "R$"),
+        ("valor_em_aberto", "R$"),
+        ("valor_em_aberto_mais_90_dias", "R$"),
+        ("em_aberto", None),
+        ("tributos", "R$"),
+        ("efeito_preco", "R$"),
+        ("efeito_volume", "R$"),
+        ("variacao_receita", "R$"),
+        ("variacao_receita_pct", "%"),
+        ("variacao_receita_ano_anterior_pct", "%"),
+        ("variacao_consumo_ano_anterior_pct", "%"),
+        ("pct_faturas_bandeira_nao_verde_1", "%"),
+        ("preco_medio_kwh", "R$/kWh"),
+        ("preco_medio_0", "R$/kWh"),
+        ("consumo_kwh", "kWh"),
+        ("consumo_medio_uc_0", "kWh"),
+        ("volume_kwh_1", "kWh"),
+        ("kwh_estimado_recuperar_mes", "kWh/mês"),
+        ("potencia_gd_kwp", "kWp"),
+        ("idade_medidor_anos", "anos"),
+        ("dias_atraso", "dias"),
+        ("receita_mes", "R$"),
+        ("receita_ano", "R$"),
+        ("consumo_kwh_ano_anterior", "kWh"),
+        ("mes", None),
+        ("ano", None),
+        ("mes_referencia", None),
+        ("duracao_min", "min"),
+        ("dec_horas", "h"),
+        ("horas_interrompidas", "h"),
+        ("fec", "vezes"),
+        ("energia_injetada_atipica", None),
+        ("consumo_corrigido", None),
+        ("ranking_dec_mes", None),
+        ("prioridade", None),
+        ("score", None),
+        ("nota_satisfacao_media", None),
+        ("qtd_ucs_periodo_0", None),
+        ("quantidade", None),
+    ],
+)
+def test_unit_inference_on_real_gold_columns(column, unit):
+    assert _infer_unit(column) == unit
+
+
+def test_line_chart_points_are_sorted_chronologically():
+    query_result = _result(
+        columns=["mes_referencia", "receita"],
+        rows=[
+            ["2026-03", 110.0],
+            ["2026-01", 100.0],
+            ["2026-02", 120.0],
+        ],
+    )
+
+    result = post_process(
+        synthesis=_synthesis(),
+        result=query_result,
+    )
+
+    assert [p.label for p in result.visualization.points] == [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+    ]
+
+
+def test_invalid_day_is_not_temporal():
+    query_result = _result(
+        columns=["data", "receita"],
+        rows=[["2026-01-99", 1.0], ["2026-02-99", 2.0]],
+    )
+
+    result = post_process(
+        synthesis=_synthesis(),
+        result=query_result,
+    )
+
+    assert result.visualization.type == VisualizationType.BAR
+
+
+def test_titles_have_accents_for_known_columns():
+    query_result = _result(
+        columns=["mes_referencia", "receita_energia"],
+        rows=[["2026-01", 1.0], ["2026-02", 2.0]],
+    )
+
+    viz = post_process(
+        synthesis=_synthesis(),
+        result=query_result,
+    ).visualization
+
+    assert viz.x_label == "Mês de referência"
+    assert viz.y_label == "Receita de energia"
+    assert viz.unit == "R$"

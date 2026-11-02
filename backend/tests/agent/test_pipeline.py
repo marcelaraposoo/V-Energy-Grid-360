@@ -1,4 +1,6 @@
 import asyncio
+from dataclasses import replace
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -10,7 +12,10 @@ from app.agent.schemas import (
     OutputGuardrailDecision,
     OutputGuardrailReason,
     OutputGuardrailResult,
+    ProviderAttempt,
     ProviderErrorType,
+    ProviderName,
+    ProviderPhase,
     QueryExecutionResult,
     SQLExecutionErrorType,
     SQLExecutionFlowResult,
@@ -106,6 +111,56 @@ def test_full_flow_returns_the_approved_answer(monkeypatch):
     assert result.visualization is not None
     assert result.input_guardrail_reason is None
     assert calls == {"flow": 1, "synthesis": 1}
+
+
+@pytest.mark.parametrize("stop", [
+    "generation", "sql_guardrail", "not_ready", "execution", "synthesis",
+    "output_guardrail", "post_processing", "done",
+])
+def test_attempts_survive_every_pipeline_exit(monkeypatch, stop):
+    def metadata(phase, success=True):
+        return ProviderAttempt(
+            provider=ProviderName.GEMINI, model="synthetic-model", attempt=1,
+            started_at=datetime.now(timezone.utc), success=success,
+            latency_ms=2.0, error_type=None if success else ProviderErrorType.TIMEOUT,
+            phase=phase,
+        )
+    sql_attempt = metadata(ProviderPhase.SQL_GENERATION, stop != "generation")
+    flow = _executed_flow().model_copy(update={"provider_attempts": [sql_attempt]})
+    synthesis_attempt = metadata(ProviderPhase.SYNTHESIS, stop != "synthesis")
+    synthesis = replace(_approved_synthesis(), provider_attempts=[synthesis_attempt])
+    if stop == "generation":
+        flow.provider_error = ProviderErrorType.TIMEOUT
+    elif stop == "sql_guardrail":
+        flow.guardrail_reason = SQLGuardrailReason.FORBIDDEN_OPERATION
+    elif stop == "not_ready":
+        flow.outcome = None
+        flow.generation_status = SQLGenerationStatus.OUT_OF_SCOPE
+    elif stop == "execution":
+        flow.outcome = SQLExecutionOutcome(
+            status=SQLExecutionStatus.FAILED, error_type=SQLExecutionErrorType.TIMEOUT,
+        )
+    elif stop == "synthesis":
+        synthesis = replace(synthesis, provider_error=ProviderErrorType.TIMEOUT)
+    elif stop == "output_guardrail":
+        synthesis = replace(synthesis, guardrail=OutputGuardrailResult(
+            decision=OutputGuardrailDecision.BLOCK,
+            reason=OutputGuardrailReason.PROMPT_LEAK, original_answer="synthetic",
+        ))
+    elif stop == "post_processing":
+        monkeypatch.setattr(pipeline, "process_approved_response", lambda **kwargs: None)
+    _install(monkeypatch, flow=flow, synthesis=synthesis)
+    result = _ask()
+    assert result.provider_attempts[0] == sql_attempt
+    if stop in {"generation", "sql_guardrail", "not_ready", "execution"}:
+        assert result.provider_attempts == (sql_attempt,)
+    else:
+        assert len(result.provider_attempts) == 2
+        assert result.provider_attempts[1] == synthesis_attempt.model_copy(update={"attempt": 2})
+        assert [a.phase for a in result.provider_attempts] == [
+            ProviderPhase.SQL_GENERATION, ProviderPhase.SYNTHESIS,
+        ]
+    assert "synthetic-model" not in result.message
 
 
 @pytest.mark.parametrize(

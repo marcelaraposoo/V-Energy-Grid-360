@@ -106,6 +106,8 @@ def test_successful_flow_executes_once(monkeypatch):
     assert flow.regenerations == 0
     assert executed == [GOOD_SQL]
     assert feedbacks == [None]
+    assert len(flow.provider_attempts) == 1
+    assert flow.provider_attempts[0].phase.value == "sql_generation"
 
 
 def test_non_ready_generation_is_not_executed(monkeypatch):
@@ -130,6 +132,8 @@ def test_provider_error_stops_the_flow(monkeypatch):
     flow = _run()
 
     assert flow.provider_error == ProviderErrorType.RATE_LIMITED
+    assert len(flow.provider_attempts) == 1
+    assert flow.provider_attempts[0].phase.value == "sql_generation"
     assert executed == []
 
 
@@ -163,6 +167,8 @@ def test_blocked_sql_is_regenerated_once_and_then_executed(monkeypatch):
     assert executed == [GOOD_SQL]
     assert feedbacks[0] is None
     assert BAD_SQL in feedbacks[1]
+    assert [a.attempt for a in flow.provider_attempts] == [1, 2]
+    assert all(a.phase.value == "sql_generation" for a in flow.provider_attempts)
 
 
 def test_missing_column_is_regenerated_once(monkeypatch):

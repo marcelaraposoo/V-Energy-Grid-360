@@ -15,10 +15,10 @@ def anyio_backend():
 
 
 DATABASE_CONTEXT = """
-Tabela: consumo_energia
+Tabela: dim_uc
 Colunas:
 - municipio
-- consumo_kwh
+- consumo_medio_12m_kwh
 """.strip()
 
 
@@ -37,7 +37,7 @@ async def test_passes_on_first_generation(
                 status=SQLGenerationStatus.READY,
                 sql=(
                     "SELECT * "
-                    "FROM consumo_energia"
+                    "FROM dim_uc"
                 ),
                 reason=None,
             ),
@@ -83,7 +83,7 @@ async def test_retries_once_and_then_passes(
             return (
                 SQLGenerationResult(
                     status=SQLGenerationStatus.READY,
-                    sql="DELETE FROM consumo_energia",
+                    sql="DELETE FROM dim_uc",
                     reason=None,
                 ),
                 [],
@@ -95,7 +95,7 @@ async def test_retries_once_and_then_passes(
                 status=SQLGenerationStatus.READY,
                 sql=(
                     "SELECT * "
-                    "FROM consumo_energia"
+                    "FROM dim_uc"
                 ),
                 reason=None,
             ),
@@ -137,7 +137,7 @@ async def test_retries_once_and_then_passes(
     )
 
     assert (
-        "DELETE FROM consumo_energia"
+        "DELETE FROM dim_uc"
         in calls[1]["guardrail_feedback"]
     )
 
@@ -155,7 +155,7 @@ async def test_blocks_after_single_regeneration(
         return (
             SQLGenerationResult(
                 status=SQLGenerationStatus.READY,
-                sql="DELETE FROM consumo_energia",
+                sql="DELETE FROM dim_uc",
                 reason=None,
             ),
             [],

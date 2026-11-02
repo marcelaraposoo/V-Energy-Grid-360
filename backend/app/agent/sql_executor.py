@@ -45,6 +45,14 @@ def _read_only_authorizer(
     db_name: str | None,
     trigger: str | None,
 ) -> int:
+    # Tabelas internas do SQLite (catálogo e estatísticas).
+    if (
+        action == sqlite3.SQLITE_READ
+        and arg1
+        and arg1.lower().startswith("sqlite_")
+    ):
+        return sqlite3.SQLITE_DENY
+
     if action in _ALLOWED_ACTIONS:
         return sqlite3.SQLITE_OK
 

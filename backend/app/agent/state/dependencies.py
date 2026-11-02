@@ -17,11 +17,11 @@ class AgentStateDependencies:
     """
     Contratos de estado compartilhados pela C2 e pela futura finalização.
 
-    Ainda não estão conectados ao pipeline operacional. A versão Gold é um
+    A auditoria é uma interface opcional para a futura C7. A versão Gold é um
     identificador explícito fornecido pela integração, nunca mtime/hash por GET.
     """
 
-    audit_store: AuditStore
+    audit_store: AuditStore | None = None
     memory_store: MemoryStore | None = None
     cache_store: CacheStore | None = None
     cache_ttl_seconds: int = DEFAULT_CACHE_TTL_SECONDS
@@ -38,3 +38,19 @@ class AgentStateDependencies:
             )
         validate_cache_ttl(self.cache_ttl_seconds)
         validate_cache_timeout(self.cache_timeout_seconds)
+
+
+def get_state_dependencies() -> AgentStateDependencies:
+    """Configuração operacional da C2, sem conexão antecipada com Redis."""
+    from app.core.config import settings
+    from app.agent.state.redis_cache import RedisCacheStore
+
+    return AgentStateDependencies(
+        cache_store=(
+            RedisCacheStore(settings.redis_url, timeout_seconds=settings.cache_timeout_seconds)
+            if settings.redis_url else None
+        ),
+        data_version=settings.gold_data_version,
+        cache_ttl_seconds=settings.cache_ttl_seconds,
+        cache_timeout_seconds=settings.cache_timeout_seconds,
+    )

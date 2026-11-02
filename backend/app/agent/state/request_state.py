@@ -32,10 +32,13 @@ async def prepare_request_state(
     normalized_question: str,
     session_id: str | None,
     dependencies: AgentStateDependencies,
+    memory_context: str | None = None,
 ) -> RequestState:
     """Recebe a pergunta já aprovada/normalizada pela C1; não executa o agente."""
-    memory_context: str | None = None
-    memory_status = MemoryContextStatus.NOT_REQUESTED
+    memory_status = (
+        MemoryContextStatus.LOADED if memory_context is not None
+        else MemoryContextStatus.NOT_REQUESTED
+    )
 
     if (
         session_id is not None
@@ -51,6 +54,7 @@ async def prepare_request_state(
                 else MemoryContextStatus.EMPTY
             )
         except Exception:
+            memory_context = None
             memory_status = MemoryContextStatus.UNAVAILABLE
 
     cache_key: str | None = None

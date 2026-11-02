@@ -2,10 +2,11 @@
 
 ## 1. Visão geral e decisões de arquitetura
 
-A aplicação usa somente **dois containers**: `frontend` e `backend`, definidos
+A aplicação usa **três containers**: `frontend`, `backend` e `redis`, definidos
 no `compose.yaml` da raiz. O navegador acessa o frontend/Nginx; chamadas a
 `/api/...` seguem pelo proxy até o backend/FastAPI, que acessa dois bancos SQLite
 independentes: a Gold analítica somente leitura e o portal operacional com escrita.
+Redis é o cache opcional de respostas finais da C2, acessado pela rede Docker.
 
 Essa organização mantém interface e API na mesma origem para o navegador,
 centraliza o acesso aos dados no backend e separa dados analíticos publicados
@@ -13,8 +14,8 @@ pelo time de Dados dos registros criados pela aplicação. SQLite é acessado co
 arquivo pelo processo Python e não precisa de servidor próprio.
 
 Não há container separado para SQLite ou IA. Os componentes da IA estão no
-backend; a integração completa do chat ainda está em desenvolvimento. Redis
-não faz parte da composição atual.
+backend. A indisponibilidade do Redis não impede a inicialização ou o health
+do backend: GET falha como MISS e SET falha sem descartar resposta aprovada.
 
 ## 2. Responsabilidade de cada container
 
@@ -22,6 +23,7 @@ não faz parte da composição atual.
 |---|---|
 | `frontend` | O build em Node executa `npm ci` e compila o React com Vite. A imagem final usa Nginx para servir os arquivos estáticos, aplicar o fallback da SPA e encaminhar `/api/...` ao backend. O Node não permanece como servidor em execução. |
 | `backend` | Executa FastAPI com Uvicorn na porta interna 8000, acessa a Gold, mantém o banco operacional e incorpora os componentes e prompts da IA. |
+| `redis` | Cache efêmero da C2 na porta interna 6379; healthcheck com `redis-cli ping`, sem porta publicada no host. |
 
 O fallback da SPA permite abrir diretamente uma rota como `/uc`: quando não há
 arquivo estático correspondente, o Nginx entrega `index.html` e o React resolve
@@ -43,6 +45,8 @@ para esse fluxo de mesma origem.
 
 O frontend aguarda o backend ficar saudável antes de iniciar. O Nginx utiliza
 o DNS interno do Docker para resolver novamente o backend quando ele é recriado.
+Backend não depende do health/startup do Redis. A URL interna é
+`redis://redis:6379/0`; não há publicação da porta Redis para o host.
 
 ## 4. Bancos e caminhos
 
@@ -72,7 +76,19 @@ manualmente para executar a aplicação:
 DATA_SOURCE=sqlite
 SQLITE_PATH=/data/gold/gold.db
 PORTAL_DB_PATH=/data/portal/portal.db
+REDIS_URL=redis://redis:6379/0
+CACHE_TTL_SECONDS=300
+CACHE_TIMEOUT_SECONDS=1
 ```
+
+`GOLD_DATA_VERSION` deve ser fornecida explicitamente e identificar o snapshot
+montado. Com cache habilitado, versão ausente/em branco impede a inicialização
+do backend. Não se calcula hash do banco por requisição nem versão por mtime.
+Fora do Compose, omitir `REDIS_URL` desabilita o cache.
+
+Redis não preserva respostas após recriação: RDB/AOF ficam desabilitados e
+`/data` usa tmpfs, substituindo o volume implícito da imagem. Nenhum volume
+Redis é adicionado; `portal_data` continua sendo o único volume persistente.
 
 ## 5. Pré-requisitos e preparação
 
@@ -114,6 +130,7 @@ de criar silenciosamente um diretório vazio.
 Na raiz do repositório:
 
 ```powershell
+$env:GOLD_DATA_VERSION = '2026-06-v1' # Exemplo: use a versão real do snapshot.
 docker compose up --detach --build --wait
 ```
 
@@ -129,7 +146,7 @@ Confira o estado:
 docker compose ps
 ```
 
-O resultado esperado é `backend` com estado **healthy** e `frontend` em execução
+O resultado esperado é `backend` e `redis` com estado **healthy**, e `frontend` em execução
 (**running**, normalmente mostrado como `Up`). O frontend não possui health check
 próprio; não espere a indicação `healthy` para ele.
 
@@ -142,15 +159,16 @@ a seção 12, mesmo quando o backend estiver saudável.
 ## 7. Logs
 
 ```powershell
-# Ambos os serviços; Ctrl+C encerra somente o acompanhamento
+# Todos os serviços; Ctrl+C encerra somente o acompanhamento
 docker compose logs --follow --tail 100
 
 # Logs individuais
 docker compose logs --follow --tail 100 backend
 docker compose logs --follow --tail 100 frontend
+docker compose logs --follow --tail 100 redis
 
 # Últimas mensagens sem acompanhamento contínuo
-docker compose logs --tail 100 backend frontend
+docker compose logs --tail 100 backend frontend redis
 ```
 
 Use os logs do backend para erros de API, SQLite e exceções Python. Os logs do
@@ -231,7 +249,8 @@ snapshot no host. Para evitar trocar um arquivo enquanto uma consulta o lê:
 1. Valide o novo snapshot e preserve a versão anterior fora do container.
 2. Execute `docker compose down`, sem `-v`.
 3. Substitua `data/gold/gold.db` pelo novo snapshot completo, mantendo o caminho.
-4. Execute `docker compose up --detach --build --wait` e a validação rápida.
+4. Atualize `GOLD_DATA_VERSION` para identificar o novo snapshot e execute
+   `docker compose up --detach --build --wait` e a validação rápida.
 
 O volume operacional permanece durante esse procedimento. Não publique um
 snapshot ainda em escrita ou que dependa de arquivos de journal/WAL ausentes.
@@ -249,6 +268,7 @@ estruturas de teste não exige um Compose alternativo nem um container adicional
 Após subir a aplicação, confira:
 
 - [ ] `docker compose ps`: backend saudável e frontend em execução.
+- [ ] Redis saudável e sem publicação de porta no host.
 - [ ] `http://localhost:8080`: frontend abre.
 - [ ] `/api/health`: HTTP 200 com `status=ok`.
 - [ ] A resposta do health informa `data_source=sqlite`.
@@ -265,6 +285,13 @@ A última chamada deve retornar uma lista com uma UC do snapshot. Ela exercita
 o proxy, o repositório SQLite e a leitura real da Gold; o health isolado não
 comprova essa integração.
 
+A validação controlada da C2 com Redis real (MISS/SET/HIT, expiração, payload
+inválido e Redis desligado) está descrita em
+[C2-cache.md](../backend/app/agent/docs/C2-cache.md). Ela usa geração/síntese
+determinísticas e mantém SQL, guardrails, C6 e Redis reais, sem credenciais de
+providers. Na validação, parar somente Redis preservou o backend saudável e a
+entrega das respostas; Redis foi religado ao final.
+
 ## 13. Limitações atuais
 
 Estas são pendências da aplicação, não falhas da Dockerização:
@@ -277,9 +304,11 @@ Estas são pendências da aplicação, não falhas da Dockerização:
 - A fila sem filtro excedeu o timeout de 30 segundos na validação. O backend
   busca cada UC separadamente e usa `COLLATE NOCASE` com varredura da `dim_uc`.
   A fila filtrada com `prob_minima=1&tamanho=3` respondeu HTTP 200.
-- Os componentes de IA estão incorporados ao backend, mas a rota de perguntas
-  ainda responde com um placeholder: a conexão completa do agente está pendente.
-- Redis ainda não foi integrado e não é requisito para esta composição.
+- A rota de perguntas usa o pipeline do agente com cache C2, mas o Compose não
+  injeta credenciais de providers. A validação C2 foi controlada e não comprova
+  chamadas a LLMs autenticados.
+- Cache Redis está integrado à C2; memória Redis, auditoria persistente e
+  Logfire permanecem fora desta etapa.
 
 Limites do ambiente Docker atual: acesso local por HTTP em loopback, usuário
 padrão da imagem backend e dependências Python/tags base não totalmente fixadas.
@@ -311,7 +340,8 @@ Host
 │       └── /api/... → http://backend:8000/api/...
 │                     └── FastAPI/Uvicorn + componentes IA
 │                         ├── leitura → /data/gold/gold.db
-│                         └── leitura/escrita → /data/portal/portal.db
+│                         ├── leitura/escrita → /data/portal/portal.db
+│                         └── cache opcional → redis:6379 (sem porta no host)
 │
 ├── data/gold/                           [bind mount read-only]
 │   └── gold.db ───────────────────────→ backend:/data/gold/gold.db
@@ -320,6 +350,6 @@ Host
     └── portal.db ──────────────────────→ backend:/data/portal/portal.db
         Nome efetivo: v-energy-grid-360_portal_data
 
-Containers da aplicação: frontend + backend
-Sem containers separados para SQLite, IA ou Redis.
+Containers da aplicação: frontend + backend + redis
+Redis: /data em tmpfs, sem persistência. Sem containers separados para SQLite ou IA.
 ```

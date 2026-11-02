@@ -48,7 +48,7 @@ def deserialize_cache_value(payload: str | bytes) -> PostProcessingResult | None
 
 
 class CacheStore(Protocol):
-    """Contrato do futuro adapter; não é uma implementação Redis.
+    """Contrato do cache; a implementação Redis está em redis_cache.py.
 
     Persistir JSON com TTL, revalidar via Pydantic no GET e devolver None para
     payload inválido. Operações devem ser assíncronas, respeitar cancelamento

@@ -398,7 +398,49 @@ class AlimentadorDecFec(BaseModel):
     horas_interrompidas: float
     qtd_ucs_alimentador_mes: int | None
     competencia_base_ucs: Competencia | None
+    horas_causas_evitaveis: float = 0
+    qtd_ucs_afetadas: int = Field(0, description="UCs distintas com ao menos uma interrupção no período.")
     posicao_pior: int
+
+
+class IndicadoresContinuidade(BaseModel):
+    """DEC/FEC de um conjunto de alimentadores no período: soma dos índices mensais ponderados pelas UCs."""
+    dec_horas: float
+    fec_vezes: float
+    qtd_interrupcoes: int
+    horas_interrompidas: float
+    horas_causas_evitaveis: float
+    qtd_ucs: int | None
+    competencia_base_ucs: Competencia | None
+
+
+class PontoContinuidade(BaseModel):
+    competencia: Competencia
+    dec_horas: float
+    fec_vezes: float
+    qtd_interrupcoes: int
+    horas_interrompidas: float
+
+
+class CausaContinuidade(BaseModel):
+    causa: str | None = Field(description="Nula quando a origem não informa a causa.")
+    causa_evitavel: bool
+    qtd_interrupcoes: int
+    horas: float
+    pct_horas: float | None
+
+
+class ResumoContinuidade(BaseModel):
+    periodo_atual: Periodo
+    periodo_base: Periodo | None
+    municipio: str | None
+    alimentador_id: str | None
+    qtd_alimentadores: int
+    atual: IndicadoresContinuidade | None
+    base: IndicadoresContinuidade | None
+    serie: list[PontoContinuidade]
+    serie_base: list[PontoContinuidade]
+    causas: list[CausaContinuidade]
 
 
 # ---------- IA ----------

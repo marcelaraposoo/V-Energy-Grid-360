@@ -186,6 +186,25 @@ class MockRepository:
             and (municipio is None or r["municipio"] == municipio)
         ], key=lambda r: (r["mes_referencia"], r["alimentador"]))
 
+    def ucs_afetadas_por_alimentador(self, inicio, fim, municipio=None):
+        ucs: dict[str, set] = {}
+        for o in self.d["fato_interrupcao"]:
+            if inicio <= o["mes_referencia"] <= fim and (municipio is None or o["municipio"] == municipio):
+                ucs.setdefault(o["alimentador"], set()).add(o["id_uc"])
+        return {a: len(v) for a, v in ucs.items()}
+
+    def causas_interrupcao(self, inicio, fim, alimentador_id=None, municipio=None):
+        grupos: dict[tuple, dict] = {}
+        for o in self.d["fato_interrupcao"]:
+            if not (inicio <= o["mes_referencia"] <= fim) or (alimentador_id is not None and o["alimentador"] != alimentador_id) \
+                    or (municipio is not None and o["municipio"] != municipio):
+                continue
+            g = grupos.setdefault((o["causa"], bool(o["causa_evitavel"])),
+                                  {"causa": o["causa"], "causa_evitavel": bool(o["causa_evitavel"]), "qtd": 0, "minutos": 0})
+            g["qtd"] += 1
+            g["minutos"] += o["duracao_min"]
+        return list(grupos.values())
+
     # perdas
     def suspeitas(self):
         return self.d["suspeitas"]

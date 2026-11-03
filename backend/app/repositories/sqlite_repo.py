@@ -457,6 +457,38 @@ class SqliteRepository:
                 SELECT * FROM {tabela} WHERE {where} ORDER BY mes_referencia, alimentador
             """, params)]
 
+    def ucs_afetadas_por_alimentador(self, inicio, fim, municipio=None):
+        tabela = "fato_interrupcao"
+        where = "mes_referencia BETWEEN ? AND ?"
+        params = [inicio, fim]
+        if municipio is not None:
+            where += " AND municipio = ?"
+            params.append(municipio)
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("UCs afetadas por interrupções", tabela)
+            return {r[0]: r[1] for r in con.execute(
+                f"SELECT alimentador, COUNT(DISTINCT id_uc) FROM {tabela} WHERE {where} GROUP BY alimentador", params)}
+
+    def causas_interrupcao(self, inicio, fim, alimentador_id=None, municipio=None):
+        tabela = "fato_interrupcao"
+        where = "mes_referencia BETWEEN ? AND ?"
+        params = [inicio, fim]
+        if alimentador_id is not None:
+            where += " AND alimentador = ?"
+            params.append(_codigo(alimentador_id))
+        if municipio is not None:
+            where += " AND municipio = ?"
+            params.append(municipio)
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Causas das interrupções", tabela)
+            linhas = [dict(r) for r in con.execute(f"""
+                SELECT causa, causa_evitavel, COUNT(*) AS qtd, COALESCE(SUM(duracao_min), 0) AS minutos
+                FROM {tabela} WHERE {where} GROUP BY causa, causa_evitavel
+            """, params)]
+        return [{**r, "causa_evitavel": _bool(r["causa_evitavel"])} for r in linhas]
+
     # ---------- atendimentos da UC (B1) ----------
     def atendimentos_uc(self, uc_id):
         tabela = "fato_atendimento"

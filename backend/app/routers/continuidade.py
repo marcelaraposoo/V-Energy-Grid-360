@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.routers.deps import COMP, repo_dep
-from app.schemas import AlimentadorDecFec, Periodo
+from app.routers.deps import COMP, dashboard_periodos_dep, repo_dep
+from app.schemas import AlimentadorDecFec, Periodo, ResumoContinuidade
 from app.services import continuidade
 
 router = APIRouter(prefix="/api/continuidade", tags=["continuidade (DEC/FEC)"])
@@ -29,3 +29,21 @@ def serie(alimentador_id: str, inicio: str | None = Query(None, pattern=COMP), f
     if not any(a["id"] == alimentador_id for a in repo.alimentadores()):
         raise HTTPException(404, f"Alimentador {alimentador_id} não encontrado")
     return continuidade.serie_mensal(repo, alimentador_id, _periodo(repo, inicio, fim, desde_o_comeco=True))
+
+
+@router.get("/resumo", response_model=ResumoContinuidade)
+def resumo(municipio: str | None = None, alimentador: str | None = None,
+           periodos=Depends(dashboard_periodos_dep), repo=Depends(repo_dep)):
+    """DEC/FEC, série mensal e causas da distribuidora, de um município ou de um alimentador.
+    Períodos com as mesmas regras do Dashboard: referência opcional, mesma duração e sem sobreposição."""
+    base, atual = periodos
+    if municipio is not None and municipio not in repo.municipios_bairros():
+        raise HTTPException(422, f"Município desconhecido: {municipio}")
+    alimentador_id = alimentador.strip().upper() if alimentador else None
+    if alimentador_id is not None:
+        dados = next((a for a in repo.alimentadores() if a["id"] == alimentador_id), None)
+        if dados is None:
+            raise HTTPException(422, f"Alimentador desconhecido: {alimentador_id}")
+        if municipio is not None and dados["municipio"] != municipio:
+            raise HTTPException(422, f"O alimentador {alimentador_id} não atende {municipio}")
+    return continuidade.resumo(repo, atual, base, municipio, alimentador_id)

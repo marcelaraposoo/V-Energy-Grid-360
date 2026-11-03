@@ -138,7 +138,11 @@ e P9 (onde priorizar manutenção). Consulta `api.continuidade.resumo(...)` e `a
   não deve ser atribuído ao bairro. `/qualidade?alimentador=ALM-...` abre a tela no alimentador; a Visão 360
   usa esse link no card do alimentador.
 - **Conteúdo:** DEC, FEC, interrupções e horas sem energia (UC × h) com referência; evolução mensal; principais causas,
-  com as evitáveis em destaque; ranking ordenável por qualquer coluna. Clicar num alimentador filtra a tela.
+  com as evitáveis em destaque, e locais mais afetados (abas Causas | Locais); ranking ordenável por qualquer coluna.
+  Clicar num alimentador ou num município filtra a tela.
+- **Locais:** por município na distribuidora e por bairro (sempre com o município) quando há município ou alimentador
+  escolhido. Mostra horas, UCs afetadas sobre as UCs cadastradas no local e ocorrências; não há DEC por bairro.
+  O card mostra os 4 primeiros; "Mostrar todos" abre a lista completa num modal (`LocaisDialog`).
 - **Cores:** aqui subir é desfavorável (`KpiCard` com `menorMelhor`).
 - **DEC e tamanho do alimentador** os alimentadores somam horas parecidas por ano, então o DEC
   é praticamente o inverso do número de UCs. O ranking mostra DEC junto de UCs, UCs afetadas e horas sem energia,

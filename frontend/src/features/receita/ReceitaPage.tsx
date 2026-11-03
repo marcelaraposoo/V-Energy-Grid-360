@@ -1,8 +1,10 @@
-import { useReducer, useState } from 'react'
+import { useReducer } from 'react'
 import { CalendarRange, RotateCcw } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { api, useApi } from '../../api'
 import type { ClasseConsumo } from '../../api/types'
 import { SelectField } from '../../components/ui/Controls'
+import { DataCorte } from '../../components/ui/DataCorte'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState, LoadingState } from '../../components/ui/Feedback'
 import { PageHeader } from '../../components/ui/PageHeader'
@@ -12,11 +14,11 @@ import { formatarPeriodo } from '../dashboard/formatacao'
 import { alterarPeriodos, estadoInicial } from '../dashboard/periodos'
 import { SeletorPeriodo } from '../dashboard/SeletorPeriodo'
 import { ContribuicaoReceita } from './ContribuicaoReceita'
-import { filtrar, recorteInicial } from './drilldown'
+import { alterarRecorte, filtrar, recorteInicial } from './drilldown'
 import type { Recorte } from './drilldown'
 import { EvolucaoReceita } from './EvolucaoReceita'
 import { FatoresReceita } from './FatoresReceita'
-import { periodosDiagnostico } from './periodos'
+import { periodosDaUrl, periodosDiagnostico } from './periodos'
 import { RankingQuedas } from './RankingQuedas'
 import { ResumoReceita } from './ResumoReceita'
 import { parametrosReceita } from './tipos'
@@ -27,16 +29,34 @@ import './receita.css'
 const { periodo: periodoPadrao, referencia: referenciaPadrao } = periodosDiagnostico
 
 export function ReceitaPage() {
+  const [busca] = useSearchParams()
   const [temporal, dispatch] = useReducer(
     (estado: ReturnType<typeof estadoInicial>, acao: Parameters<typeof alterarPeriodos>[1]) => alterarPeriodos(estado, acao, periodoPadrao, limites, referenciaPadrao),
-    undefined, () => estadoInicial(periodoPadrao, referenciaPadrao),
+    undefined, () => {
+      // Vindo do Dashboard, abre nos mesmos períodos; "Limpar" volta ao recorte do diagnóstico.
+      const inicial = periodosDaUrl(busca) ?? periodosDiagnostico
+      return estadoInicial(inicial.periodo, inicial.referencia)
+    },
   )
-  const [recorte, setRecorte] = useState<Recorte>(recorteInicial)
+  const [historico, dispatchRecorte] = useReducer(alterarRecorte, { atual: recorteInicial, anteriores: [] })
+  const recorte = historico.atual
+  const setRecorte = (valor: Recorte) => dispatchRecorte({ tipo: 'selecionar', valor })
+  const voltar = historico.anteriores.length ? () => dispatchRecorte({ tipo: 'voltar' }) : undefined
   const { periodo, referencia, aviso } = temporal
-  const analise = useApi(
-    (signal) => referencia ? api.receita.variacao(parametrosReceita({ ...recorte, periodo, referencia }), signal) : Promise.resolve(null),
+  const consulta = useApi(
+    async (signal) => {
+      if (!referencia) return null
+      const dados = await api.receita.variacao(parametrosReceita({ ...recorte, periodo, referencia }), signal)
+      return { dados, recorte, periodo, referencia }
+    },
     [periodo.inicio, periodo.fim, referencia?.inicio, referencia?.fim, recorte.municipio, recorte.bairro, recorte.classe, recorte.agrupar_por],
+    { manterDadosAnteriores: true },
   )
+  // Mantém os gráficos montados durante a busca, com os filtros e períodos da resposta exibida.
+  const analise = consulta.data?.dados
+  const recorteExibido = consulta.data?.recorte ?? recorte
+  const periodoExibido = consulta.data?.periodo ?? periodo
+  const referenciaExibida = consulta.data?.referencia ?? referenciaPadrao
   const catalogo = useApi((signal) => api.filtros(signal), [])
   const bairros = catalogo.data?.municipios.find((m) => m.nome === recorte.municipio)?.bairros ?? []
 
@@ -49,7 +69,7 @@ export function ReceitaPage() {
 
       <form className="panel receita-filtros" aria-label="Filtros da análise de receita"
         onSubmit={(event) => event.preventDefault()}
-        onReset={() => { dispatch({ tipo: 'limpar' }); setRecorte(recorteInicial) }}>
+        onReset={() => { dispatch({ tipo: 'limpar' }); dispatchRecorte({ tipo: 'limpar' }) }}>
         <SeletorPeriodo key="atual" label="Período analisado" valor={periodo}
           minimo={limites.minimo} maximo={limites.maximo}
           validar={(valor) => validarPeriodo(valor, 12, limites)}
@@ -69,6 +89,7 @@ export function ReceitaPage() {
           options={catalogo.data?.classes.map((c) => ({ value: c.codigo, label: c.descricao })) ?? []}
           onChange={(valor) => setRecorte(filtrar(recorte, { classe: (valor || null) as ClasseConsumo | null }))} />
         <button type="reset" className="button button--secondary"><RotateCcw size={14} aria-hidden="true" /> Limpar</button>
+        <DataCorte />
         {aviso && <p className="receita-filtros-nota" role="status" aria-live="polite">{aviso}</p>}
         {catalogo.error && <p className="receita-filtros-nota" role="alert">
           Não foi possível carregar os municípios e as classes.{' '}
@@ -80,26 +101,35 @@ export function ReceitaPage() {
         <EmptyState icon={CalendarRange} title="Escolha um período de referência"
           description="A decomposição compara dois períodos com a mesma quantidade de meses, sem sobreposição." compact />
       </Panel>
-        : analise.error ? <Panel title="Análise de receita"><ErrorState error={analise.error} onRetry={analise.reload} /></Panel>
-          : !analise.data ? <Panel title="Análise de receita"><LoadingState label="Calculando a decomposição…" /></Panel>
-            : <>
-              <ResumoReceita total={analise.data.total} referencia={referencia} />
+        : consulta.error ? <Panel title="Análise de receita"><ErrorState error={consulta.error} onRetry={consulta.reload} /></Panel>
+          : !analise ? <Panel title="Análise de receita"><LoadingState label="Calculando a decomposição…" /></Panel>
+            : <div className="receita-resultados" aria-busy={consulta.loading}>
+              {consulta.loading && <div className="receita-atualizando"><LoadingState label="Atualizando análise…" /></div>}
+              <div className="receita-resultados-conteudo" inert={consulta.loading}>
+                <ResumoReceita total={analise.total} referencia={referenciaExibida} />
 
-              <section className="receita-decomposicao" aria-label="Decomposição preço × volume">
-                <Panel title="Ponte da receita: volume × preço" className="receita-ponte"
-                  description={`${formatarPeriodo(referencia)} → ${formatarPeriodo(periodo)} · efeito volume + efeito preço = variação total`}>
-                  <WaterfallReceita total={analise.data.total} periodo={periodo} referencia={referencia} />
-                </Panel>
-                <FatoresReceita analise={analise.data} />
-              </section>
+                <section className="receita-decomposicao" aria-label="Decomposição preço × volume">
+                  <Panel title="Ponte da receita: volume × preço" className="receita-ponte"
+                    description={`${formatarPeriodo(referenciaExibida)} → ${formatarPeriodo(periodoExibido)}`}
+                    info={<>
+                      Efeito volume = (energia atual − energia de referência) × preço médio da referência.
+                      Efeito preço = (preço atual − preço de referência) × energia atual.
+                      Os dois somam exatamente a variação da receita. O efeito preço inclui reajuste tarifário,
+                      bandeira e mudança no mix de classes.
+                    </>}>
+                    <WaterfallReceita total={analise.total} periodo={periodoExibido} referencia={referenciaExibida} />
+                  </Panel>
+                  <FatoresReceita analise={analise} />
+                </section>
 
-              <ContribuicaoReceita analise={analise.data} recorte={recorte} onRecorte={setRecorte} />
+                <ContribuicaoReceita analise={analise} recorte={recorteExibido} onRecorte={setRecorte} />
 
-              <section className="receita-detalhe" aria-label="Quedas e evolução">
-                <RankingQuedas analise={analise.data} recorte={recorte} onRecorte={setRecorte} />
-                <EvolucaoReceita serie={analise.data.serie} periodo={periodo} referencia={referencia} />
-              </section>
-            </>}
+                <section className="receita-detalhe" aria-label="Quedas e evolução">
+                  <RankingQuedas analise={analise} recorte={recorteExibido} onRecorte={setRecorte} onVoltar={voltar} />
+                  <EvolucaoReceita serie={analise.serie} periodo={periodoExibido} referencia={referenciaExibida} />
+                </section>
+              </div>
+            </div>}
     </div>
   )
 }

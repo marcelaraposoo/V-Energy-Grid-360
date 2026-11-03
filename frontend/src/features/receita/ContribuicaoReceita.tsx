@@ -35,8 +35,9 @@ export function ContribuicaoReceita({ analise, recorte, onRecorte }: Props) {
   const disponiveis = agrupamentosDisponiveis(recorte)
 
   return (
-    <Panel title="Onde a receita mudou" description="Contribuição de cada segmento para a variação. Selecione uma linha para detalhar."
+    <Panel title="Onde a receita mudou" description="Selecione uma linha para detalhar."
       className="receita-contribuicao"
+      info="Contribuição de cada segmento para a variação da receita, com a mesma decomposição da ponte. Detalhamento: município → bairro → classe. UCs: faturadas na última competência do período atual."
       actions={disponiveis.length > 1 ? <div className="segmented" role="group" aria-label="Ver por">
         {disponiveis.map((a) => (
           <button key={a} type="button" className="button button--secondary" aria-pressed={recorte.agrupar_por === a}

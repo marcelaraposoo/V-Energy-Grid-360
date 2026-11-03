@@ -11,7 +11,6 @@ const direita = 16
 const topo = 30
 const base = 232
 const larguraBarra = 48
-const numeroEixo = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 
 function passoRedondo(bruto: number) {
   const ordem = 10 ** Math.floor(Math.log10(bruto))
@@ -28,7 +27,7 @@ function escala(niveis: number[]) {
   const minimo = Math.max(0, Math.floor((menor - amplitude * 1.2) / passo) * passo)
   const maximo = Math.ceil((maior + amplitude * 0.2) / passo) * passo
   const marcacoes = Array.from({ length: Math.round((maximo - minimo) / passo) + 1 }, (_, i) => minimo + i * passo)
-  return { minimo, maximo, marcacoes }
+  return { minimo, maximo, marcacoes, passo }
 }
 
 type Barra = { titulo: string; subtitulo: string; de: number; ate: number; valor: string; tipo: 'base' | 'efeito' | 'atual'; detalhe: string; delta?: number }
@@ -36,6 +35,7 @@ type Barra = { titulo: string; subtitulo: string; de: number; ate: number; valor
 export function WaterfallReceita({ total, periodo, referencia }: { total: LinhaReceita; periodo: Periodo; referencia: Periodo }) {
   const [ativa, setAtiva] = useState<{ indice: number; x: number; y: number } | null>(null)
   const figuraRef = useRef<HTMLElement>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
   const tooltipId = useId()
   const aposVolume = total.receita_base + total.efeito_volume
   const barras: Barra[] = [
@@ -50,19 +50,37 @@ export function WaterfallReceita({ total, periodo, referencia }: { total: LinhaR
     { titulo: 'Receita', subtitulo: formatarPeriodo(periodo), de: 0, ate: total.receita_atual, valor: reais(total.receita_atual), tipo: 'atual',
       detalhe: `Receita de energia (sem tributos) em ${formatarPeriodo(periodo)}: ${reaisCompletos(total.receita_atual)}.` },
   ]
-  const { minimo, maximo, marcacoes } = escala([total.receita_base, aposVolume, total.receita_atual])
+  const { minimo, maximo, marcacoes, passo } = escala([total.receita_base, aposVolume, total.receita_atual])
   const y = (valor: number) => base - ((Math.max(valor, minimo) - minimo) / (maximo - minimo)) * (base - topo)
   const faixa = (largura - esquerda - direita) / barras.length
   const centro = (i: number) => esquerda + faixa * (i + 0.5)
   const divisor = maximo >= 1e9 ? 1e9 : maximo >= 1e6 ? 1e6 : 1e3
+  // Casas decimais pelo passo do eixo, para dois rótulos nunca saírem iguais (ex.: 0,85 e 0,90).
+  const numeroEixo = new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: Math.max(0, -Math.floor(Math.log10(passo / divisor))),
+    maximumFractionDigits: Math.max(0, -Math.floor(Math.log10(passo / divisor))),
+  })
   const unidade = divisor === 1e9 ? 'R$ bilhões' : divisor === 1e6 ? 'R$ milhões' : 'R$ mil'
 
-  function mostrar(indice: number, alvo: Element) {
+  function mostrar(indice: number, clientX: number, clientY: number) {
     const figura = figuraRef.current?.getBoundingClientRect()
-    const caixa = alvo.getBoundingClientRect()
     if (!figura) return
-    const x = Math.min(Math.max(8, caixa.left - figura.left + caixa.width / 2 - 130), figura.width - 268)
-    setAtiva({ indice, x, y: Math.max(8, caixa.top - figura.top - 8) })
+    const larguraTooltip = tooltipRef.current?.offsetWidth ?? Math.min(260, figura.width - 24)
+    const alturaTooltip = tooltipRef.current?.offsetHeight ?? 120
+    const cursorX = clientX - figura.left
+    const cursorY = clientY - figura.top
+    const x = cursorX + larguraTooltip + 12 > figura.width ? cursorX - larguraTooltip - 12 : cursorX + 12
+    const y = cursorY - alturaTooltip - 12 < 0 ? cursorY + 12 : cursorY - alturaTooltip - 12
+    setAtiva({
+      indice,
+      x: Math.max(8, Math.min(x, figura.width - larguraTooltip - 8)),
+      y: Math.max(8, Math.min(y, figura.height - alturaTooltip - 8)),
+    })
+  }
+
+  function mostrarDaBarra(indice: number, alvo: Element) {
+    const caixa = alvo.getBoundingClientRect()
+    mostrar(indice, caixa.left + caixa.width / 2, caixa.top)
   }
 
   return (
@@ -87,9 +105,18 @@ export function WaterfallReceita({ total, periodo, referencia }: { total: LinhaR
             return (
               <g key={i} role="button" tabIndex={0} data-active={ativa?.indice === i}
                 aria-label={`${barra.titulo} (${barra.subtitulo}): ${barra.valor}`} aria-describedby={ativa?.indice === i ? tooltipId : undefined}
-                onPointerEnter={(e) => mostrar(i, e.currentTarget)} onPointerLeave={() => setAtiva(null)}
-                onFocus={(e) => mostrar(i, e.currentTarget)} onBlur={() => setAtiva(null)}
-                onKeyDown={(e) => { if (e.key === 'Escape') setAtiva(null) }}>
+                onPointerEnter={(e) => { if (e.pointerType === 'mouse') mostrar(i, e.clientX, e.clientY) }}
+                onPointerMove={(e) => { if (e.pointerType === 'mouse') mostrar(i, e.clientX, e.clientY) }}
+                onPointerLeave={(e) => { if (e.pointerType === 'mouse') setAtiva(null) }}
+                onFocus={(e) => mostrarDaBarra(i, e.currentTarget)} onBlur={() => setAtiva(null)}
+                onClick={(e) => { if (e.detail > 0) mostrar(i, e.clientX, e.clientY) }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setAtiva(null)
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    mostrarDaBarra(i, e.currentTarget)
+                  }
+                }}>
                 <rect x={centro(i) - faixa / 2} y={topo - 20} width={faixa} height={base - topo + 20} fill="transparent" />
                 <rect x={centro(i) - larguraBarra / 2} y={alto} width={larguraBarra} height={Math.max(2, baixo - alto)} rx={3}
                   className={`receita-waterfall-barra receita-waterfall-barra--${barra.tipo}`} data-tendencia={barra.tipo === 'efeito' ? tendencia(barra.delta ?? null) : undefined} />
@@ -101,12 +128,10 @@ export function WaterfallReceita({ total, periodo, referencia }: { total: LinhaR
           })}
         </svg>
       </div>
-      <figcaption className="receita-waterfall-nota">
-        Valores em {unidade}.{minimo > 0 && ` O eixo começa em ${reais(minimo)} para os efeitos ficarem visíveis; as barras de receita não partem do zero.`}
-      </figcaption>
+     
       {ativa && (
-        <div id={tooltipId} role="tooltip" className="dashboard-chart-tooltip receita-waterfall-tooltip"
-          style={{ left: ativa.x, top: ativa.y, transform: 'translateY(-100%)' }}>
+        <div ref={tooltipRef} id={tooltipId} role="tooltip" className="dashboard-chart-tooltip receita-waterfall-tooltip"
+          style={{ left: ativa.x, top: ativa.y }}>
           <strong>{barras[ativa.indice].titulo} · {barras[ativa.indice].valor}</strong>
           <span>{barras[ativa.indice].detalhe}</span>
         </div>

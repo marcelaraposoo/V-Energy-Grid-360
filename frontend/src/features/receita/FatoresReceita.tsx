@@ -1,4 +1,5 @@
 import { Flag, Gauge, Sun } from 'lucide-react'
+import { InfoTip } from '../../components/ui/InfoTip'
 import { Panel } from '../../components/ui/Panel'
 import { kwh, kwhComSinal, participacao, quantidade, reaisComSinal } from './formatacao'
 import type { AnaliseReceita } from './tipos'
@@ -8,12 +9,16 @@ import type { AnaliseReceita } from './tipos'
 export function FatoresReceita({ analise }: { analise: AnaliseReceita }) {
   const { fatores } = analise
   return (
-    <Panel title="Fatores associados" description="O que acompanha a variação no recorte selecionado" className="receita-fatores">
+    <Panel title="Fatores associados" description="O que acompanha a variação no recorte selecionado" className="receita-fatores"
+      info="Associações medidas nos dados; sozinhas, não indicam a causa da variação.">
       <ul className="receita-fatores-lista">
         <li>
           <span className="receita-fatores-icone" aria-hidden="true"><Sun size={16} strokeWidth={1.6} /></span>
           <div>
-            <h3>Geração distribuída</h3>
+            <h3>Geração distribuída<InfoTip titulo="Geração distribuída" alinhar="esquerda">
+              Compara as mesmas UCs nos dois períodos: as que têm painel conectado no fim do período atual.
+              O valor em R$ usa o preço médio da referência.
+            </InfoTip></h3>
             <p><strong>{quantidade(fatores.qtd_ucs_com_gd)}</strong> UCs com painel solar conectado até o fim do período.</p>
             <VolumeGd analise={analise} />
           </div>
@@ -21,22 +26,23 @@ export function FatoresReceita({ analise }: { analise: AnaliseReceita }) {
         <li>
           <span className="receita-fatores-icone" aria-hidden="true"><Flag size={16} strokeWidth={1.6} /></span>
           <div>
-            <h3>Bandeira tarifária</h3>
+            <h3>Bandeira tarifária<InfoTip titulo="Bandeira tarifária" alinhar="esquerda">
+              O adicional de bandeira não vem separado na fatura: o efeito dela está dentro do efeito preço e é estimado, não medido.
+            </InfoTip></h3>
             <p>Faturas com bandeira diferente de verde: <strong>{participacao(fatores.pct_faturas_bandeira_nao_verde_base)}</strong> na referência
               {' '}→ <strong>{participacao(fatores.pct_faturas_bandeira_nao_verde_atual)}</strong> no período atual.</p>
-            <p>O adicional não vem separado na fatura: o efeito da bandeira está dentro do efeito preço e é estimado.</p>
           </div>
         </li>
         <li>
           <span className="receita-fatores-icone" aria-hidden="true"><Gauge size={16} strokeWidth={1.6} /></span>
           <div>
-            <h3>Troca de medidor</h3>
+            <h3>Troca de medidor<InfoTip titulo="Troca de medidor" alinhar="esquerda">
+              No mês da troca, o consumo usa a leitura do medidor novo; o preço por kWh desses meses tende a ficar acima do típico.
+            </InfoTip></h3>
             <p><strong>{quantidade(fatores.qtd_trocas_medidor_atual)}</strong> trocas no período atual.</p>
-            <p>No mês da troca, o consumo usa a leitura do medidor novo; o preço por kWh desses meses tende a ficar acima do típico.</p>
           </div>
         </li>
       </ul>
-      <p className="receita-nota">Associações medidas nos dados; não indicam, sozinhas, a causa da variação.</p>
     </Panel>
   )
 }

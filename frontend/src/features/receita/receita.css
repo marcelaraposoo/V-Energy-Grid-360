@@ -5,6 +5,28 @@
 .receita-page .page-header {
   margin-bottom: 4px;
 }
+.receita-resultados-conteudo {
+  display: grid;
+  gap: 20px;
+}
+.receita-resultados[aria-busy='true'] .receita-resultados-conteudo {
+  opacity: 0.65;
+}
+.receita-atualizando {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-tooltip);
+}
+.receita-atualizando .feedback {
+  min-height: 0;
+  flex-direction: row;
+  padding: 12px 16px;
+}
 .receita-page [data-tendencia='favoravel'] {
   color: var(--success);
 }
@@ -159,8 +181,16 @@
   color: var(--text-secondary);
 }
 .receita-fatores-lista h3 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-bottom: 4px;
   font-size: 13px;
+}
+/* Sem tabela dentro: o balão das explicações pode passar da borda do painel. */
+.panel.receita-fatores {
+  overflow: visible;
+  padding-bottom: 20px;
 }
 .receita-fatores-lista p {
   color: var(--text-secondary);
@@ -176,11 +206,6 @@
   padding: 8px 10px;
   border-left: 2px solid var(--accent);
   background: var(--subtle-overlay);
-}
-.receita-nota {
-  padding: 16px 22px 20px;
-  color: var(--text-muted);
-  font-size: 11px;
 }
 
 /* Contribuição */
@@ -283,6 +308,19 @@
 }
 
 /* Ranking */
+.receita-ranking-panel {
+  display: flex;
+  flex-direction: column;
+}
+.receita-ranking-rodape {
+  margin-top: auto;
+  padding: 0 22px 20px;
+}
+.receita-ranking-voltar {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
 .receita-ranking {
   display: grid;
   gap: 4px;

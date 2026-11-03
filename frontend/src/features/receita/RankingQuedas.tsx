@@ -1,4 +1,4 @@
-import { TrendingDown } from 'lucide-react'
+import { ArrowLeft, TrendingDown } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Panel } from '../../components/ui/Panel'
 import { aprofundar } from './drilldown'
@@ -10,11 +10,13 @@ const LIMITE = 8
 const nivel = { municipio: 'municípios', bairro: 'bairros', classe: 'classes' }
 
 // Responde ao "se foi volume, quero saber onde": segmentos com maior perda de receita por volume.
-export function RankingQuedas({ analise, recorte, onRecorte }: { analise: AnaliseReceita; recorte: Recorte; onRecorte: (r: Recorte) => void }) {
+export function RankingQuedas({ analise, recorte, onRecorte, onVoltar }: { analise: AnaliseReceita; recorte: Recorte; onRecorte: (r: Recorte) => void; onVoltar?: () => void }) {
   const quedas = analise.linhas.filter((l) => l.efeito_volume < 0).sort((a, b) => a.efeito_volume - b.efeito_volume).slice(0, LIMITE)
   const maior = Math.abs(quedas[0]?.efeito_volume ?? 1)
   return (
-    <Panel title="Maiores perdas por volume" description={`Efeito volume dos ${nivel[analise.agrupar_por]} com queda, em R$`}>
+    <Panel title="Maiores perdas por volume" description={`Efeito volume dos ${nivel[analise.agrupar_por]} com queda, em R$`}
+      className="receita-ranking-panel"
+      info="Efeito volume = (energia atual − energia de referência) × preço médio da referência do segmento. Mostra os segmentos que mais perderam receita por queda de energia faturada.">
       {!quedas.length ? <EmptyState icon={TrendingDown} title="Nenhuma perda por volume" description="Nenhum segmento do recorte perdeu receita por volume." compact />
         : <ol className="receita-ranking">
           {quedas.map((linha) => {
@@ -35,6 +37,12 @@ export function RankingQuedas({ analise, recorte, onRecorte }: { analise: Analis
             </li>
           })}
         </ol>}
+      {onVoltar && <div className="receita-ranking-rodape">
+        <button type="button" className="button button--secondary receita-ranking-voltar"
+          onClick={onVoltar} aria-label="Voltar ao recorte anterior" title="Voltar">
+          <ArrowLeft size={16} aria-hidden="true" />
+        </button>
+      </div>}
     </Panel>
   )
 }

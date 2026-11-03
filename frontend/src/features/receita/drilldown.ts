@@ -5,6 +5,20 @@ export type Recorte = FiltrosReceita & { agrupar_por: AgrupamentoReceita }
 
 export const recorteInicial: Recorte = { municipio: null, bairro: null, classe: null, agrupar_por: 'municipio' }
 
+export type HistoricoRecortes = { atual: Recorte; anteriores: Recorte[] }
+type AcaoRecorte = { tipo: 'selecionar'; valor: Recorte } | { tipo: 'voltar' } | { tipo: 'limpar' }
+
+export function alterarRecorte(estado: HistoricoRecortes, acao: AcaoRecorte): HistoricoRecortes {
+  if (acao.tipo === 'limpar') return { atual: recorteInicial, anteriores: [] }
+  if (acao.tipo === 'voltar') {
+    const anterior = estado.anteriores.at(-1)
+    return anterior ? { atual: anterior, anteriores: estado.anteriores.slice(0, -1) } : estado
+  }
+  if (estado.atual.municipio === acao.valor.municipio && estado.atual.bairro === acao.valor.bairro
+    && estado.atual.classe === acao.valor.classe && estado.atual.agrupar_por === acao.valor.agrupar_por) return estado
+  return { atual: acao.valor, anteriores: [...estado.anteriores, estado.atual] }
+}
+
 function agrupamentoPadrao(f: FiltrosReceita): AgrupamentoReceita {
   if (!f.municipio) return 'municipio'
   if (!f.bairro) return 'bairro'

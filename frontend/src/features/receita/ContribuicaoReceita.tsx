@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, ChevronRight, Table2, X } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Panel } from '../../components/ui/Panel'
@@ -24,6 +24,27 @@ type Props = { analise: AnaliseReceita; recorte: Recorte; onRecorte: (recorte: R
 export function ContribuicaoReceita({ analise, recorte, onRecorte }: Props) {
   const [ordem, setOrdem] = useState<{ campo: Ordem; crescente: boolean }>({ campo: 'variacao_receita', crescente: true })
   const [expandida, setExpandida] = useState(false)
+  const trilhaRef = useRef<HTMLDivElement>(null)
+  const ancora = useRef<{ recorte: Recorte; topo: number } | null>(null)
+
+  function selecionarRecorte(valor: Recorte) {
+    const painel = trilhaRef.current?.closest('.receita-contribuicao')
+    const topoVisivel = (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 16
+    if (painel) ancora.current = { recorte: valor, topo: Math.max(topoVisivel, painel.getBoundingClientRect().top) }
+    onRecorte(valor)
+  }
+
+  // O recorte exibido só muda quando a consulta termina. Reposiciona antes de pintar
+  // para a redução da lista não deixar o usuário nos gráficos seguintes.
+  useLayoutEffect(() => {
+    const destino = ancora.current
+    if (!destino) return
+    ancora.current = null
+    const painel = trilhaRef.current?.closest('.receita-contribuicao')
+    if (painel && destino.recorte === recorte) {
+      window.scrollBy({ top: painel.getBoundingClientRect().top - destino.topo, behavior: 'instant' })
+    }
+  }, [recorte])
   // Piores primeiro por padrão; nulos sempre ao fim.
   const linhas = [...analise.linhas].sort((a, b) => {
     const va = a[ordem.campo]
@@ -41,24 +62,24 @@ export function ContribuicaoReceita({ analise, recorte, onRecorte }: Props) {
       actions={disponiveis.length > 1 ? <div className="segmented" role="group" aria-label="Ver por">
         {disponiveis.map((a) => (
           <button key={a} type="button" className="button button--secondary" aria-pressed={recorte.agrupar_por === a}
-            onClick={() => onRecorte({ ...recorte, agrupar_por: a })}>{nomesAgrupamento[a]}</button>
+            onClick={() => selecionarRecorte({ ...recorte, agrupar_por: a })}>{nomesAgrupamento[a]}</button>
         ))}
       </div> : undefined}>
-      <div className="receita-trilha">
+      <div className="receita-trilha" ref={trilhaRef}>
         <nav aria-label="Nível do detalhamento">
           <ol>
             <li>{recorte.municipio
-              ? <button type="button" className="link-button" onClick={() => onRecorte(filtrar(recorte, { municipio: null }))}>Todos os municípios</button>
+              ? <button type="button" className="link-button" onClick={() => selecionarRecorte(filtrar(recorte, { municipio: null }))}>Todos os municípios</button>
               : <span aria-current="page">Todos os municípios</span>}</li>
             {recorte.municipio && <li><ChevronRight size={13} aria-hidden="true" />{recorte.bairro
-              ? <button type="button" className="link-button" onClick={() => onRecorte(filtrar(recorte, { bairro: null }))}>{recorte.municipio}</button>
+              ? <button type="button" className="link-button" onClick={() => selecionarRecorte(filtrar(recorte, { bairro: null }))}>{recorte.municipio}</button>
               : <span aria-current="page">{recorte.municipio}</span>}</li>}
             {recorte.bairro && <li><ChevronRight size={13} aria-hidden="true" /><span aria-current="page">{recorte.bairro}</span></li>}
           </ol>
         </nav>
         {recorte.classe && <span className="badge receita-chip">
           Classe: {nomesClasse[recorte.classe]}
-          <button type="button" aria-label="Remover filtro de classe" onClick={() => onRecorte(filtrar(recorte, { classe: null }))}><X size={12} aria-hidden="true" /></button>
+          <button type="button" aria-label="Remover filtro de classe" onClick={() => selecionarRecorte(filtrar(recorte, { classe: null }))}><X size={12} aria-hidden="true" /></button>
         </span>}
       </div>
       {!linhas.length ? <EmptyState icon={Table2} title="Sem segmentos no recorte" description="Não há faturamento para os filtros selecionados." compact /> : <>
@@ -82,7 +103,7 @@ export function ContribuicaoReceita({ analise, recorte, onRecorte }: Props) {
               </tr>
             </thead>
             <tbody>
-              {visiveis.map((linha) => <Linha key={linha.chave} linha={linha} destino={aprofundar(recorte, linha)} onRecorte={onRecorte} />)}
+              {visiveis.map((linha) => <Linha key={linha.chave} linha={linha} destino={aprofundar(recorte, linha)} onRecorte={selecionarRecorte} />)}
             </tbody>
             <tfoot>
               <Linha linha={analise.total} destino={null} onRecorte={onRecorte} total />

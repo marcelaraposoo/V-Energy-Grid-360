@@ -17,6 +17,7 @@ _summary: ContextVar[dict | None] = ContextVar("observability_summary", default=
 
 
 def request_id() -> str:
+    """Reutiliza o ID do contexto interno ou gera um UUID, inclusive sem Logfire."""
     return _request_id.get() or uuid4().hex
 
 
@@ -163,7 +164,6 @@ def _pipeline_metadata(result, summary):
         "provider_count": len({item.provider for item in result.provider_attempts}),
         "regenerations": summary.get("regenerations", 0),
         **{key: summary[key] for key in ("row_count", "truncated") if key in summary},
-        "c7_persistence_connected": False,
     }
 
 

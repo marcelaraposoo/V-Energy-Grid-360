@@ -707,7 +707,7 @@ def test_all_terminal_paths_finalize_once_with_one_request_id(monkeypatch, case,
     if case == "unexpected":
         monkeypatch.setattr(pipeline, "generate_validate_and_execute", AsyncMock(side_effect=RuntimeError("segredo")))
     uuid = Mock(return_value=SimpleNamespace(hex="request-da-entrada"))
-    monkeypatch.setattr(pipeline, "uuid4", uuid)
+    monkeypatch.setattr("app.core.observability.uuid4", uuid)
 
     result = _ask(question, session_id="s1", state_dependencies=deps)
 

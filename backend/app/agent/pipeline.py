@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass, replace
 from enum import Enum
-from app.core.observability import observe_pipeline, request_id
+from app.core.observability import observe_pipeline, request_id as observability_request_id
 
 from app.agent.context.loader import load_database_context
 from app.agent.execution_responses import get_execution_message
@@ -79,11 +79,7 @@ class PipelineResult:
     # Metadados internos da requisição atual e da finalização C7.
     input_guardrail_reason: GuardrailReason | None = None
     provider_attempts: tuple[ProviderAttempt, ...] = ()
-<<<<<<< HEAD
-    request_id: str = field(default_factory=request_id)
-=======
     request_id: str = ""
->>>>>>> main
     cache_hit: bool = False
     outcome: AgentOutcome | None = None
 
@@ -180,7 +176,7 @@ async def answer_question(
     state_dependencies: AgentStateDependencies | None = None,
 ) -> PipelineResult:
     """C1 → C2 GET → agente se MISS → C7 (auditoria, memória, SET) → entrega."""
-    request_id = uuid4().hex
+    request_id = observability_request_id()
     dependencies = state_dependencies
     state = None
     clean_question = question

@@ -1,20 +1,24 @@
 # Observabilidade inicial com Logfire
 
-## Análise antes da implementação
+## Integração com o pipeline atual
 
 A rota síncrona `POST /api/ia/perguntar` chama `services.ia.perguntar`, que executa
 `pipeline.answer_question` via `asyncio.run`. O contexto OpenTelemetry atravessa
 o threadpool do FastAPI e esse loop, conforme o teste de correlação.
 
-O pipeline ativo usa C1, C2, os orquestradores de SQL e síntese, C6 e a escrita
-elegível do cache. A C3 corresponde à cadeia de fallback dos providers.
+O pipeline ativo usa C1, C2 GET, os orquestradores de SQL e síntese, C6 e C7.
+A C3 corresponde à cadeia de fallback dos providers.
 Os providers criam instâncias de `pydantic_ai.Agent` a cada tentativa.
 
-**A persistência C7 ainda não está conectada ao pipeline HTTP.**
-`state.service.finalize_request` e `state.finalizer.finalize` existem e têm testes,
-mas não há chamada a eles no pipeline ativo. As dependências padrão de estado
-também não instanciam auditoria ou memória. O banco `portal.db` e seus contratos
-foram preservados. Ligar essa persistência seria uma mudança funcional.
+**A C7 está integrada ao pipeline HTTP.** As saídas terminais passam por `finish()`,
+que chama `state.service.finalize_request` e `state.finalizer.finalize` antes da entrega.
+As dependências padrão fornecem auditoria SQLite no `portal.db` (`PORTAL_DB_PATH`)
+e memória curta no Redis quando `REDIS_URL` está configurada. O Cache SET elegível
+está centralizado na finalização, sem escrita direta no pipeline.
+Falhas de auditoria, memória ou cache têm tratamento independente e não derrubam
+uma resposta válida, conforme o [contrato da C7](../app/agent/docs/C7-finalizacao.md).
+Se a construção das dependências falhar, o pipeline retorna a mensagem segura sem
+chamar a finalização com stores inválidos.
 
 ## Configuração
 
@@ -58,25 +62,27 @@ automáticos que contornem o filtro. Use `LOGFIRE_BASE_URL` para alterar o desti
 | `agent.C4.4` | síntese: status/erro categórico, quantidade de tentativas/providers |
 | `agent.C5` | Output Guardrail: decisão |
 | `agent.C6` | pós-processamento: `processed` / `not_processed` |
-| `agent.C7` | finalizador existente, quando chamado: outcome, cache, linhas, truncamento e regenerações do registro de auditoria |
+| `agent.C7` | finalização: `request_id`, `outcome`, `cache_hit`, `row_count`, `truncated` e `regenerations` do registro de auditoria, quando disponíveis |
 | `agent.provider` | tentativa de Gemini/OpenRouter: provider, modelo, índice da tentativa e sucesso/erro categórico |
 | `agent.sql_flow`, `agent.synthesis_flow` | orçamento efetivamente consumido de regenerações em cada orquestrador |
 | `pydantic_ai.operation` | spans nativos: operação, provider/modelo e contadores de tokens permitidos quando disponibilizados pelo SDK |
 
-Spans próprios recebem `request_id`, `stage` e `duration_ms`. O pipeline usa o mesmo
-ID do span HTTP; chamadas diretas geram seu próprio ID. Headers externos não fornecem
-esse ID, e nenhum header novo foi acrescentado às respostas.
+Spans próprios recebem `request_id`, `stage` e `duration_ms`. HTTP, pipeline,
+`PipelineResult` e auditoria C7 usam o mesmo ID interno por requisição. Chamadas diretas
+ou com observabilidade desligada geram um UUID novo. Requisições seguintes, inclusive
+cache HIT, recebem IDs novos. Headers ou campos externos não fornecem esse ID,
+e nenhum header novo foi acrescentado às respostas.
 
 Atributos próprios permitidos: `request_id`, `stage`, `outcome`, `cache_hit`,
 `row_count`, `truncated`, `regenerations`, `provider_attempts`, `provider_count`,
-`provider_attempt`, `provider`, `model`, `duration_ms`, `c7_persistence_connected`.
+`provider_attempt`, `provider`, `model`, `duration_ms`.
 Providers distintos são contados pelo nome do provider, não pelo número de modelos.
 Tentativas incluem as tentativas reportadas pelo fluxo, inclusive falhas de configuração.
 Retentativas internas disponibilizadas pelo SDK aparecem nos spans nativos.
 
-`agent.pipeline` informa `c7_persistence_connected=false`: não simula uma C7 executada.
-Não há span C7 no trace HTTP atual. O finalizador está pronto para produzir esse span
-quando uma tarefa futura conectar a persistência ao pipeline.
+`agent.C7` aparece no trace quando a finalização é executada, inclusive em cache HIT
+e saídas antecipadas que chegam ao finalizador. Sua presença indica execução da etapa;
+não há booleano de conexão/persistência nem garantia de sucesso de cada store no span.
 
 As etapas C4.1/C4.2/C4.3 e C4.4/C5 se repetem quando há regeneração, sem alterar os
 orçamentos existentes. Saídas antecipadas mostram somente as etapas executadas.
@@ -119,8 +125,10 @@ Uma fixture também bloqueia explicitamente requisições a modelos reais nesses
 
 Os testes cobrem inicialização sem opt-in/token/SDK, falhas de configuração e exportação,
 falhas no ciclo dos spans, preservação de exceções da aplicação, respostas idênticas
-com/sem telemetria, ligação HTTP/pipeline, atributos antes e depois do filtro, tokens,
-cache HIT, regeneração, truncamento, validação HTTP, sessão em URL e exceções.
+com/sem telemetria, correlação HTTP/pipeline/C7/auditoria, atributos antes e depois do
+filtro, tokens, cache HIT, saídas antecipadas, regeneração, truncamento, validação HTTP,
+sessão em URL e exceções. Também verificam que falhas de persistência C7 preservam
+a resposta aprovada e não exportam o conteúdo das exceções.
 Também há proteção contra um exportador OTLP paralelo que contorne a filtragem.
 
 A suíte completa deve ser executada com `python -m pytest tests -q` em `backend`.
@@ -128,14 +136,12 @@ No Windows deste ambiente, o sandbox bloqueia o socketpair usado por asyncio/Tes
 os testes precisam rodar fora desse sandbox. Integrações reais dependem de
 `RUN_LLM_INTEGRATION=1` e não fazem parte desta validação.
 
-Resultado da validação nesta implementação: **1.323 testes aprovados, 19 ignorados**
-na suíte completa. Desses, **21 casos** pertencem ao novo arquivo de observabilidade.
-`git diff --check` também passou. A dependência `logfire[fastapi]` foi instalada no
-`.venv` local para validar a integração real com o framework.
+Nesta revisão: **24 testes de observabilidade aprovados**, **218 testes selecionados
+de C7/state/pipeline aprovados** e **1.722 aprovados, 19 ignorados na suíte completa**.
+`git diff --check` também passou. A validação usou o `.venv` local e exportação em memória.
 
 ## Limitações e dívidas
 
-- C7 de persistência ainda precisa de integração funcional separada.
 - Redis e SQLite não receberam instrumentação profunda. O tempo agregado de C2/C7
   cobre o trabalho existente; não há spans por comando/query de infraestrutura.
 - Não foram adicionados spans de HTTPX, SDKs Gemini/OpenRouter ou logging Python:

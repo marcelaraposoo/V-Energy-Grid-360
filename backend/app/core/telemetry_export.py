@@ -21,7 +21,7 @@ NUMBER_ATTRIBUTES = {
     "gen_ai.aggregated_usage.cache_creation.input_tokens",
     "gen_ai.aggregated_usage.cache_read.input_tokens",
 }
-BOOL_ATTRIBUTES = {"cache_hit", "truncated", "c7_persistence_connected"}
+BOOL_ATTRIBUTES = {"cache_hit", "truncated"}
 STAGES = {"pipeline", "C1", "C2", "C4.1", "C4.2", "C4.3", "C4.4", "C5", "C6", "C7",
           "provider", "sql_flow", "synthesis_flow"}
 

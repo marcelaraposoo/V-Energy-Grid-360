@@ -14,14 +14,10 @@ uvicorn app.main:app --reload --port 8000
 ```
 Docs interativas: http://localhost:8000/docs · Testes: `pytest`
 
-<<<<<<< HEAD
 Observabilidade opcional com Logfire: configuração, spans, privacidade e limitações
 em [docs/observabilidade.md](docs/observabilidade.md).
 
-## Usar a Gold local (parcial)
-=======
 ## Usar a Gold local
->>>>>>> main
 1. Coloque o `gold.db` exportado em `backend/data/` (ou aponte `SQLITE_PATH` no `.env`) e use `DATA_SOURCE=sqlite`.
 2. O arquivo precisa ter `dim_uc`. Para a Visão 360 completa, também são necessárias
    `fato_consumo_faturamento`, `fato_troca_medidor`, `fato_interrupcao`,

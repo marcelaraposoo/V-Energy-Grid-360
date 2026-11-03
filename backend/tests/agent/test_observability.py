@@ -6,7 +6,8 @@ import json
 import sqlite3
 import subprocess
 import sys
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
+from uuid import UUID
 
 import logfire
 import pytest
@@ -85,7 +86,9 @@ def telemetry(monkeypatch):
     client.shutdown()
 
 
-def _synthetic_pipeline(monkeypatch, tmp_path, *, regenerate=False, truncated=False):
+def _synthetic_pipeline(
+    monkeypatch, tmp_path, *, regenerate=False, truncated=False, state_dependencies=None,
+):
     path = tmp_path / "synthetic.db"
     with sqlite3.connect(path) as connection:
         connection.execute("CREATE TABLE dim_uc (municipio TEXT)")
@@ -107,7 +110,9 @@ def _synthetic_pipeline(monkeypatch, tmp_path, *, regenerate=False, truncated=Fa
 
     monkeypatch.setattr(gemini, "_build_model", model)
     monkeypatch.setattr(pipeline, "load_database_context", lambda: "MEMORY_SCHEMA_PRIVATE")
-    monkeypatch.setattr(pipeline, "get_state_dependencies", lambda: AgentStateDependencies())
+    monkeypatch.setattr(
+        pipeline, "get_state_dependencies", lambda: state_dependencies or AgentStateDependencies(),
+    )
     if truncated:
         from app.agent import sql_execution_orchestrator as execution
 
@@ -135,41 +140,58 @@ def test_optional_configuration_does_not_load_sdk(monkeypatch, enabled, token):
     configure.assert_not_called()
 
 
-def test_http_to_pipeline_is_correlated_and_contains_only_metadata(telemetry, monkeypatch, tmp_path):
+def test_http_pipeline_and_c7_share_id_and_trace_without_exporting_content(telemetry, monkeypatch, tmp_path):
     app, _, spans = telemetry
-    _synthetic_pipeline(monkeypatch, tmp_path)
+    audit_store = Mock(save=AsyncMock())
+    _synthetic_pipeline(
+        monkeypatch, tmp_path, state_dependencies=AgentStateDependencies(audit_store=audit_store),
+    )
     response = TestClient(app).post(
         "/api/ia/perguntar?secret=QUERY_PRIVATE",
-        json={"pergunta": "Quantas UCs por município?", "sessao_id": "SESSION_PRIVATE"},
-        headers={"Authorization": "Bearer HEADER_PRIVATE"},
+        json={"pergunta": "Quantas UCs por município?", "sessao_id": "SESSION_PRIVATE",
+              "request_id": "CLIENT_ID_PRIVATE"},
+        headers={"Authorization": "Bearer HEADER_PRIVATE", "X-Request-ID": "CLIENT_ID_PRIVATE"},
     )
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     exported = spans()
     stages = {item.name for item in exported}
     assert {"agent.pipeline", "agent.C1", "agent.C2", "agent.C4.1", "agent.C4.2",
-            "agent.C4.3", "agent.C4.4", "agent.C5", "agent.C6", "agent.provider"} <= stages
+            "agent.C4.3", "agent.C4.4", "agent.C5", "agent.C6", "agent.C7", "agent.provider"} <= stages
     root = next(item for item in exported if item.name == "POST /api/ia/perguntar")
     flow = next(item for item in exported if item.name == "agent.pipeline")
+    c7 = next(item for item in exported if item.name == "agent.C7")
+    audit_store.save.assert_awaited_once()
+    record = audit_store.save.await_args.args[0]
     assert flow.parent.span_id == root.context.span_id
+    assert c7.parent.span_id == flow.context.span_id
     assert all(item.context.trace_id == root.context.trace_id for item in exported)
-    assert root.attributes["request_id"] == flow.attributes["request_id"]
+    assert root.attributes["request_id"] == flow.attributes["request_id"] == record.request_id
+    assert all(item.attributes["request_id"] == record.request_id
+               for item in exported if item.name.startswith("agent."))
+    assert UUID(record.request_id).version == 4
+    assert record.request_id != "CLIENT_ID_PRIVATE"
+    assert c7.attributes["outcome"] == record.outcome.value == "answered"
+    assert c7.attributes["row_count"] == record.row_count == 1
+    assert c7.attributes["truncated"] is record.truncated is False
+    assert c7.attributes["cache_hit"] is record.cache_hit is False
+    assert c7.attributes["regenerations"] == record.regenerations == 0
     assert flow.attributes["outcome"] == "answered"
     assert flow.attributes["row_count"] == 1
     assert flow.attributes["truncated"] is False
     assert flow.attributes["cache_hit"] is False
     assert flow.attributes["provider_attempts"] == 2
     assert flow.attributes["provider_count"] == 1
-    assert flow.attributes["c7_persistence_connected"] is False
-    assert "agent.C7" not in stages
     assert all(item.attributes["duration_ms"] >= 0 for item in exported if item.name.startswith("agent."))
     serialized = json.dumps([item.to_json() for item in exported])
     original_stage_attributes = [dict(item.attributes) for item in spans.originals
                                  if item.name.startswith("agent.")]
     assert original_stage_attributes
-    for secret in ("Quantas UCs", "Há 1 unidade", "SELECT municipio", "GOLD_PRIVATE_VALUE",
+    assert record.question and record.final_answer and record.sql and record.session_id
+    for secret in (record.question, record.final_answer, record.sql, record.session_id,
+                   "Quantas UCs", "Há 1 unidade", "SELECT municipio", "GOLD_PRIVATE_VALUE",
                    "MEMORY_SCHEMA_PRIVATE", "SESSION_PRIVATE", "API_KEY_PRIVATE",
-                   "QUERY_PRIVATE", "HEADER_PRIVATE"):
+                   "QUERY_PRIVATE", "HEADER_PRIVATE", "TEST_WRITE_TOKEN", "CLIENT_ID_PRIVATE"):
         assert secret not in serialized
         assert secret not in json.dumps(original_stage_attributes)
     assert any("gen_ai.usage.input_tokens" in item.attributes for item in exported)
@@ -193,13 +215,21 @@ def test_pipeline_result_is_identical_with_and_without_telemetry(
     monkeypatch.setattr(obs, "_logfire", None)
     Agent.instrument_all(False)
     baseline = run()
+    assert UUID(observed.request_id).version == UUID(baseline.request_id).version == 4
+    assert observed.request_id != baseline.request_id
     assert replace(observed, request_id=baseline.request_id, provider_attempts=()) == replace(
         baseline, provider_attempts=()
     )
     assert [(a.provider, a.model, a.success, a.error_type) for a in observed.provider_attempts] == [
         (a.provider, a.model, a.success, a.error_type) for a in baseline.provider_attempts
     ]
-    flow = next(item for item in spans() if item.name == "agent.pipeline")
+    exported = spans()
+    flow = next(item for item in exported if item.name == "agent.pipeline")
+    c7 = next(item for item in exported if item.name == "agent.C7")
+    assert flow.attributes["request_id"] == c7.attributes["request_id"] == observed.request_id
+    assert c7.attributes["regenerations"] == int(regenerate)
+    assert c7.attributes["truncated"] == truncated
+    assert "MEMORY_PRIVATE" not in json.dumps([item.to_json() for item in exported])
     assert flow.attributes["regenerations"] == int(regenerate)
     assert flow.attributes["provider_attempts"] == (3 if regenerate else 2)
     assert flow.attributes["truncated"] == truncated
@@ -225,12 +255,86 @@ def test_cache_hit_skips_model_stages(telemetry, monkeypatch):
     root = next(s for s in exported if s.name == "agent.pipeline")
     assert root.attributes["provider_attempts"] == 0
     assert root.attributes["outcome"] == "answered"
-    assert "agent.C4.1" not in {s.name for s in exported}
+    c7 = next(s for s in exported if s.name == "agent.C7")
+    assert root.attributes["request_id"] == c7.attributes["request_id"] == result.request_id
+    assert c7.attributes["cache_hit"] is True
+    assert "row_count" not in c7.attributes and "truncated" not in c7.attributes
+    assert not {"agent.C4.1", "agent.C4.2", "agent.C4.3", "agent.C4.4", "agent.C5",
+                "agent.C6", "agent.provider", "agent.sql_flow", "agent.synthesis_flow"} & {
+        s.name for s in exported
+    }
+    assert "CACHE_PRIVATE" not in json.dumps([item.to_json() for item in exported])
+    monkeypatch.setattr(obs, "_logfire", None)
+    baseline = asyncio.run(pipeline.answer_question("Quantas UCs?"))
+    assert baseline.request_id != result.request_id
+    assert replace(result, request_id=baseline.request_id) == baseline
+
+
+@pytest.mark.parametrize("stop", ["input", "generation"])
+def test_early_exit_still_finalizes_with_correlated_c7(telemetry, monkeypatch, stop):
+    from app.agent.schemas import SQLExecutionFlowResult, SQLGenerationStatus
+
+    app, _, spans = telemetry
+    audit_store = Mock(save=AsyncMock())
+    monkeypatch.setattr(
+        pipeline, "get_state_dependencies", lambda: AgentStateDependencies(audit_store=audit_store),
+    )
+    generation = AsyncMock(return_value=SQLExecutionFlowResult(
+        generation_status=SQLGenerationStatus.OUT_OF_SCOPE,
+    ))
+    monkeypatch.setattr(pipeline, "generate_validate_and_execute", generation)
+    client = TestClient(app)
+    for _ in range(2):
+        response = client.post(
+            "/api/ia/perguntar", json={"pergunta": "" if stop == "input" else "Quantas UCs?",
+                                      "request_id": "CLIENT_ID_PRIVATE"},
+            headers={"X-Request-ID": "CLIENT_ID_PRIVATE"},
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "nao_sei"
+    exported = spans()
+    records = [call.args[0] for call in audit_store.save.await_args_list]
+    assert len(records) == 2
+    assert records[0].request_id != records[1].request_id
+    for record in records:
+        correlated = [s for s in exported if s.attributes.get("request_id") == record.request_id]
+        assert {"POST /api/ia/perguntar", "agent.pipeline", "agent.C1", "agent.C7"} <= {
+            s.name for s in correlated
+        }
+        assert len({s.context.trace_id for s in correlated}) == 1
+        assert UUID(record.request_id).version == 4
+        c7 = next(s for s in correlated if s.name == "agent.C7")
+        assert c7.attributes["outcome"] == ("input_blocked" if stop == "input" else "out_of_scope")
+    assert generation.await_count == (0 if stop == "input" else 2)
+    assert not {"agent.C4.3", "agent.C4.4", "agent.C5", "agent.C6"} & {s.name for s in exported}
+    assert "CLIENT_ID_PRIVATE" not in json.dumps([item.to_json() for item in exported])
+
+
+def test_c7_persistence_failures_preserve_answer_and_do_not_export_exceptions(telemetry, monkeypatch, tmp_path):
+    app, _, spans = telemetry
+    dependencies = AgentStateDependencies(
+        audit_store=Mock(save=AsyncMock(side_effect=RuntimeError("AUDIT_PRIVATE"))),
+        memory_store=Mock(get_context=AsyncMock(return_value=[]),
+                          append=AsyncMock(side_effect=RuntimeError("MEMORY_PRIVATE"))),
+        cache_store=Mock(get=AsyncMock(return_value=None),
+                         set=AsyncMock(side_effect=RuntimeError("CACHE_PRIVATE"))),
+        data_version="synthetic-v1",
+    )
+    _synthetic_pipeline(monkeypatch, tmp_path, state_dependencies=dependencies)
+    response = TestClient(app).post(
+        "/api/ia/perguntar", json={"pergunta": "Quantas UCs?", "sessao_id": "SESSION_PRIVATE"},
+    )
+    assert response.status_code == 200
+    assert response.json()["resposta"] == "Há 1 unidade consumidora."
+    dependencies.audit_store.save.assert_awaited_once()
+    dependencies.memory_store.append.assert_awaited_once()
+    dependencies.cache_store.set.assert_awaited_once()
+    exported = spans()
+    assert next(s for s in exported if s.name == "agent.C7").attributes["outcome"] == "answered"
+    assert "PRIVATE" not in json.dumps([item.to_json() for item in exported])
 
 
 def test_c7_records_metadata_without_audit_content(telemetry):
-    from unittest.mock import AsyncMock
-
     _, _, spans = telemetry
     record = AuditRecord(request_id="generated-request-id", question="QUESTION_PRIVATE",
                          session_id="SESSION_PRIVATE", final_answer="ANSWER_PRIVATE",

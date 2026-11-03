@@ -58,6 +58,12 @@ def _normalizar(texto) -> str:
     return sem_acento.casefold().strip()
 
 
+def _codigo(valor: str) -> str:
+    """UC e alimentador vêm em maiúsculas na Gold. Normalizar a entrada, em vez de comparar com
+   , deixa o SQLite usar os índices (sem isso, a A2 inteira era lida a cada UC)."""
+    return valor.strip().upper()
+
+
 def _bool(valor) -> bool:
     if valor is None:
         return False
@@ -135,7 +141,7 @@ class SqliteRepository:
     def _linha_uc(self, uc_id: str) -> dict | None:
         with closing(self._conectar()) as con:
             r = con.execute(
-                f"SELECT * FROM {TABELA_UC} WHERE id_uc = ? COLLATE NOCASE LIMIT 1", (uc_id.strip(),)
+                f"SELECT * FROM {TABELA_UC} WHERE id_uc = ? LIMIT 1", (_codigo(uc_id),)
             ).fetchone()
         return dict(r) if r else None
 
@@ -325,9 +331,9 @@ class SqliteRepository:
             if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
                 raise _sem_gold("Trocas de medidor da UC", tabela)
             return [dict(r) for r in con.execute(f"""
-                SELECT * FROM {tabela} WHERE id_uc = ? COLLATE NOCASE
+                SELECT * FROM {tabela} WHERE id_uc = ?
                 ORDER BY mes_troca DESC, id_medidor_novo DESC
-            """, (uc_id.strip(),))]
+            """, (_codigo(uc_id),))]
 
     def gd_uc(self, uc_id: str) -> dict | None:
         d = self._linha_uc(uc_id)
@@ -348,9 +354,9 @@ class SqliteRepository:
             if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (TABELA_FATURAMENTO,)).fetchone():
                 raise _sem_gold("Consumo e faturas da UC", TABELA_FATURAMENTO)
             return [dict(r) for r in con.execute(f"""
-                SELECT * FROM {TABELA_FATURAMENTO} WHERE id_uc = ? COLLATE NOCASE
+                SELECT * FROM {TABELA_FATURAMENTO} WHERE id_uc = ?
                 ORDER BY mes_referencia, id_fatura
-            """, (uc_id.strip(),))]
+            """, (_codigo(uc_id),))]
 
     def consumo_uc(self, uc_id):
         return consumo_publico([
@@ -367,6 +373,7 @@ class SqliteRepository:
 
     def pagina_faturas_uc(self, uc_id, aba, ano, situacao, pagina):
         tabela = TABELA_FATURAMENTO
+        uc_id = _codigo(uc_id)
         uc = self._linha_uc(uc_id)
         with closing(self._conectar()) as con:
             con.execute("BEGIN")
@@ -377,18 +384,18 @@ class SqliteRepository:
                            AS pendencias_recentes,
                        COALESCE(SUM(status_fatura = 'EM ABERTO' AND faixa_atraso = ?), 0)
                            AS pendencias_antigas
-                FROM {tabela} WHERE id_uc = ? COLLATE NOCASE
+                FROM {tabela} WHERE id_uc = ?
             """, (*FAIXAS_RECENTES, FAIXA_ANTIGA, uc_id)).fetchone())
             anos = [r[0] for r in con.execute(f"""
                 SELECT DISTINCT CAST(substr(mes_referencia, 1, 4) AS INTEGER)
-                FROM {tabela} WHERE id_uc = ? COLLATE NOCASE ORDER BY 1 DESC
+                FROM {tabela} WHERE id_uc = ? ORDER BY 1 DESC
             """, (uc_id,))]
-            where = "id_uc = ? COLLATE NOCASE"
+            where = "id_uc = ?"
             params = [uc_id]
             if aba == "recentes":
                 where += f""" AND mes_referencia IN (
                     SELECT DISTINCT mes_referencia FROM {tabela}
-                    WHERE id_uc = ? COLLATE NOCASE ORDER BY mes_referencia DESC LIMIT 12
+                    WHERE id_uc = ? ORDER BY mes_referencia DESC LIMIT 12
                 ) AND (status_fatura = 'PAGA' OR (
                     status_fatura = 'EM ABERTO' AND faixa_atraso IN (?, ?, ?)
                 ))"""
@@ -417,14 +424,14 @@ class SqliteRepository:
         where = "mes_referencia BETWEEN ? AND ?"
         params = [inicio, fim]
         if alimentador_id is not None:
-            where += " AND alimentador = ? COLLATE NOCASE"
-            params.append(alimentador_id)
+            where += " AND alimentador = ?"
+            params.append(_codigo(alimentador_id))
         if municipio is not None:
             where += " AND municipio = ?"
             params.append(municipio)
         if uc_id is not None:
-            where += " AND id_uc = ? COLLATE NOCASE"
-            params.append(uc_id.strip())
+            where += " AND id_uc = ?"
+            params.append(_codigo(uc_id))
         with closing(self._conectar()) as con:
             if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
                 raise _sem_gold("Ocorrências de rede", tabela)
@@ -438,8 +445,8 @@ class SqliteRepository:
         where = "mes_referencia BETWEEN ? AND ?"
         params = [inicio, fim]
         if alimentador_id is not None:
-            where += " AND alimentador = ? COLLATE NOCASE"
-            params.append(alimentador_id)
+            where += " AND alimentador = ?"
+            params.append(_codigo(alimentador_id))
         if municipio is not None:
             where += " AND municipio = ?"
             params.append(municipio)
@@ -457,9 +464,9 @@ class SqliteRepository:
             if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
                 raise _sem_gold("Atendimentos da UC", tabela)
             linhas = [dict(r) for r in con.execute(f"""
-                SELECT * FROM {tabela} WHERE id_uc = ? COLLATE NOCASE
+                SELECT * FROM {tabela} WHERE id_uc = ?
                 ORDER BY data_hora_abertura DESC, protocolo DESC
-            """, (uc_id.strip(),))]
+            """, (_codigo(uc_id),))]
         return [atendimento_publico({**a, "aberto": _bool(a["aberto"])}) for a in linhas]
 
     # ---------- métodos ainda não integrados ----------

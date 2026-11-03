@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+import logging
+from dataclasses import dataclass, replace
 from enum import Enum
 from uuid import uuid4
 
@@ -24,6 +25,8 @@ from app.agent.schemas import (
     GuardrailDecision,
     GuardrailReason,
     PostProcessingResult,
+    OutputGuardrailReason,
+    SQLGuardrailReason,
     ProviderAttempt,
     SQLGenerationStatus,
     SynthesisStatus,
@@ -33,9 +36,12 @@ from app.agent.sql_execution_orchestrator import (
     generate_validate_and_execute,
 )
 from app.agent.synthesis_orchestrator import synthesize_and_validate
-from app.agent.state.cache import should_store_in_cache, write_cache
+from app.agent.state.service import finalize_request
 from app.agent.state.dependencies import AgentStateDependencies, get_state_dependencies
-from app.agent.state.request_state import prepare_request_state
+from app.agent.state.request_state import MemoryContextStatus, prepare_request_state
+
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineStatus(str, Enum):
@@ -70,10 +76,10 @@ class PipelineResult:
     sql: str | None = None
     assumptions: tuple[str, ...] = ()
     visualization: VisualizationSpec | None = None
-    # Metadado interno para o futuro mapeamento central de outcomes/auditoria.
+    # Metadados internos da requisição atual e da finalização C7.
     input_guardrail_reason: GuardrailReason | None = None
     provider_attempts: tuple[ProviderAttempt, ...] = ()
-    request_id: str = field(default_factory=lambda: uuid4().hex)
+    request_id: str = ""
     cache_hit: bool = False
     outcome: AgentOutcome | None = None
 
@@ -168,166 +174,195 @@ async def answer_question(
     session_id: str | None = None,
     state_dependencies: AgentStateDependencies | None = None,
 ) -> PipelineResult:
-    """
-    Fluxo completo do agente:
+    """C1 → C2 GET → agente se MISS → C7 (auditoria, memória, SET) → entrega."""
+    request_id = uuid4().hex
+    dependencies = state_dependencies
+    state = None
+    clean_question = question
+    executed_sql = None
+    query_result = None
+    provider_error = None
+    regenerations = 0
+    processed = None
+    response_complete = False
+    stage = PipelineStage.INPUT_GUARDRAIL
 
-    Input Guardrail → C2 GET/HIT → 4.1 geração → 4.2 guardrail do SQL →
-    4.3 execução → 4.4 síntese → Camada 5 → Camada 6 → C2 SET elegível.
+    async def finish(result: PipelineResult, outcome: AgentOutcome) -> PipelineResult:
+        result = replace(result, request_id=request_id, outcome=outcome)
+        if dependencies is None:
+            # O factory falhou: não há stores válidos para finalizar a requisição.
+            return result
+        try:
+            await finalize_request(
+                audit_store=dependencies.audit_store,
+                request_id=request_id,
+                question=clean_question,
+                session_id=session_id,
+                outcome=outcome,
+                final_answer=result.message,
+                sql=executed_sql,
+                query_result=query_result,
+                provider_error=provider_error,
+                regenerations=regenerations,
+                cache_hit=result.cache_hit,
+                memory_store=(
+                    dependencies.memory_store
+                    if state is not None and state.memory_status != MemoryContextStatus.UNAVAILABLE
+                    else None
+                ),
+                memory_timeout_seconds=dependencies.memory_timeout_seconds,
+                cache_store=dependencies.cache_store,
+                cache_key=state.cache_key if state is not None else None,
+                cache_value=processed,
+                cache_ttl_seconds=dependencies.cache_ttl_seconds,
+                cache_timeout_seconds=dependencies.cache_timeout_seconds,
+                cache_data_version=dependencies.data_version,
+                cache_response_complete=response_complete,
+            )
+        except Exception as error:
+            # Defesa da fronteira: uma falha de construção/finalização também
+            # não pode substituir a resposta aprovada ou sua mensagem segura.
+            logger.warning("Falha na finalização. error_type=%s", type(error).__name__)
+        return result
 
-    Qualquer etapa que falhar devolve uma mensagem segura, que não
-    revela provedor, SQL de erro, prompt nem detalhes internos.
-    """
+    try:
+        # Settings continua validado no import de app.main (fail-fast no startup).
+        # Falhas do factory durante uma requisição recebem a mensagem segura abaixo.
+        if dependencies is None:
+            dependencies = get_state_dependencies()
+        entry = validate_input(question)
+        if entry.decision != GuardrailDecision.ALLOW:
+            outcome = (
+                AgentOutcome.INTERNAL_ERROR
+                if entry.reason == GuardrailReason.GUARDRAIL_INTERNAL_ERROR
+                else AgentOutcome.INPUT_BLOCKED
+            )
+            return await finish(_no_answer(
+                get_guardrail_message(entry.reason), stage,
+                input_guardrail_reason=entry.reason,
+            ), outcome)
 
-    # ----- Camada 1: entrada -----
-    entry = validate_input(question)
-
-    if entry.decision != GuardrailDecision.ALLOW:
-        return _no_answer(
-            get_guardrail_message(entry.reason),
-            PipelineStage.INPUT_GUARDRAIL,
-            input_guardrail_reason=entry.reason,
+        clean_question = entry.normalized_input or question
+        state = await prepare_request_state(
+            normalized_question=clean_question,
+            session_id=session_id,
+            dependencies=dependencies,
+            memory_context=memory_context,
         )
+        if state.cached_response is not None:
+            cached = state.cached_response
+            return await finish(PipelineResult(
+                status=PipelineStatus.ANSWERED,
+                message=cached.answer,
+                stage=PipelineStage.DONE,
+                assumptions=tuple(cached.assumptions),
+                visualization=cached.visualization,
+                cache_hit=True,
+            ), AgentOutcome.ANSWERED)
 
-    clean_question = entry.normalized_input or question
+        stage = PipelineStage.SQL_GENERATION
+        flow = await generate_validate_and_execute(
+            question=clean_question,
+            database_context=load_database_context(),
+            memory_context=state.memory_context,
+            database_path=database_path,
+        )
+        provider_attempts = tuple(flow.provider_attempts)
+        executed_sql = flow.sql
+        provider_error = flow.provider_error
+        regenerations = flow.regenerations
+        if provider_error is not None:
+            return await finish(_no_answer(
+                get_provider_message(provider_error), stage,
+                provider_attempts=provider_attempts,
+            ), AgentOutcome.PROVIDER_ERROR)
 
-    # ----- Camada 2: contexto efetivo e chave imutável desta requisição -----
-    dependencies = state_dependencies if state_dependencies is not None else get_state_dependencies()
-    state = await prepare_request_state(
-        normalized_question=clean_question,
-        session_id=session_id,
-        dependencies=dependencies,
-        memory_context=memory_context,
-    )
-    if state.cached_response is not None:
-        cached = state.cached_response
-        return PipelineResult(
+        if flow.guardrail_reason is not None:
+            outcome = (
+                AgentOutcome.INTERNAL_ERROR
+                if flow.guardrail_reason == SQLGuardrailReason.GUARDRAIL_INTERNAL_ERROR
+                else AgentOutcome.SQL_BLOCKED
+            )
+            return await finish(_no_answer(
+                _GENERATION_BLOCKED_MESSAGE, PipelineStage.SQL_GUARDRAIL,
+                provider_attempts=provider_attempts,
+            ), outcome)
+
+        if flow.outcome is None:
+            outcomes = {
+                SQLGenerationStatus.NEEDS_CLARIFICATION: AgentOutcome.NEEDS_CLARIFICATION,
+                SQLGenerationStatus.OUT_OF_SCOPE: AgentOutcome.OUT_OF_SCOPE,
+                SQLGenerationStatus.INSUFFICIENT_CONTEXT: AgentOutcome.INSUFFICIENT_CONTEXT,
+                SQLGenerationStatus.REJECTED: AgentOutcome.REQUEST_REJECTED,
+            }
+            return await finish(_no_answer(
+                _generation_message(flow), stage, provider_attempts=provider_attempts,
+            ), outcomes.get(flow.generation_status, AgentOutcome.INTERNAL_ERROR))
+
+        if not flow.executed:
+            return await finish(_no_answer(
+                get_execution_message(flow.outcome.error_type), PipelineStage.SQL_EXECUTION,
+                provider_attempts=provider_attempts,
+            ), AgentOutcome.EXECUTION_ERROR)
+
+        query_result = flow.outcome.result
+        stage = PipelineStage.SYNTHESIS
+        synthesis_flow = await synthesize_and_validate(
+            question=clean_question, sql=flow.sql, result=query_result,
+        )
+        regenerations += synthesis_flow.regenerations
+        provider_attempts += tuple(
+            item.model_copy(update={"attempt": index})
+            for index, item in enumerate(synthesis_flow.provider_attempts, len(provider_attempts) + 1)
+        )
+        provider_error = synthesis_flow.provider_error
+        if provider_error is not None:
+            return await finish(_no_answer(
+                get_provider_message(provider_error), stage,
+                provider_attempts=provider_attempts,
+            ), AgentOutcome.PROVIDER_ERROR)
+
+        if not synthesis_flow.approved:
+            reason = synthesis_flow.guardrail.reason if synthesis_flow.guardrail is not None else None
+            outcome = (
+                AgentOutcome.INTERNAL_ERROR
+                if reason is None or reason == OutputGuardrailReason.GUARDRAIL_INTERNAL_ERROR
+                else AgentOutcome.OUTPUT_BLOCKED
+            )
+            return await finish(_no_answer(
+                get_output_guardrail_message(reason), PipelineStage.OUTPUT_GUARDRAIL,
+                provider_attempts=provider_attempts,
+            ), outcome)
+
+        stage = PipelineStage.POST_PROCESSING
+        processed = process_approved_response(flow=synthesis_flow, result=query_result)
+        if processed is None:
+            return await finish(_no_answer(
+                get_output_guardrail_message(None), stage,
+                provider_attempts=provider_attempts,
+            ), AgentOutcome.INTERNAL_ERROR)
+
+        outcome = (
+            AgentOutcome.ANSWERED
+            if synthesis_flow.synthesis.status == SynthesisStatus.ANSWERED
+            else AgentOutcome.NO_DATA
+        )
+        response_complete = (
+            synthesis_flow.approved
+            and synthesis_flow.synthesis.status == SynthesisStatus.ANSWERED
+            and query_result.row_count == len(query_result.rows)
+        )
+        return await finish(PipelineResult(
             status=PipelineStatus.ANSWERED,
-            message=cached.answer,
+            message=processed.answer,
             stage=PipelineStage.DONE,
-            assumptions=tuple(cached.assumptions),
-            visualization=cached.visualization,
-            cache_hit=True,
-            outcome=AgentOutcome.ANSWERED,
-        )
-
-    # ----- 4.1, 4.2 e 4.3 -----
-    flow = await generate_validate_and_execute(
-        question=clean_question,
-        database_context=load_database_context(),
-        memory_context=state.memory_context,
-        database_path=database_path,
-    )
-
-    provider_attempts = tuple(flow.provider_attempts)
-
-    if flow.provider_error is not None:
-        return _no_answer(
-            get_provider_message(flow.provider_error),
-            PipelineStage.SQL_GENERATION,
+            sql=flow.sql,
+            assumptions=tuple(processed.assumptions),
+            visualization=processed.visualization,
             provider_attempts=provider_attempts,
-        )
-
-    if flow.guardrail_reason is not None:
-        return _no_answer(
-            _GENERATION_BLOCKED_MESSAGE,
-            PipelineStage.SQL_GUARDRAIL,
-            provider_attempts=provider_attempts,
-        )
-
-    if flow.outcome is None:
-        return _no_answer(
-            _generation_message(flow),
-            PipelineStage.SQL_GENERATION,
-            provider_attempts=provider_attempts,
-        )
-
-    if not flow.executed:
-        return _no_answer(
-            get_execution_message(flow.outcome.error_type),
-            PipelineStage.SQL_EXECUTION,
-            provider_attempts=provider_attempts,
-        )
-
-    query_result = flow.outcome.result
-
-    # ----- 4.4 e Camada 5 -----
-    synthesis_flow = await synthesize_and_validate(
-        question=clean_question,
-        sql=flow.sql,
-        result=query_result,
-    )
-
-    provider_attempts += tuple(
-        item.model_copy(update={"attempt": index})
-        for index, item in enumerate(synthesis_flow.provider_attempts, len(provider_attempts) + 1)
-    )
-
-    if synthesis_flow.provider_error is not None:
-        return _no_answer(
-            get_provider_message(synthesis_flow.provider_error),
-            PipelineStage.SYNTHESIS,
-            provider_attempts=provider_attempts,
-        )
-
-    if not synthesis_flow.approved:
-        reason = (
-            synthesis_flow.guardrail.reason
-            if synthesis_flow.guardrail is not None
-            else None
-        )
-
-        return _no_answer(
-            get_output_guardrail_message(reason),
-            PipelineStage.OUTPUT_GUARDRAIL,
-            provider_attempts=provider_attempts,
-        )
-
-    # ----- Camada 6 -----
-    processed: PostProcessingResult | None = process_approved_response(
-        flow=synthesis_flow,
-        result=query_result,
-    )
-
-    if processed is None:
-        return _no_answer(
-            get_output_guardrail_message(None),
-            PipelineStage.POST_PROCESSING,
-            provider_attempts=provider_attempts,
-        )
-
-    outcome = (
-        AgentOutcome.ANSWERED
-        if synthesis_flow.synthesis.status == SynthesisStatus.ANSWERED
-        else AgentOutcome.NO_DATA
-    )
-    if (
-        dependencies.cache_store is not None
-        and state.cache_key is not None
-        and should_store_in_cache(
-            outcome,
-            truncated=query_result.truncated,
-            response_complete=(
-                synthesis_flow.approved
-                and synthesis_flow.synthesis.status == SynthesisStatus.ANSWERED
-                and query_result.row_count == len(query_result.rows)
-            ),
-        )
-    ):
-        await write_cache(
-            dependencies.cache_store,
-            state.cache_key,
-            processed,
-            ttl_seconds=dependencies.cache_ttl_seconds,
-            timeout_seconds=dependencies.cache_timeout_seconds,
-        )
-
-    return PipelineResult(
-        status=PipelineStatus.ANSWERED,
-        message=processed.answer,
-        stage=PipelineStage.DONE,
-        sql=flow.sql,
-        assumptions=tuple(processed.assumptions),
-        visualization=processed.visualization,
-        provider_attempts=provider_attempts,
-        outcome=outcome,
-    )
+        ), outcome)
+    except Exception as error:
+        logger.warning("Falha no pipeline. error_type=%s", type(error).__name__)
+        return await finish(_no_answer(
+            "Não foi possível responder neste momento. Tente novamente.", stage,
+        ), AgentOutcome.INTERNAL_ERROR)

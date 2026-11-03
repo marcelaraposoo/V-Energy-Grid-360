@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from dataclasses import dataclass
 from enum import Enum
 
@@ -6,6 +8,9 @@ from app.agent.state.cache_key import build_cache_key
 from app.agent.state.cache import read_cache
 from app.agent.state.dependencies import AgentStateDependencies
 from app.agent.state.memory_context import build_memory_context
+
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryContextStatus(str, Enum):
@@ -45,15 +50,15 @@ async def prepare_request_state(
         and dependencies.memory_store is not None
     ):
         try:
-            entries = await dependencies.memory_store.get_context(
-                session_id
-            )
+            async with asyncio.timeout(dependencies.memory_timeout_seconds):
+                entries = await dependencies.memory_store.get_context(session_id)
             memory_context = build_memory_context(entries)
             memory_status = (
                 MemoryContextStatus.LOADED if memory_context is not None
                 else MemoryContextStatus.EMPTY
             )
-        except Exception:
+        except Exception as error:
+            logger.warning("Falha ao ler memória. error_type=%s", type(error).__name__)
             memory_context = None
             memory_status = MemoryContextStatus.UNAVAILABLE
 

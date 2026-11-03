@@ -9,6 +9,9 @@ MEMORY_ELIGIBLE_OUTCOMES = {
     AgentOutcome.NEEDS_CLARIFICATION,
 }
 
+DEFAULT_MEMORY_TTL_SECONDS = 86400
+DEFAULT_MEMORY_TIMEOUT_SECONDS = 1.0
+
 
 class MemoryStore(Protocol):
     async def get_context(

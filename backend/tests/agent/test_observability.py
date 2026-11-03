@@ -140,7 +140,8 @@ def test_optional_configuration_does_not_load_sdk(monkeypatch, enabled, token):
     configure.assert_not_called()
 
 
-def test_http_pipeline_and_c7_share_id_and_trace_without_exporting_content(telemetry, monkeypatch, tmp_path):
+def test_http_pipeline_and_c7_share_id_and_trace_without_exporting_content(telemetry, monkeypatch, tmp_path, caplog):
+    caplog.set_level("INFO", logger="app.services.ia")
     app, _, spans = telemetry
     audit_store = Mock(save=AsyncMock())
     _synthetic_pipeline(
@@ -194,6 +195,8 @@ def test_http_pipeline_and_c7_share_id_and_trace_without_exporting_content(telem
                    "QUERY_PRIVATE", "HEADER_PRIVATE", "TEST_WRITE_TOKEN", "CLIENT_ID_PRIVATE"):
         assert secret not in serialized
         assert secret not in json.dumps(original_stage_attributes)
+        assert secret not in caplog.text
+    assert record.request_id in caplog.text
     assert any("gen_ai.usage.input_tokens" in item.attributes for item in exported)
 
 

@@ -15,6 +15,14 @@ services:
       CACHE_TIMEOUT_SECONDS: ${CACHE_TIMEOUT_SECONDS:-1}
       MEMORY_TTL_SECONDS: ${MEMORY_TTL_SECONDS:-86400}
       MEMORY_TIMEOUT_SECONDS: ${MEMORY_TIMEOUT_SECONDS:-1}
+      # Carregar a origem local com: docker compose --env-file backend/.env up ...
+      # Lista explícita: o arquivo .env não é copiado para a imagem/container.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      LOGFIRE_ENABLED: ${LOGFIRE_ENABLED:-false}
+      LOGFIRE_TOKEN: ${LOGFIRE_TOKEN:-}
+      LOGFIRE_SERVICE_NAME: ${LOGFIRE_SERVICE_NAME:-v-energy-grid-360-backend}
+      LOGFIRE_BASE_URL: ${LOGFIRE_BASE_URL:-}
     expose:
       - "8000"
     volumes:

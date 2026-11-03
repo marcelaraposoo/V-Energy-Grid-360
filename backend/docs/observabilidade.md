@@ -1,4 +1,8 @@
-# Observabilidade inicial com Logfire
+# Observabilidade com Logfire
+
+Estado revisado em **03/11/2026**. O diagnóstico de latência, a lacuna de metadados
+da C5 e o contrato atual de resultados escalares estão em
+[Diagnóstico de latência e apresentação do Assistente IA](diagnostico-latencia-assistente.md).
 
 ## Integração com o pipeline atual
 
@@ -43,6 +47,27 @@ automática. Um único exportador OTLP em lote envia ao Logfire **após a filtra
 não significa que a exportação OTLP filtrada esteja desligada.
 O timeout de exportação é de 2 segundos, no worker do exportador.
 
+### Execução no Docker
+
+Na raiz do repositório, carregar explicitamente as configurações locais:
+
+```powershell
+docker compose --env-file backend/.env up --detach --build --wait
+```
+
+O Compose repassa as chaves dos providers e as variáveis `LOGFIRE_*` listadas em
+`compose.yaml`. A existência de `backend/.env` no host não configura, sozinha,
+o ambiente do container. O arquivo não é copiado para a imagem nem montado no backend.
+Verificar somente a presença das credenciais; `docker compose config` sem `--quiet`
+pode exibir seus valores. HTTP 200 em `/api/health` não comprova acesso aos providers.
+
+Somente `/api/ia/perguntar` usa `proxy_read_timeout 300s`; as demais rotas conservam
+o padrão Nginx de 60 s. O limite do proxy mede espera entre leituras do upstream.
+O backend não tem deadline global: os 20 s configurados são por chamada ao modelo.
+Fallbacks e regenerações acumulam duração. Um 504 do proxy pode anteceder a conclusão
+do pipeline/C7 e coexistir com um span HTTP 200 do backend. Ver
+[diagnóstico e validação do proxy](../../docs/dockerizacao.md#espera-do-assistente-ia).
+
 As variáveis `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`,
 `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` e `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` não são suportadas em paralelo:
 se presentes, a observabilidade desta aplicação é desativada para evitar exportadores
@@ -80,6 +105,23 @@ Providers distintos são contados pelo nome do provider, não pelo número de mo
 Tentativas incluem as tentativas reportadas pelo fluxo, inclusive falhas de configuração.
 Retentativas internas disponibilizadas pelo SDK aparecem nos spans nativos.
 
+### Limite atual do diagnóstico da C5
+
+`agent.C5` exporta a decisão em `outcome`, mas não exporta `reason` ou `retryable`.
+A auditoria C7 guarda a contagem total de regenerações; não guarda a resposta
+intermediária rejeitada nem a regra responsável pelo bloqueio.
+
+Uma sequência C4.4 → C5 → C4.4 indica a regeneração de síntese após um bloqueio
+recuperável, conforme o fluxo atual. Para localizar a etapa que regenerou, consultar
+também `agent.sql_flow` e `agent.synthesis_flow`, pois o total no pipeline soma ambas.
+O motivo exato de uma rejeição histórica não pode ser inferido apenas pela duração
+ou por `outcome=block`.
+
+É recomendada uma extensão futura com motivo categórico validado, `retryable` e
+índice da validação, acompanhada de atualização explícita da whitelist e testes
+de privacidade. **Essa extensão ainda não foi implementada.** Não exportar
+`original_answer`, `unsupported_values`, feedback, pergunta, SQL ou conteúdo de erros.
+
 `agent.C7` aparece no trace quando a finalização é executada, inclusive em cache HIT
 e saídas antecipadas que chegam ao finalizador. Sua presença indica execução da etapa;
 não há booleano de conexão/persistência nem garantia de sucesso de cada store no span.
@@ -112,9 +154,9 @@ contadores agregados do agente com os contadores por requisição, para evitar d
   Falhas de sanitização descartam o lote; nunca enviam o original.
 - Inicialização, criação/entrada/atributos/saída de spans e exportação têm isolamento
   de falhas. Exceções de negócio continuam se propagando normalmente.
-- Logging Python existente não é integrado ao Logfire. Por exemplo, o log local de SQL
-  em `services.ia` não foi alterado nem encaminhado. Não adicionar um logging handler
-  externo sem revisar essa política.
+- Logging Python existente não é integrado ao Logfire. `services.ia` registra apenas
+  o `request_id` interno ao concluir uma resposta, sem SQL ou conteúdo. Não adicionar
+  um logging handler externo sem revisar essa política.
 
 ## Validação
 
@@ -133,12 +175,19 @@ Também há proteção contra um exportador OTLP paralelo que contorne a filtrag
 
 A suíte completa deve ser executada com `python -m pytest tests -q` em `backend`.
 No Windows deste ambiente, o sandbox bloqueia o socketpair usado por asyncio/TestClient;
-os testes precisam rodar fora desse sandbox. Integrações reais dependem de
-`RUN_LLM_INTEGRATION=1` e não fazem parte desta validação.
+os testes precisam rodar fora desse sandbox. Os testes de integração de providers
+dependem de `RUN_LLM_INTEGRATION=1` e ficam desabilitados na suíte de regressão padrão.
 
-Nesta revisão: **24 testes de observabilidade aprovados**, **218 testes selecionados
-de C7/state/pipeline aprovados** e **1.722 aprovados, 19 ignorados na suíte completa**.
+Na revisão de configuração Docker: **221 regressões selecionadas aprovadas** (Compose,
+providers, observabilidade e C7/pipeline), incluindo os **24 testes de observabilidade**,
+e **1.724 aprovados, 19 ignorados na suíte completa**.
 `git diff --check` também passou. A validação usou o `.venv` local e exportação em memória.
+
+Na investigação posterior de latência/resultados escalares, **187 testes existentes**
+de síntese, C5, C6, contrato de visualização e observabilidade passaram. Houve também
+uma execução diagnóstica com providers e Gold reais, usando somente metadados seguros;
+seus tempos e tokens estão no [relatório específico](diagnostico-latencia-assistente.md).
+Ela é uma nova execução do pipeline, não um replay do trace histórico ou uma medição HTTP.
 
 ## Limitações e dívidas
 
@@ -152,8 +201,13 @@ de C7/state/pipeline aprovados** e **1.722 aprovados, 19 ignorados na suíte com
   de atualização ao evoluir Logfire/PydanticAI.
 - Exportação é best effort em lote: indisponibilidade do serviço ou término abrupto
   pode perder telemetria. Não há confirmação de entrega nem armazenamento durável local.
-- Não foi validada ingestão no projeto Logfire real: exige token/projeto de destino.
-  O formato e a instrumentação foram validados com exportação em memória.
+- Uma validação adicional da rota FastAPI via TestClient usou o exportador OTLP real:
+  lotes de bloqueio C1/C7 e HTTP 422 retornaram `SUCCESS` no envio, e `/v1/info` reconheceu
+  o projeto. Posteriormente, o usuário confirmou no Logfire traces reais de 43,1 s
+  e 62,1 s. Essa confirmação no produto é distinta da aceitação OTLP e dos testes
+  com exportador em memória. A consulta `/v2/query` pelo agente, com o token disponível,
+  retornou HTTP 401; o agente não tem acesso de leitura para consultar esses traces.
+  O trace específico do 504 continua sem confirmação, conforme a limitação aceita.
 - A instrumentação PydanticAI é global ao processo; novas instâncias de Agent também
   usarão esta política sem conteúdo. A instância Logfire fica local à configuração.
 

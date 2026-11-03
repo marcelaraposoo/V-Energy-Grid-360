@@ -5,7 +5,9 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from app.agent.schemas import AgentOutcome, MemoryEntry
-from app.agent.state.redis_memory import RedisMemoryStore, build_memory_key, MEMORY_KEY_PREFIX
+from app.agent.state.redis_memory import (
+    CorruptedMemoryError, RedisMemoryStore, build_memory_key, MEMORY_KEY_PREFIX,
+)
 from app.agent.state.memory_context import build_memory_context
 
 
@@ -67,17 +69,37 @@ def test_get_revalidates_last_twenty_and_context_uses_last_five(redis):
     entries = asyncio.run(RedisMemoryStore("redis://redis").get_context("s1"))
     client.lrange.assert_awaited_once_with(build_memory_key("s1"), -20, -1)
     assert len(entries) == 20
+    client.delete.assert_not_awaited()
     context = build_memory_context(entries)
     assert "Pergunta 15\n" not in context and "Pergunta 16\n" in context
     assert "Pergunta 20\n" in context and len(context) <= 4000
 
 
-@pytest.mark.parametrize("payload", ["{}", "JSON invalido", _entry(outcome=AgentOutcome.PROVIDER_ERROR).model_dump_json()])
-def test_incompatible_memory_is_not_silently_empty(redis, payload):
+@pytest.mark.parametrize("payload", [
+    "{}", "JSON invalido", b"\xff", "[]",
+    '{"question": 42, "answer": "Resposta", "outcome": "answered"}',
+    _entry(outcome=AgentOutcome.PROVIDER_ERROR).model_dump_json(),
+])
+def test_incompatible_memory_is_deleted_but_not_silently_empty(redis, payload):
     client, _ = redis
     client.lrange.return_value = [payload]
-    with pytest.raises(ValueError):
+    with pytest.raises(CorruptedMemoryError):
         asyncio.run(RedisMemoryStore("redis://redis").get_context("s1"))
+    client.delete.assert_awaited_once_with(build_memory_key("s1"))
+    client.pipeline.assert_not_called()
+
+
+def test_corruption_cleanup_failure_is_safe_and_can_be_retried(redis, caplog):
+    client, _ = redis
+    client.lrange.return_value = ["JSON invalido confidencial"]
+    client.delete.side_effect = [ConnectionError("redis-confidencial"), 1]
+    store = RedisMemoryStore("redis://redis")
+    for _ in range(2):
+        with pytest.raises(CorruptedMemoryError):
+            asyncio.run(store.get_context("s1"))
+    assert client.delete.await_count == 2
+    assert "ConnectionError" in caplog.text
+    assert "confidencial" not in caplog.text
 
 
 @pytest.mark.parametrize("operation", ["read", "append"])
@@ -94,3 +116,4 @@ def test_memory_errors_propagate_to_state_or_finalizer(redis, operation, failure
     store = RedisMemoryStore("redis://redis", timeout_seconds=0.01)
     with pytest.raises((ConnectionError, TimeoutError)):
         asyncio.run(store.get_context("s1") if operation == "read" else store.append("s1", _entry()))
+    client.delete.assert_not_awaited()

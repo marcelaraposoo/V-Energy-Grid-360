@@ -38,7 +38,7 @@ from app.agent.sql_execution_orchestrator import (
 from app.agent.synthesis_orchestrator import synthesize_and_validate
 from app.agent.state.service import finalize_request
 from app.agent.state.dependencies import AgentStateDependencies, get_state_dependencies
-from app.agent.state.request_state import prepare_request_state
+from app.agent.state.request_state import MemoryContextStatus, prepare_request_state
 
 
 logger = logging.getLogger(__name__)
@@ -176,7 +176,7 @@ async def answer_question(
 ) -> PipelineResult:
     """C1 → C2 GET → agente se MISS → C7 (auditoria, memória, SET) → entrega."""
     request_id = uuid4().hex
-    dependencies = state_dependencies if state_dependencies is not None else get_state_dependencies()
+    dependencies = state_dependencies
     state = None
     clean_question = question
     executed_sql = None
@@ -189,6 +189,9 @@ async def answer_question(
 
     async def finish(result: PipelineResult, outcome: AgentOutcome) -> PipelineResult:
         result = replace(result, request_id=request_id, outcome=outcome)
+        if dependencies is None:
+            # O factory falhou: não há stores válidos para finalizar a requisição.
+            return result
         try:
             await finalize_request(
                 audit_store=dependencies.audit_store,
@@ -202,7 +205,11 @@ async def answer_question(
                 provider_error=provider_error,
                 regenerations=regenerations,
                 cache_hit=result.cache_hit,
-                memory_store=dependencies.memory_store,
+                memory_store=(
+                    dependencies.memory_store
+                    if state is not None and state.memory_status != MemoryContextStatus.UNAVAILABLE
+                    else None
+                ),
                 memory_timeout_seconds=dependencies.memory_timeout_seconds,
                 cache_store=dependencies.cache_store,
                 cache_key=state.cache_key if state is not None else None,
@@ -219,6 +226,10 @@ async def answer_question(
         return result
 
     try:
+        # Settings continua validado no import de app.main (fail-fast no startup).
+        # Falhas do factory durante uma requisição recebem a mensagem segura abaixo.
+        if dependencies is None:
+            dependencies = get_state_dependencies()
         entry = validate_input(question)
         if entry.decision != GuardrailDecision.ALLOW:
             outcome = (

@@ -32,6 +32,7 @@ from app.agent.schemas import (
 from app.agent.synthesis_orchestrator import SynthesisFlowResult
 from app.agent.state.dependencies import AgentStateDependencies
 from app.agent.state.cache_key import build_cache_key
+from app.agent.state.redis_memory import RedisMemoryStore, build_memory_key
 
 
 SQL = "SELECT classe, COUNT(*) FROM dim_uc GROUP BY classe"
@@ -603,13 +604,16 @@ def test_memory_unavailable_bypasses_cache_but_pipeline_continues(monkeypatch):
     _install(monkeypatch)
     deps = _cache_dependencies(
         PostProcessingResult(answer="Não reutilizar."),
-        memory_store=SimpleNamespace(get_context=AsyncMock(side_effect=ConnectionError)),
+        memory_store=SimpleNamespace(
+            get_context=AsyncMock(side_effect=ConnectionError), append=AsyncMock(),
+        ),
     )
     result = _ask(session_id="s1", state_dependencies=deps)
     assert result.outcome == AgentOutcome.ANSWERED
     assert not result.cache_hit
     deps.cache_store.get.assert_not_awaited()
     deps.cache_store.set.assert_not_awaited()
+    deps.memory_store.append.assert_not_awaited()
 
 
 def test_effective_context_and_session_reach_cache_and_generation(monkeypatch):
@@ -757,18 +761,126 @@ def test_all_finalization_failures_preserve_the_approved_response(monkeypatch, c
     assert "confidencial" not in caplog.text
 
 
-def test_memory_read_timeout_bypasses_cache_and_append_timeout_preserves_answer(monkeypatch):
+def test_memory_read_timeout_bypasses_cache_and_append(monkeypatch):
     _install(monkeypatch)
     deps = _c7_dependencies()
     async def hang(*args):
         await asyncio.Event().wait()
     deps.memory_store.get_context.side_effect = hang
-    deps.memory_store.append.side_effect = hang
     result = _ask(session_id="s1", state_dependencies=deps)
     assert result.outcome == AgentOutcome.ANSWERED
     deps.audit_store.save.assert_awaited_once()
     deps.cache_store.get.assert_not_awaited()
     deps.cache_store.set.assert_not_awaited()
+    deps.memory_store.append.assert_not_awaited()
+
+
+def test_memory_append_timeout_after_successful_read_preserves_answer(monkeypatch):
+    _install(monkeypatch)
+    deps = _c7_dependencies()
+    cancelled = []
+
+    async def hang(*args):
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.append(True)
+
+    deps.memory_store.append.side_effect = hang
+    result = _ask(session_id="s1", state_dependencies=deps)
+    assert result.outcome == AgentOutcome.ANSWERED
+    assert cancelled == [True]
+    deps.memory_store.append.assert_awaited_once()
+    deps.audit_store.save.assert_awaited_once()
+    deps.cache_store.set.assert_awaited_once()
+
+
+@pytest.mark.parametrize("error_type", [RuntimeError, ValueError])
+def test_dependency_factory_failure_returns_safe_internal_error(monkeypatch, caplog, error_type):
+    calls = _install(monkeypatch)
+    factory = Mock(side_effect=error_type("configuracao-confidencial"))
+    finalization = AsyncMock()
+    monkeypatch.setattr(pipeline, "get_state_dependencies", factory)
+    monkeypatch.setattr(pipeline, "finalize_request", finalization)
+
+    result = _ask()
+
+    assert result.status == PipelineStatus.NO_ANSWER
+    assert result.outcome == AgentOutcome.INTERNAL_ERROR
+    assert result.stage == PipelineStage.INPUT_GUARDRAIL
+    assert result.request_id
+    assert result.message == "Não foi possível responder neste momento. Tente novamente."
+    assert calls == {"flow": 0, "synthesis": 0}
+    factory.assert_called_once_with()
+    finalization.assert_not_awaited()
+    assert "configuracao-confidencial" not in caplog.text
+
+
+def test_injected_dependencies_do_not_call_factory(monkeypatch):
+    _install(monkeypatch)
+    factory = Mock(side_effect=RuntimeError)
+    monkeypatch.setattr(pipeline, "get_state_dependencies", factory)
+    deps = _c7_dependencies()
+    result = _ask(session_id="s1", state_dependencies=deps)
+    assert result.outcome == AgentOutcome.ANSWERED
+    factory.assert_not_called()
+    deps.audit_store.save.assert_awaited_once()
+    deps.memory_store.append.assert_awaited_once()
+    deps.cache_store.set.assert_awaited_once()
+
+
+def test_corrupted_memory_request_skips_cache_and_append_then_recovers(monkeypatch):
+    _install(monkeypatch)
+    generation = AsyncMock(return_value=_executed_flow())
+    monkeypatch.setattr(pipeline, "generate_validate_and_execute", generation)
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    tx = AsyncMock()
+    tx.__aenter__.return_value = tx
+    for name in ("rpush", "ltrim", "expire"):
+        setattr(tx, name, Mock(return_value=tx))
+    client.pipeline = Mock(return_value=tx)
+    key = build_memory_key("s1")
+    other_key = build_memory_key("outra-sessao")
+    data = {key: [b"JSON corrompido"], other_key: [b"preservado"]}
+
+    async def read(key, start, end):
+        return data.get(key, [])[start:]
+
+    async def delete(key):
+        return int(data.pop(key, None) is not None)
+
+    async def execute():
+        key, payload = tx.rpush.call_args.args
+        data.setdefault(key, []).append(payload)
+
+    client.lrange.side_effect = read
+    client.delete.side_effect = delete
+    tx.execute.side_effect = execute
+    monkeypatch.setattr("app.agent.state.redis_memory.create_redis_client", Mock(return_value=client))
+    deps = replace(_c7_dependencies(), memory_store=RedisMemoryStore("redis://redis"))
+
+    first = _ask(session_id="s1", state_dependencies=deps)
+    assert first.outcome == AgentOutcome.ANSWERED and not first.cache_hit
+    assert generation.await_args.kwargs["memory_context"] is None
+    client.delete.assert_awaited_once_with(key)
+    assert key not in data and data[other_key] == [b"preservado"]
+    client.pipeline.assert_not_called()
+    tx.expire.assert_not_called()
+    deps.cache_store.get.assert_not_awaited()
+    deps.cache_store.set.assert_not_awaited()
+    deps.audit_store.save.assert_awaited_once()
+
+    second = _ask(session_id="s1", state_dependencies=deps)
+    assert second.outcome == AgentOutcome.ANSWERED
+    assert second.request_id != first.request_id
+    deps.cache_store.get.assert_awaited_once()
+    deps.cache_store.set.assert_awaited_once()
+    tx.execute.assert_awaited_once()
+    tx.expire.assert_called_once()
+    entries = asyncio.run(deps.memory_store.get_context("s1"))
+    assert len(entries) == 1 and entries[0].answer == second.message
+    assert deps.audit_store.save.await_count == 2
 
 
 def test_audit_keeps_real_execution_and_regeneration_metadata(monkeypatch):

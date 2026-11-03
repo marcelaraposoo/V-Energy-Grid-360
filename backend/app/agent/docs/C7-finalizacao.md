@@ -17,6 +17,10 @@ Reutiliza `state/service.py`, `records.py`, `finalizer.py` e suas políticas.
 `answer_question` cria o ID uma vez na entrada. Toda saída terminal passa por
 `finalize_request` e recebe o mesmo ID na resposta interna e no AuditRecord.
 Requisições seguintes e HIT têm IDs novos; o payload cacheado não contém IDs.
+Se o factory de dependências falhar durante a requisição, a resposta recebe
+`INTERNAL_ERROR`, mensagem segura e request_id, sem tentar finalizar com stores
+que não foram construídos. A validação de `Settings` no import de `app.main`
+continua fail-fast: configuração inválida impede o startup do backend.
 
 O SET direto foi removido do pipeline. A C2 continua dona de chave/codec/política;
 só o finalizer chama `write_cache`. Recebe a chave original da preparação da
@@ -57,15 +61,23 @@ agent:memory:v1:<SHA-256 do session_id>
 O session_id bruto não aparece na chave. Cada item é JSON revalidado de
 `MemoryEntry`: somente pergunta, resposta e outcome do contrato existente.
 Credenciais de configuração, SQL, request IDs e metadados de providers não são
-inseridos na memória. Entradas/payloads incompatíveis causam UNAVAILABLE;
-não são interpretados como sessão vazia.
+inseridos na memória. JSON inválido, schema incompatível ou outcome inelegível
+geram `CorruptedMemoryError`, distinguindo corrupção de conexão/timeout.
+O adapter tenta remover somente a chave de memória da sessão corrompida. Mesmo
+quando o DELETE funciona, a requisição que detectou o problema fica UNAVAILABLE,
+sem contexto, GET/SET de cache, append ou renovação de TTL. Na próxima requisição,
+a leitura vazia permite retomar normalmente o cache e a gravação de memória.
+Falha na limpeza mantém a degradação segura; a próxima leitura pode tentar de novo.
+Falhas de conexão/timeout na leitura propagam sem DELETE: indisponibilidade não
+é evidência de corrupção e não autoriza apagar a sessão.
 
 RPUSH + LTRIM + EXPIRE são executados em transação Redis. Preserva as últimas
 20 interações, renova TTL em todo append e lê no máximo essas 20. O helper de
 contexto existente usa no máximo as últimas 5 e 4000 caracteres, priorizando
 entradas recentes sem cortar/reparar textos.
 
-Somente ANSWERED, NO_DATA e NEEDS_CLARIFICATION, com sessão e resposta útil,
+Somente ANSWERED, NO_DATA e NEEDS_CLARIFICATION, com sessão, memória disponível
+na preparação e resposta útil,
 geram append. Bloqueios e erros não entram na memória. HIT pode gerar append,
 mas nunca SET de cache nem reexecução das etapas caras.
 
@@ -91,7 +103,39 @@ payload/URL/SQL. Cancelamento da requisição continua sendo propagado.
 
 Leitura de memória tem deadline no adapter e na preparação do estado. Falha ou
 timeout mantém `MemoryContextStatus.UNAVAILABLE`, sem GET nem SET de cache;
-o pipeline segue sem cache. EMPTY permanece uma leitura bem-sucedida vazia.
+o pipeline segue sem contexto e sem cache. A finalização não recebe o store de
+memória nesse caso: não há append nem renovação de TTL, ainda que o Redis volte
+antes da entrega. Auditoria continua sendo tentada. EMPTY permanece uma leitura
+bem-sucedida vazia e permite append/cache normalmente.
+
+## Isolamento de sessão — pendência com DEV
+
+O fluxo atual foi verificado no código:
+
+1. `frontend/src/features/assistente/AssistentePage.tsx` gera o identificador no
+   navegador com `crypto.randomUUID()` (fallback com timestamp/Math.random),
+   mantém em `useRef` e envia `sessao_id` no JSON de cada pergunta. Nova conversa
+   troca o ID e chama o endpoint de limpeza para o anterior.
+2. `frontend/src/api/endpoints.ts` e `http.ts` enviam esse JSON para
+   `POST /api/ia/perguntar`. A camada HTTP não acrescenta identidade autenticada.
+3. `backend/app/schemas.py::PerguntaIn` aceita `sessao_id` opcional fornecido pelo
+   cliente. `routers/ia.py::perguntar` o repassa a `services/ia.py::perguntar`, que
+   chama `answer_question(..., session_id=sessao_id)` sem verificação de propriedade.
+4. O pipeline usa esse ID para memória, chave de cache e auditoria. Não recebe
+   usuário/tenant autenticado. O backend em `app/main.py` e a rota não configuram
+   autenticação nem autorização por proprietário. CORS não cumpre essa função.
+
+**Risco aberto antes de ambiente multiusuário:** quem fornecer o mesmo ID pode
+reutilizar/alterar o contexto daquela sessão. A separação por chave impede mistura
+acidental entre IDs distintos, mas não verifica se o solicitante é dono da sessão.
+SHA-256 apenas evita o identificador bruto na chave Redis; não é autenticação,
+autorização ou controle de propriedade. UUID no cliente também não substitui isso.
+
+DEV precisa definir a identidade autenticada, vincular a sessão ao proprietário
+(e tenant, se aplicável) e autorizar leitura, escrita e limpeza antes de chamar a
+IA. O endpoint `DELETE /api/ia/sessoes/{sessao_id}` atualmente chama um stub sem
+efeito; sua implementação também deverá aplicar essa autorização. Nenhum mecanismo
+de autenticação foi criado dentro da camada de IA nesta revisão.
 
 ## Configuração e Docker
 
@@ -110,7 +154,28 @@ não implica persistência. Auditoria permanece no volume `portal_data` RW; Gold
 
 ## Validação
 
-**335 testes locais passaram** na rodada final de C2/C7, pipeline e API.
+Regressões do review C7 cobrem falha do factory com resposta segura, dependências
+injetadas, startup inválido em processo isolado, leitura indisponível/timeout sem
+append, timeout de append após leitura válida, corrupção JSON/schema/outcome,
+DELETE restrito à sessão e recuperação na requisição seguinte. A recuperação usa
+o adapter Redis com cliente simulado e verifica ausência de EXPIRE/GET/SET na
+requisição degradada, auditoria preservada e retomada de append/cache depois.
+Também verificam ausência de DELETE em indisponibilidade/timeout e retentativa
+quando a limpeza da corrupção falha.
+
+Nesta revisão, a suíte relevante executada a partir de `backend/` passou:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/agent tests/test_api.py --ignore=tests/agent/integration -q
+# 1163 passed
+```
+
+O recorte inicial de pipeline, RedisMemoryStore, configuração e preparação de
+estado passou com 144 testes. Providers externos e Redis real não foram usados
+nesta revisão; os ensaios Docker descritos abaixo pertencem à validação original.
+
+Na validação original da entrega, **335 testes locais passaram** na rodada final
+de C2/C7, pipeline e API.
 Cobrem adapter SQLite (campos, UTC, ID único, concorrência,
 coexistência com ordens e timeout de lock), Redis simulado (JSON, política,
 limite, TTL e falhas), contexto 5/4000, todos os outcomes terminais, ID único,
@@ -179,6 +244,8 @@ O arquivo não rastreado `c7-atual.txt` não foi alterado por esta tarefa.
 
 ## Pendências fora desta entrega
 
+- Propriedade/autorização de sessão depende de DEV e bloqueia uso multiusuário
+  seguro, conforme análise acima.
 - Logfire não implementado.
 - E2E com providers autenticados e versão oficial do snapshot por ambiente.
 - Retenção/consulta administrativa da auditoria e memória durável não fazem

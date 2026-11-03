@@ -1,4 +1,4 @@
-import { useReducer, useState } from 'react'
+import { useReducer } from 'react'
 import { Filter, RotateCcw, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { api, useApi } from '../../api'
@@ -9,7 +9,7 @@ import { PageHeader } from '../../components/ui/PageHeader'
 import { Panel } from '../../components/ui/Panel'
 import {
   limitesDashboard as limites, periodoInicialDashboard as periodoPadrao, quantidadeMeses,
-  referenciaInicialDashboard as referenciaPadrao, sugerirReferencia, validarPeriodo, validarPeriodosDashboard,
+  sugerirReferencia, validarPeriodo, validarPeriodosDashboard,
 } from '../../utils/periodosDashboard'
 import { parametrosDashboard } from '../dashboard/consultas'
 import { alterarPeriodos, estadoInicial } from '../dashboard/periodos'
@@ -19,21 +19,29 @@ import { EvolucaoQualidade } from './EvolucaoQualidade'
 import { quantidade } from './formatacao'
 import { KpisQualidade } from './KpisQualidade'
 import { RankingAlimentadores } from './RankingAlimentadores'
+import { alterarRecorteQualidade } from './recortes'
 import '../dashboard/dashboard.css'
 import './qualidade.css'
 
 export function QualidadePage() {
   const [busca] = useSearchParams()
   const [temporal, dispatch] = useReducer(
-    (estado: ReturnType<typeof estadoInicial>, acao: Parameters<typeof alterarPeriodos>[1]) => alterarPeriodos(estado, acao, periodoPadrao, limites, referenciaPadrao),
-    undefined, () => estadoInicial(periodoPadrao, referenciaPadrao),
+    (estado: ReturnType<typeof estadoInicial>, acao: Parameters<typeof alterarPeriodos>[1]) => alterarPeriodos(estado, acao, periodoPadrao, limites),
+    undefined, () => estadoInicial(periodoPadrao),
   )
   const { periodo, comparar, referencia: comparacao, aviso } = temporal
   const referencia = comparar ? comparacao : null
   const quantidadePeriodo = quantidadeMeses(periodo)
-  const [municipio, setMunicipio] = useState<string | null>(null)
   // Vindo da Visão 360 (?alimentador=), abre no alimentador da UC.
-  const [alimentador, setAlimentador] = useState<string | null>(busca.get('alimentador')?.toUpperCase() || null)
+  const [recortes, dispatchRecorte] = useReducer(alterarRecorteQualidade, {
+    atual: { municipio: null, alimentador: busca.get('alimentador')?.toUpperCase() || null }, anteriores: [],
+  })
+  const { municipio, alimentador } = recortes.atual
+  const voltarRecorte = recortes.anteriores.length ? () => dispatchRecorte({ tipo: 'voltar' }) : undefined
+
+  function escolherAlimentador(valor: string | null) {
+    dispatchRecorte({ tipo: 'selecionar', valor: { municipio, alimentador: valor } })
+  }
 
   const deps = [periodo.inicio, periodo.fim, referencia?.inicio, referencia?.fim, municipio, alimentador]
   const resumo = useApi((signal) => api.continuidade.resumo({
@@ -53,15 +61,15 @@ export function QualidadePage() {
   const escopo = dados?.alimentador_id ?? dados?.municipio ?? 'Distribuidora'
 
   function escolherMunicipio(valor: string | null) {
-    setMunicipio(valor)
     const atual = ranking.data?.find((a) => a.alimentador_id === alimentador)
-    if (valor && atual && atual.municipio !== valor) setAlimentador(null)
+    dispatchRecorte({ tipo: 'selecionar', valor: {
+      municipio: valor, alimentador: valor && atual && atual.municipio !== valor ? null : alimentador,
+    } })
   }
 
   function limpar() {
     dispatch({ tipo: 'limpar' })
-    setMunicipio(null)
-    setAlimentador(null)
+    dispatchRecorte({ tipo: 'limpar' })
   }
 
   return (
@@ -89,7 +97,7 @@ export function QualidadePage() {
           options={catalogo.data?.municipios.map((m) => ({ value: m.nome, label: m.nome })) ?? []}
           onChange={(valor) => escolherMunicipio(valor || null)} />
         <SelectField label="Alimentador" value={alimentador ?? ''} placeholder="Todos os alimentadores"
-          options={opcoesAlimentador} onChange={(valor) => setAlimentador(valor || null)} />
+          options={opcoesAlimentador} onChange={(valor) => escolherAlimentador(valor || null)} />
         <button type="reset" className="button button--secondary"><RotateCcw size={14} aria-hidden="true" /> Limpar</button>
         <DataCorte />
         {aviso && <p className="qualidade-filtros-nota" role="status" aria-live="polite">{aviso}</p>}
@@ -113,7 +121,7 @@ export function QualidadePage() {
                   ? <>
                     {selecionado && <span>{selecionado.municipio}</span>}
                     {dados.atual?.qtd_ucs != null && <span>{quantidade(dados.atual.qtd_ucs)} UCs</span>}
-                    <button type="button" className="badge qualidade-escopo-limpar" onClick={() => setAlimentador(null)}
+                    <button type="button" className="badge qualidade-escopo-limpar" onClick={() => escolherAlimentador(null)}
                       aria-label="Remover filtro de alimentador">Ver {municipio ?? 'distribuidora'} <X size={12} aria-hidden="true" /></button>
                   </>
                   : <span>{quantidade(dados.qtd_alimentadores)} alimentadores{dados.atual?.qtd_ucs != null && ` · ${quantidade(dados.atual.qtd_ucs)} UCs`}</span>}
@@ -123,14 +131,16 @@ export function QualidadePage() {
 
               <section className="qualidade-detalhe" aria-label="Evolução e causas">
                 <EvolucaoQualidade serie={dados.serie} serieBase={dados.serie_base} periodo={periodo} referencia={referencia} escopo={escopo} />
-                <CausasQualidade causas={dados.causas} />
+                <CausasQualidade causas={dados.causas} locais={dados.locais} nivelLocais={dados.nivel_locais}
+                  carregando={resumo.loading} onVoltar={voltarRecorte}
+                  onMunicipio={(valor) => dispatchRecorte({ tipo: 'selecionar', valor: { municipio: valor, alimentador: null } })} />
               </section>
 
               {ranking.error ? <Panel title="Ranking dos alimentadores"><ErrorState error={ranking.error} onRetry={ranking.reload} /></Panel>
                 : !ranking.data ? <Panel title="Ranking dos alimentadores"><LoadingState label="Carregando alimentadores…" /></Panel>
                   : <RankingAlimentadores alimentadores={ranking.data} base={rankingBase.data ?? null} referencia={referencia}
                     selecionado={alimentador} onSelecionar={(id) => {
-                      setAlimentador(id === alimentador ? null : id)
+                      escolherAlimentador(id === alimentador ? null : id)
                       window.scrollTo({ top: 0, behavior: 'smooth' })
                     }} />}
             </div>

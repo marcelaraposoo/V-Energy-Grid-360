@@ -11,15 +11,14 @@ type Campo = 'dec_horas' | 'fec_vezes' | 'qtd_interrupcoes' | 'horas_interrompid
 const indicadores: { campo: Campo; titulo: string; icone: typeof Clock; formatar: (v: number) => string; info: ReactNode }[] = [
   {
     campo: 'dec_horas', titulo: 'DEC', icone: Clock, formatar: horas,
-    info: <InfoTipContent resumo="Duração equivalente: horas que, em média, cada unidade consumidora ficou sem energia no período." itens={[
-      { rotulo: 'Cálculo', texto: 'Soma dos DEC mensais. Em cada mês, horas interrompidas ÷ UCs ligadas.' },
-    ]} nota="Cada ocorrência registrada corresponde a uma UC interrompida, conforme o glossário do case." />,
+    info: <InfoTipContent resumo="Duração equivalente: horas que, em média, cada unidade consumidora ficou sem energia no período."
+     nota="Cada ocorrência registrada corresponde a uma UC interrompida. O cálculo se dá pela soma dos DEC mensais." />,
   },
   {
     campo: 'fec_vezes', titulo: 'FEC', icone: Repeat, formatar: vezes,
-    info: <InfoTipContent resumo="Frequência equivalente: quantas vezes, em média, cada unidade consumidora ficou sem energia no período." itens={[
-      { rotulo: 'Cálculo', texto: 'Soma dos FEC mensais. Em cada mês, interrupções ÷ UCs ligadas.' },
-    ]} />,
+    info: <InfoTipContent resumo="Frequência equivalente: quantas vezes, em média, cada unidade consumidora ficou sem energia no período."
+    nota="O cálculo se dá pela soma dos FEC mensais." />,
+
   },
   {
     campo: 'qtd_interrupcoes', titulo: 'Interrupções', icone: ZapOff, formatar: quantidade,

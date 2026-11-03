@@ -23,6 +23,21 @@ test('qualidade do serviço: indicadores, causas e ranking dos alimentadores', a
     const { CausasQualidade } = await server.ssrLoadModule('/src/features/qualidade/CausasQualidade.tsx')
     const { RankingAlimentadores } = await server.ssrLoadModule('/src/features/qualidade/RankingAlimentadores.tsx')
     const { EvolucaoQualidade } = await server.ssrLoadModule('/src/features/qualidade/EvolucaoQualidade.tsx')
+    const { alterarRecorteQualidade } = await server.ssrLoadModule('/src/features/qualidade/recortes.ts')
+
+    await t.test('voltar restaura município e alimentador anteriores; limpar descarta o histórico', () => {
+      const inicial = { atual: { municipio: null, alimentador: null }, anteriores: [] }
+      const municipio = alterarRecorteQualidade(inicial, { tipo: 'selecionar', valor: { municipio: 'Recife', alimentador: null } })
+      const alimentador = alterarRecorteQualidade(municipio, { tipo: 'selecionar', valor: { municipio: 'Recife', alimentador: 'ALM-A' } })
+      assert.equal(alterarRecorteQualidade(alimentador, { tipo: 'selecionar', valor: { ...alimentador.atual } }), alimentador)
+      const outroMunicipio = alterarRecorteQualidade(alimentador, { tipo: 'selecionar', valor: { municipio: 'Olinda', alimentador: null } })
+      const voltou = alterarRecorteQualidade(outroMunicipio, { tipo: 'voltar' })
+      assert.deepEqual(voltou, alimentador)
+      assert.deepEqual(alterarRecorteQualidade(voltou, { tipo: 'voltar' }), municipio)
+      assert.deepEqual(alterarRecorteQualidade(municipio, { tipo: 'voltar' }), inicial)
+      assert.equal(alterarRecorteQualidade(inicial, { tipo: 'voltar' }), inicial)
+      assert.deepEqual(alterarRecorteQualidade(outroMunicipio, { tipo: 'limpar' }), inicial)
+    })
 
     await t.test('formatação e variação tratam ausência de referência', () => {
       assert.equal(formatacao.horas(3.451909), '3,45 h')
@@ -61,6 +76,39 @@ test('qualidade do serviço: indicadores, causas e ranking dos alimentadores', a
       assert.match(renderToStaticMarkup(createElement(CausasQualidade, { causas: [] })), /Nenhuma interrupção/)
     })
 
+    await t.test('locais mostram UCs afetadas e só o nível município permite filtrar', () => {
+      const local = (municipio: string, bairro: string | null, horas: number) => ({
+        municipio, bairro, qtd_interrupcoes: 10, horas, pct_horas: horas, qtd_ucs_afetadas: 95, qtd_ucs: 100, pct_ucs_afetadas: 95,
+      })
+      const municipios = renderToStaticMarkup(createElement(CausasQualidade, {
+        causas: [], abaInicial: 'locais', nivelLocais: 'municipio', onMunicipio: () => {},
+        locais: [local('Recife', null, 60), local('Olinda', null, 40)],
+      }))
+      assert.match(municipios, /Locais mais afetados/)
+      assert.match(municipios, /Horas sem energia por município/)
+      assert.match(municipios, /<strong>60,0%<\/strong> das horas sem energia em Recife/)
+      assert.match(municipios, /95 de 100 UCs afetadas \(95,0%\)/)
+      assert.equal((municipios.match(/qualidade-barra-item--botao/g) ?? []).length, 2)
+      assert.match(municipios, /Não há DEC por bairro/)
+      assert.doesNotMatch(municipios, /Voltar ao recorte anterior/)
+      const bairros = renderToStaticMarkup(createElement(CausasQualidade, {
+        causas: [], abaInicial: 'locais', nivelLocais: 'bairro', onMunicipio: () => {}, onVoltar: () => {},
+        locais: Array.from({ length: 8 }, (_, i) => local('Recife', `Bairro ${i}`, 80 - i)),
+      }))
+      assert.match(bairros, /Horas sem energia por bairro/)
+      assert.match(bairros, /Bairro 0<small>Recife<\/small>/)
+      assert.doesNotMatch(bairros, /qualidade-barra-item--botao/)
+      assert.match(bairros, /Exibindo <strong>4<\/strong> de <strong>8<\/strong> bairros/)
+      assert.match(bairros, />Mostrar todos</)
+      assert.doesNotMatch(bairros, /Mostrar menos/)
+      assert.match(bairros, /aria-label="Voltar ao recorte anterior"/)
+      const vazio = renderToStaticMarkup(createElement(CausasQualidade, {
+        causas: [], locais: [], abaInicial: 'locais', nivelLocais: 'bairro', onVoltar: () => {},
+      }))
+      assert.match(vazio, /Nenhuma interrupção/)
+      assert.match(vazio, /aria-label="Voltar ao recorte anterior"/)
+    })
+
     await t.test('ranking começa pelo pior DEC e avisa sobre bases pequenas', () => {
       const alimentadores = [alimentador('ALM-B', 5, 2000), alimentador('ALM-A', 40, 20), alimentador('ALM-C', 1, 900)]
       const html = renderToStaticMarkup(createElement(RankingAlimentadores, {
@@ -81,6 +129,28 @@ test('qualidade do serviço: indicadores, causas e ranking dos alimentadores', a
       }))
       assert.doesNotMatch(semReferencia, /DEC na referência/)
       assert.doesNotMatch(semReferencia, /qualidade-aviso/)
+    })
+
+    await t.test('modal lista todos os locais; só municípios filtram a tela', async () => {
+      const { LocaisDialog } = await server.ssrLoadModule('/src/features/qualidade/LocaisDialog.tsx')
+      const local = (municipio: string, bairro: string | null) => ({
+        municipio, bairro, qtd_interrupcoes: 3, horas: 12, pct_horas: 10, qtd_ucs_afetadas: 2, qtd_ucs: 4, pct_ucs_afetadas: 50,
+      })
+      const locais = Array.from({ length: 9 }, (_, i) => local(`Município ${i}`, null))
+      const aberto = renderToStaticMarkup(createElement(LocaisDialog, { aberto: true, locais, porBairro: false, onFechar: () => {}, onMunicipio: () => {} }))
+      assert.equal((aberto.match(/<li>/g) ?? []).length, 9)
+      assert.equal((aberto.match(/qualidade-locais-dialog-item--botao/g) ?? []).length, 9)
+      assert.match(aberto, /2 de 4 UCs afetadas \(50,0%\)/)
+      assert.match(aberto, /10,0% do total/)
+      assert.match(aberto, /3 interrupções/)
+      assert.match(aberto, /Selecione um município para filtrar a tela/)
+      assert.doesNotMatch(aberto, /Voltar ao recorte anterior/)
+      const bairros = renderToStaticMarkup(createElement(LocaisDialog, { aberto: true, locais: [local('Recife', 'Boa Viagem')], porBairro: true, onFechar: () => {}, onMunicipio: () => {}, onVoltar: () => {} }))
+      assert.match(bairros, /Boa Viagem<small>Recife<\/small>/)
+      assert.doesNotMatch(bairros, /qualidade-locais-dialog-item--botao/)
+      assert.match(bairros, /aria-label="Voltar ao recorte anterior"/)
+      const fechado = renderToStaticMarkup(createElement(LocaisDialog, { aberto: false, locais, porBairro: false, onFechar: () => {} }))
+      assert.doesNotMatch(fechado, /<ol/)
     })
 
     await t.test('evolução exige todos os meses do período', () => {

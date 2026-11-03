@@ -529,6 +529,17 @@ export type CausaContinuidade = {
   pct_horas: number | null
 }
 
+export type LocalInterrupcao = {
+  municipio: string
+  bairro: string | null
+  qtd_interrupcoes: number
+  horas: number
+  pct_horas: number | null
+  qtd_ucs_afetadas: number
+  qtd_ucs: number
+  pct_ucs_afetadas: number | null
+}
+
 export type ResumoContinuidade = {
   periodo_atual: Periodo
   periodo_base: Periodo | null
@@ -540,6 +551,8 @@ export type ResumoContinuidade = {
   serie: PontoContinuidade[]
   serie_base: PontoContinuidade[]
   causas: CausaContinuidade[]
+  nivel_locais: 'municipio' | 'bairro'
+  locais: LocalInterrupcao[]
 }
 
 export type ResumoContinuidadeParams = DashboardParams & { alimentador?: string }

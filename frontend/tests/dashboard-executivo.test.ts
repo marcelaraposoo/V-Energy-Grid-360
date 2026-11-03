@@ -3,6 +3,7 @@ import { createServer as createHttpServer } from 'node:http'
 import test from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 import react from '@vitejs/plugin-react'
 import { createServer } from 'vite'
 import { createApi } from '../src/api/endpoints.ts'
@@ -99,14 +100,19 @@ test('componentes executivos mostram três KPIs, cadastro/GD e uma barra por cla
       })) }
     await t.test('topo tem exatamente receita, consumo e preço; UCs faturadas ficam fora da tela', () => {
       const html = renderToStaticMarkup(createElement(KpisPrincipais, { estado: estado(kpis), referencia }))
-      assert.equal((html.match(/class="panel dashboard-kpi"/g) ?? []).length, 3)
+      assert.equal((html.match(/class="panel kpi-card"/g) ?? []).length, 3)
       assert.match(html, /Receita de energia/)
-      assert.match(html, /Consumo faturado/)
+      assert.match(html, /Energia faturada/)
       assert.match(html, /Preço médio por kWh/)
       assert.doesNotMatch(html, /UCs faturadas/)
-      assert.equal((html.match(/vs\. referência/g) ?? []).length, 3)
+      // Valor da referência e variação em cada card; explicações no "i", com o mesmo texto da Análise de Receita.
+      assert.equal((html.match(/class="kpi-card-referencia">Referência: /g) ?? []).length, 3)
+      assert.equal((html.match(/class="kpi-comparacao"/g) ?? []).length, 3)
+      assert.equal((html.match(/class="info-tip-balao"/g) ?? []).length, 3)
+      assert.match(html, /sem tributos e com o adicional de bandeira/)
+      assert.match(html, /R\$&nbsp;200,00|R\$\s200,00/)
       const semBase = renderToStaticMarkup(createElement(KpisPrincipais, { estado: estado(kpis), referencia: null }))
-      assert.doesNotMatch(semBase, /vs\. referência/)
+      assert.doesNotMatch(semBase, /kpi-card-referencia|kpi-comparacao/)
     })
     await t.test('cadastro mostra posição final, GD e participação sem somar meses', () => {
       const html = renderToStaticMarkup(createElement(UcsGdCard, { estado: estado(cadastro), competencia: '2026-02', referencia }))
@@ -131,7 +137,8 @@ test('componentes executivos mostram três KPIs, cadastro/GD e uma barra por cla
       assert.equal((html.match(/class="dashboard-class-bar"/g) ?? []).length, 5)
       assert.deepEqual(Array.from(html.matchAll(/data-classe="([^"]+)"/g), (m) => m[1]), classes.classes.map((c) => c.classe))
       assert.match(html, /50,0%/)
-      assert.match(html, /-10,0%/)
+      assert.match(html, /−10,0%/)
+      assert.match(html, /class="dashboard-class-change" data-tendencia="desfavoravel"/)
       assert.match(html, /Variação vs\. referência · Jan–Fev\/2025/)
       assert.doesNotMatch(html, /NaN|Infinity/)
       const semBase = renderToStaticMarkup(createElement(ClassesChart, { estado: estado(classes), periodo, referencia: null }))
@@ -169,7 +176,7 @@ test('componentes executivos mostram três KPIs, cadastro/GD e uma barra por cla
     })
     await t.test('a composição posiciona complementares e classes antes da evolução mensal', async () => {
       const { DashboardPage } = await server.ssrLoadModule('/src/features/dashboard/DashboardPage.tsx')
-      const html = renderToStaticMarkup(createElement(DashboardPage))
+      const html = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(DashboardPage)))
       assert.ok(html.indexOf('dashboard-kpis') < html.indexOf('dashboard-complementary'))
       assert.ok(html.indexOf('dashboard-complementary') < html.indexOf('dashboard-charts'))
       assert.match(html, /Energia faturada por classe/)

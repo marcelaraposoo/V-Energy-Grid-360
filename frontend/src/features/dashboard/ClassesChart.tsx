@@ -4,15 +4,12 @@ import type { ApiState, ClasseConsumo, ConsumoClasse, ConsumoClassesResponse, Pe
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState, LoadingState } from '../../components/ui/Feedback'
 import { Panel } from '../../components/ui/Panel'
+import { nomesClasse, variacao as formatarVariacao } from '../../utils/indicadores'
 import { disponivel, formatarPeriodo } from './formatacao'
 
-const nomes: Record<ClasseConsumo, string> = {
-  RESIDENCIAL: 'Residencial', COMERCIAL: 'Comercial', INDUSTRIAL: 'Industrial', 'PODER PUBLICO': 'Poder público', RURAL: 'Rural',
-}
 const numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 })
 const compacto = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 })
 const percentual = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-const variacao = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1, signDisplay: 'exceptZero' })
 const completo = (valor: number | null) => disponivel(valor) ? `${numero.format(valor)} kWh` : 'Indisponível'
 
 export function ClassesChart({ estado: { data, loading, error, reload }, periodo, referencia }: {
@@ -31,7 +28,8 @@ export function ClassesChart({ estado: { data, loading, error, reload }, periodo
     setTooltip({ classe: item.classe, top })
   }
 
-  return <Panel title="Energia faturada por classe" description={formatarPeriodo(periodo)} className="dashboard-classes-panel">
+  return <Panel title="Energia faturada por classe" description={formatarPeriodo(periodo)} className="dashboard-classes-panel"
+    info="Energia faturada (kWh) de cada classe no período. Participação = energia da classe ÷ energia total. Com referência, a variação compara a mesma classe nos dois períodos.">
     {loading ? <LoadingState label="Carregando consumo por classe…" />
       : error ? <ErrorState error={error} onRetry={reload} />
         : !data?.classes.length ? <EmptyState icon={ChartNoAxesCombined} title="Sem dados por classe" description="Não há dados disponíveis no período selecionado." compact />
@@ -52,7 +50,7 @@ export function ClassesChart({ estado: { data, loading, error, reload }, periodo
                     onClick={(event) => mostrar(item, event.currentTarget)}
                     onKeyDown={(event) => { if (event.key === 'Escape') setTooltip(null) }}>
                     <span className="dashboard-class-heading">
-                      <span>{nomes[item.classe]}</span>
+                      <span>{nomesClasse[item.classe]}</span>
                       <span className="dashboard-class-volume">{disponivel(valor) ? `${compacto.format(valor)} kWh` : 'Indisponível'}
                         {disponivel(item.participacao_pct) && <small> · {percentual.format(item.participacao_pct)}%</small>}
                       </span>
@@ -62,7 +60,7 @@ export function ClassesChart({ estado: { data, loading, error, reload }, periodo
                         <span className="dashboard-class-bar" style={{ width: `${disponivel(valor) ? valor / maximo * 100 : 0}%` }} />
                       </span>
                       {referencia && <span className="dashboard-class-change" data-tendencia={tendencia}>
-                        {disponivel(mudanca) ? <><Seta size={13} aria-hidden="true" />{variacao.format(mudanca)}%</> : '—'}
+                        {disponivel(mudanca) ? <><Seta size={13} aria-hidden="true" />{formatarVariacao(mudanca)}</> : '—'}
                       </span>}
                     </span>
                   </button>
@@ -73,7 +71,7 @@ export function ClassesChart({ estado: { data, loading, error, reload }, periodo
               {data.consumo_total_kwh === null ? ' · Participação indisponível: dados incompletos ou inválidos.' : data.consumo_total_kwh === 0 ? ' · Participação indefinida: consumo total zero.' : ''}
             </p>
             {tooltip && detalheTooltip && <div id={tooltipId} role="tooltip" className="dashboard-chart-tooltip dashboard-classes-tooltip" style={{ top: tooltip.top, left: 12 }}>
-              <strong>{nomes[detalheTooltip.classe]}</strong>
+              <strong>{nomesClasse[detalheTooltip.classe]}</strong>
               <p><span>{formatarPeriodo(periodo)}</span><span>{completo(detalheTooltip.consumo_kwh)}</span></p>
               {referencia && <p><span>Referência · {formatarPeriodo(referencia)}</span><span>{completo(detalheTooltip.consumo_referencia_kwh)}</span></p>}
             </div>}

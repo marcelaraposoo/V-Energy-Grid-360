@@ -3,6 +3,7 @@ import { createServer as createHttpServer } from 'node:http'
 import test from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 import react from '@vitejs/plugin-react'
 import { createServer } from 'vite'
 
@@ -88,7 +89,10 @@ test('Dashboard escolhe barras ou linhas conforme os períodos e preserva valore
     assert.match(semReferencia, /Sem dados para comparação/)
     assert.doesNotMatch(semReferencia, /dashboard-chart-current/)
     const { DashboardPage } = await server.ssrLoadModule('/src/features/dashboard/DashboardPage.tsx')
-    const pagina = renderToStaticMarkup(createElement(DashboardPage))
+    const pagina = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(DashboardPage)))
+    // Atalho para investigar a variação com os mesmos períodos, e a data de corte junto aos filtros.
+    assert.match(pagina, /href="\/receita\?atual_inicio=2025-07&amp;atual_fim=2026-06&amp;base_inicio=2022-07&amp;base_fim=2023-06"/)
+    assert.match(pagina, /Dados até 30\/06\/2026/)
     const filtros = pagina.match(/<form\b[^>]*aria-label="Filtros do dashboard"[^>]*>(.*?)<\/form>/)?.[1]
     assert.ok(filtros)
     assert.equal((filtros.match(/class="filter-field dashboard-period-picker"/g) ?? []).length, 2)

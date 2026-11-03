@@ -15,7 +15,7 @@ export function EvolucaoPanel({ estado: { data, loading, error, reload }, period
   const base = data && referencia ? valoresMensais(data, referencia, campo) : null
   const escala = escalaGrafico([...(atual ?? []), ...(base ?? [])])
   const unidade = unidadeDaEscala(receita ? 'R$' : 'kWh', escala.prefixo)
-  return <Panel title={receita ? 'Evolução da receita' : 'Evolução do consumo faturado'}
+  return <Panel title={receita ? 'Evolução da receita' : 'Evolução da energia faturada'}
     description={receita ? `Receita de energia, sem tributos · ${unidade}` : `Energia faturada · ${unidade}`}>
     {loading ? <LoadingState label="Carregando evolução mensal…" />
       : error ? <ErrorState error={error} onRetry={reload} />

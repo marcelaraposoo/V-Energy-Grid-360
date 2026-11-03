@@ -135,3 +135,18 @@ def test_serie_preserva_a8_e_filtros():
     assert all("qtd_ucs_alimentador_mes" in r and "horas_interrompidas" in r for r in serie)
     assert serie_mensal(repo, "AL001", Periodo(inicio="2030-01", fim="2030-12")) == []
     assert repo.indicadores_continuidade("2025-07", "2026-06", alimentador_id="AL001", municipio="Olinda") == []
+
+
+def test_acumulado_usa_indices_da_gold_sem_recalcular_com_horas_arredondadas():
+    linhas = [
+        {"mes_referencia": "2026-01", "qtd_ucs_alimentador_mes": 20,
+         "horas_interrompidas": 0.02, "qtd_interrupcoes": 1, "dec_horas": 0.0008, "fec": 0.05},
+        {"mes_referencia": "2026-02", "qtd_ucs_alimentador_mes": 40,
+         "horas_interrompidas": 0.02, "qtd_interrupcoes": 1, "dec_horas": 0.0004, "fec": 0.025},
+    ]
+    resumo = resumo_periodo(linhas)
+    assert resumo["dec_horas"] == 0.0012
+    assert resumo["fec_vezes"] == 0.075
+    assert resumo["horas_interrompidas"] == 0.04
+    assert resumo["qtd_ucs_alimentador_mes"] == 40
+    assert resumo["competencia_base_ucs"] == "2026-02"

@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from app.core.errors import NaoEncontrado
+from app.repositories.faturamento import FAIXA_ANTIGA, FAIXAS_RECENTES
 from app.schemas import (
     ClassificacaoVariacao,
     ComparacaoMetricaUC,
@@ -104,9 +105,12 @@ def _diagnostico_conta_alta(
         mensagem += " A cobrança aumentou proporcionalmente menos que o consumo."
     else:
         mensagem += " O aumento da cobrança foi acompanhado de aumento do consumo na mesma proporção."
+    trocas = {s["competencia"]: s.get("troca_medidor") for s in serie}
     return DiagnosticoContaAltaUC(
         competencias_disponiveis=competencias,
         competencia_atual=competencia_atual, competencia_referencia=competencia_referencia,
+        troca_medidor_atual=trocas.get(competencia_atual),
+        troca_medidor_referencia=trocas.get(competencia_referencia),
         consumo=consumo, faturamento=faturamento, mensagem=mensagem,
     )
 
@@ -153,12 +157,20 @@ def visao_360(
         if c and periodo_at.periodo_inicio <= a["data"][:7] <= periodo_at.periodo_fim
     ]
     return Visao360(
-        cadastro=uc, consumo=consumo, diagnostico_conta_alta=diag, faturas=faturas[:12],
-        faturas_em_aberto=[f for f in faturas if f["status"] in ("aberta", "atrasada")],
-        medidor=repo.medidor_uc(uc_id), geracao_distribuida=repo.gd_uc(uc_id),
+        cadastro=uc, consumo=consumo, diagnostico_conta_alta=diag, faturas=faturas[:1],
+        resumo_faturas={
+            "pendencias_recentes": sum(f["status"] != "paga" and f["faixa_atraso"] in FAIXAS_RECENTES for f in faturas),
+            "pendencias_antigas": sum(f["status"] != "paga" and f["faixa_atraso"] == FAIXA_ANTIGA for f in faturas),
+        },
+        medidor=repo.medidor_uc(uc_id), trocas_medidor=repo.trocas_medidor_uc(uc_id),
+        geracao_distribuida=repo.gd_uc(uc_id),
         interrupcoes={**periodo_oc.model_dump(), "alimentador_id": uc["alimentador_id"],
                       "qtd_ocorrencias": len(oc), "duracao_total_min": sum(o["duracao_min"] for o in oc),
-                      "dec_horas": continuidade["dec_horas"], "fec_vezes": continuidade["fec_vezes"],
+                      "dec_horas": continuidade["dec_horas"] if mensais else None,
+                      "fec_vezes": continuidade["fec_vezes"] if mensais else None,
+                      "qtd_ucs_alimentador_mes": continuidade["qtd_ucs_alimentador_mes"],
+                      "competencia_base_ucs": continuidade["competencia_base_ucs"],
+                      "horas_interrompidas": continuidade["horas_interrompidas"] if mensais else None,
                       "escopo": "uc",
                       "historico": sorted(oc, key=lambda o: o["data"], reverse=True)},
         periodo_atendimentos=periodo_at,

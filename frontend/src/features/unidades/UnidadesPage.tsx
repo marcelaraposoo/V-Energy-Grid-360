@@ -43,7 +43,6 @@ export function UnidadesPage() {
   return (
     <div className="ucv-page">
       <PageHeader
-        eyebrow="ANÁLISES · ATENDIMENTO"
         title="Visão 360 da UC"
         description="Cadastro, consumo e histórico do cliente em um só lugar."
       />
@@ -54,8 +53,7 @@ export function UnidadesPage() {
         <div>
           <h2>Qual unidade você procura?</h2>
           <p>
-            Informe UC seguido de seis dígitos, conforme o identificador da
-            conta.
+            Informe os seis dígitos da conta, com ou sem o prefixo UC.
           </p>
         </div>
         <UnitSearch key={id ?? 'busca'} />
@@ -82,7 +80,7 @@ export function UnidadesPage() {
           <EmptyState
             icon={CircleAlert}
             title="Identificador inválido"
-            description="O identificador deve conter UC seguido de seis dígitos, como UC100000."
+            description="Informe seis dígitos, com ou sem UC, como 000001 ou UC000001."
           >
             <Link to="/uc" className="button button--secondary">
               Voltar à busca

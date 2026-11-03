@@ -11,6 +11,7 @@ from app.agent.state.cache import (
     validate_cache_timeout,
 )
 from app.agent.state.cache_key import has_data_version
+from app.agent.state.memory import DEFAULT_MEMORY_TTL_SECONDS, DEFAULT_MEMORY_TIMEOUT_SECONDS
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -64,6 +65,12 @@ class Settings:
     cache_timeout_seconds: float = field(
         default_factory=lambda: float(os.getenv("CACHE_TIMEOUT_SECONDS", str(DEFAULT_CACHE_TIMEOUT_SECONDS)))
     )
+    memory_ttl_seconds: int = field(
+        default_factory=lambda: int(os.getenv("MEMORY_TTL_SECONDS", str(DEFAULT_MEMORY_TTL_SECONDS)))
+    )
+    memory_timeout_seconds: float = field(
+        default_factory=lambda: float(os.getenv("MEMORY_TIMEOUT_SECONDS", str(DEFAULT_MEMORY_TIMEOUT_SECONDS)))
+    )
 
     def __post_init__(self) -> None:
         if self.redis_url:
@@ -71,6 +78,8 @@ class Settings:
                 raise ValueError("GOLD_DATA_VERSION é obrigatória com REDIS_URL configurada.")
             validate_cache_ttl(self.cache_ttl_seconds)
             validate_cache_timeout(self.cache_timeout_seconds)
+            validate_cache_ttl(self.memory_ttl_seconds)
+            validate_cache_timeout(self.memory_timeout_seconds)
 
     # Dados
     data_source: str = field(

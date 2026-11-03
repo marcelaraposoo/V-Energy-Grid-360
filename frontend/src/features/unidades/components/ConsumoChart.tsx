@@ -54,13 +54,14 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
   const passo = (largura - esquerda - 16) / consumo.length
   const barra = Math.min(16, passo * 0.3)
   const selecionado = tooltip === null ? undefined : consumo[tooltip.indice]
+  const possuiTroca = consumo.some(c => c.troca_medidor || (mostrarAnterior && c.troca_medidor_ano_anterior))
 
   function mostrarTooltip(indice: number, clientX: number, clientY: number) {
     const container = containerRef.current?.getBoundingClientRect()
     if (!container) return
     const larguraTooltip =
-      tooltipRef.current?.offsetWidth ?? Math.min(200, container.width - 24)
-    const alturaTooltip = tooltipRef.current?.offsetHeight ?? 100
+      tooltipRef.current?.offsetWidth ?? Math.min(260, container.width - 24)
+    const alturaTooltip = tooltipRef.current?.offsetHeight ?? 150
     const cursorX = clientX - container.left
     const cursorY = clientY - container.top
     const x =
@@ -140,7 +141,7 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
                   key={c.competencia}
                   role="button"
                   tabIndex={0}
-                  aria-label={`Consumo de ${formatarMesDoHistorico(c.competencia)}${mostrarAnterior ? ' comparado ao mesmo mês do ano anterior' : ''}`}
+                  aria-label={`Consumo de ${formatarMesDoHistorico(c.competencia)}${c.troca_medidor ? ', troca de medidor neste mês' : ''}${mostrarAnterior ? ` comparado ao mesmo mês do ano anterior${c.troca_medidor_ano_anterior ? ', troca de medidor na referência' : ''}` : ''}`}
                   aria-describedby={
                     tooltip?.indice === i ? tooltipId : undefined
                   }
@@ -195,6 +196,7 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
                   />
                   <text x={x} y={altura - 16} textAnchor="middle">
                     {formatarMesDoHistorico(c.competencia)}
+                    {c.troca_medidor || (mostrarAnterior && c.troca_medidor_ano_anterior) ? ' *' : ''}
                   </text>
                 </g>
               )
@@ -209,12 +211,14 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
             className="ucv-chart-tooltip"
             style={{ left: tooltip.x, top: tooltip.y }}
           >
+            <span className="ucv-chart-tooltip-label">Consumo faturado</span>
             {mostrarAnterior && (
               <p>
                 <span>
                   {formatarMesDoHistorico(
                     `${Number(selecionado.competencia.slice(0, 4)) - 1}${selecionado.competencia.slice(4)}`,
                   )}
+                  {selecionado.troca_medidor_ano_anterior ? ' *' : ''}
                 </span>
                 <span>
                   {selecionado.consumo_kwh_ano_anterior === null
@@ -224,9 +228,12 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
               </p>
             )}
             <p className="ucv-chart-tooltip-current">
-              <span>{formatarMesDoHistorico(selecionado.competencia)}</span>
+              <span>{formatarMesDoHistorico(selecionado.competencia)}{selecionado.troca_medidor ? ' *' : ''}</span>
               <strong>{formatarNumero(selecionado.consumo_kwh)} kWh</strong>
             </p>
+            {(selecionado.troca_medidor || (mostrarAnterior && selecionado.troca_medidor_ano_anterior)) && (
+              <p className="ucv-chart-tooltip-note">* Troca de medidor. O consumo desse mês usa a leitura atual do medidor novo.</p>
+            )}
           </div>
         )}
       </div>
@@ -241,6 +248,7 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
           <i className="ucv-legend-dot ucv-legend-dot--accent" />
           Atual
         </span>
+        {possuiTroca && <span>* Troca de medidor</span>}
       </div>
     </>
   )

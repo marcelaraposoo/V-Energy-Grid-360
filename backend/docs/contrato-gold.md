@@ -1,73 +1,109 @@
-# O que o portal precisa da camada Gold (requisitos do backend)
+# Mapeamento da Gold v4 para o backend
 
-> **Fonte de verdade:** `docs/gold_contract.md`, mantido pela frente de Dados (ver `AGENTS.md` na `main`).
-> Este arquivo é o outro lado do contrato: lista o que o backend (Dev) e o agente (IA) **consomem**, para a
-> frente de Dados conferir se o modelo atende. Em caso de divergência, vale o contrato da Gold, e este arquivo
-> deve ser atualizado.
+A fonte principal é o contrato consolidado da **Gold v4**, fornecido pela frente de Dados.
+Este documento registra como o backend consome essa fonte; não redefine o
+contrato. Em caso de divergência, prevalece o contrato consolidado.
 
-Os nomes de coluna abaixo são **lógicos** (os que o backend usa hoje no mock). A Gold segue modelo dimensional
-(`dim_*` com chave substituta `*_sk` e `fato_*`), então o `sqlite_repo.py` vai precisar mapear estes nomes
-para os reais ou fazer os joins.
+O adaptador [SQLite](../app/repositories/sqlite_repo.py) lê a Gold sem alterações no banco.
+A chave da UC é `id_uc`; o mapeamento não pressupõe chaves substitutas `*_sk`.
+Os modelos expostos ao frontend estão em [schemas.py](../app/schemas.py).
 
-## 1. O que o portal consome
+## Fontes e consumidores implementados
 
-| Necessidade | Grão pedido | Colunas lógicas | Usada em |
-|---|---|---|---|
-| Faturamento | UC x competência | uc_id, competencia (`YYYY-MM`), consumo_kwh, valor, bandeira, vencimento, status (paga/aberta/atrasada) | dashboard, receita, visão 360 |
-| **Receita agregada para o portal** | competência x município x bairro x classe | consumo_kwh, receita, n_ucs | dashboard, receita (preço x volume, drill-down) |
-| Cadastro da UC | UC | uc_id, titular (**mascarado**), classe, município, bairro, alimentador_id, status, data_ligacao | busca, visão 360, filtros |
-| Medidor | UC | medidor_id, tipo, data_instalacao, status | visão 360 |
-| Geração distribuída | UC | potencia_kwp, data_conexao | visão 360, fila de perdas |
-| Ocorrências de rede | alimentador x ocorrência | alimentador_id, município, data, competencia, ucs_afetadas, duracao_h, causa | DEC/FEC, visão 360 |
-| DEC/FEC | alimentador x competência | dec, fec, ucs_total do alimentador | continuidade |
-| Atendimentos | UC x chamado | protocolo, data, canal, assunto, status, nota_satisfacao | visão 360 |
-| Suspeitas de perdas | UC | motivos, probabilidade (ou score), energia_recuperavel_kwh_mes | fila de inspeção |
-| Inspeções | UC x inspeção | resultado (normalizado), tipo_irregularidade, kwh_recuperado, inspetor, data | registrar resultado, base da fila |
-
-## 2. Por que pedir uma tabela agregada de receita
-
-O faturamento real tem cerca de 2,18 milhões de linhas. Hoje o backend soma as faturas em Python sobre dados
-de mentira (poucos milhares de linhas); com a base real isso fica lento e pesado. A tela de variação de receita
-(efeito preço x volume, por município, bairro e classe) precisa de uma **tabela agregada** (o `AGENTS.md` já prevê
-"tabelas agregadas adicionais para o portal") ou de consultas `GROUP BY` no SQLite. Em qualquer caso, o
-`repositories/base.py` vai passar a expor métodos que devolvem agregados prontos, em vez de listas de faturas.
-
-## 3. Pontos de atenção vindos do log de qualidade
-
-Baseado em `docs/data_quality_log.md` (itens ainda em investigação podem mudar):
-
-- **LGPD:** `cpf_cnpj` e `nome_titular` são dados pessoais e devem ser **mascarados na Gold e no portal**. O mock
-  hoje usa nomes fictícios completos, e o backend não pode expor o dado real sem máscara.
-- **Medidor sem última manutenção:** `data_ultima_manutencao` é 100% vazia na origem. O portal e o agente não devem
-  contar com esse campo (o mock já foi ajustado). Para avaliar o medidor, usar a idade calculada de `data_instalacao`.
-- **UCs x medidores:** a origem tem 45.445 medidores ativos para 46.461 UCs. A visão 360 precisa aceitar UC **sem**
-  medidor ativo e, se houver, UC com mais de um (hoje o contrato devolve um único medidor).
-- **Inspeções:** `resultado`, `tipo_irregularidade` e `kwh_recuperado` têm grafias e formatos misturados. Os valores
-  de `tipo` que o backend aceita ao registrar resultado (`fraude`, `ligacao_clandestina`, `erro_leitura`,
-  `erro_cadastro`, `nenhuma`) são **provisórios** e devem ser trocados pelo domínio que a Silver definir.
-
-## 4. Perguntas para a frente de Dados
-
-1. `competencia` sairá como texto `YYYY-MM`?
-2. O faturamento terá município, bairro e classe já desnormalizados, ou o backend faz o join com as dimensões?
-3. Haverá tabela agregada de receita por competência x município x bairro x classe?
-4. Quem calcula DEC/FEC (Gold ou backend)? Quem calcula o score de suspeita de perdas?
-5. Como será o mascaramento de `titular` e de documento?
-6. Qual o nome e o local do arquivo SQLite gerado pelo `04_export_banco_local` (o backend espera `data/gold.db`)?
-
-`ordens_inspecao` é do portal (não da Gold): fica em `data/portal.db`, criada sozinha no startup. É um arquivo separado do `gold.db`, para a exportação da Gold não sobrescrevê-la.
-
-## 5. Mapeamento `dim_uc` → nomes lógicos do portal (implementado em `sqlite_repo.py`)
-
-| Portal (mock) | `dim_uc` | Observação |
+| Tabela Gold | Grão / finalidade | Consumo no portal |
 |---|---|---|
-| `uc_id` | `id_uc` | busca ignora caixa; chave comum às fatos |
-| `titular` | `nome_titular_mascarado` | só mascarado (LGPD); a busca por nome acha só o primeiro nome e as iniciais |
-| `classe` | `classe` | valores reais: `RESIDENCIAL`, `RURAL`, `COMERCIAL`, `PODER PUBLICO`, `INDUSTRIAL` (o mock usa `B1`, `B2`...) |
-| `alimentador_id` | `alimentador` | `ucs_total` = contagem de UCs do alimentador; se atender mais de um município, vale o de mais UCs |
-| `medidor` | `id_medidor_ativo`, `tipo_medidor_ativo`, `modelo_medidor_ativo`, `data_instalacao_medidor`, `idade_medidor_anos`, `medidor_trocado_recentemente` | `None` se a UC não tem medidor ativo |
-| `geracao_distribuida` | `possui_gd`, `potencia_gd_kwp`, `data_conexao_gd`, `modalidade_gd`, `energia_injetada_media_kwh`, `energia_injetada_atipica` | `modalidade` substitui o `fonte` do mock; com `atipica = true` a energia injetada não é medida real (log G5) |
-| `competencias` | `primeiro_mes_leitura`, `ultimo_mes_leitura` | provisório: período coberto pelas leituras, até a fato de faturamento chegar |
-| (novo) tendência | `consumo_medio_12m_kwh`, `variacao_consumo_12m_pct` | já vão no cadastro da UC |
+| A1 `dim_uc` | Uma UC | Cadastro, busca, catálogos, medidor ativo e GD da Visão 360 |
+| A2 `fato_consumo_faturamento` | UC × competência | Consumo e faturas da Visão 360, paginação e diagnóstico de conta alta |
+| A3 `fato_segmento_mensal` | Competência × município × bairro × classe | KPIs e série com filtros regionais; faturamento em aberto e consumo por classe na visão geral |
+| A5 `kpis_mensal` | Uma competência | KPIs e série da visão geral; posição final de UCs cadastradas, faturadas e com GD |
+| A6 `fato_troca_medidor` | Evento de troca | Histórico de trocas da UC |
+| A7 `fato_interrupcao` | Evento de interrupção | Ocorrências e contexto da UC/alimentador |
+| A8 `dec_fec_alimentador_mensal` | Alimentador × competência | Indicadores de continuidade; KPIs padrão de DEC/FEC |
+| B1 `fato_atendimento` | Atendimento | Histórico e detalhes de atendimentos da UC |
+| B2 `fila_inspecao` | UC priorizada | Fila de inspeção e motivos de suspeita |
 
-Pendente de tabela (o repositório devolve 501): faturas, consumo e atendimentos da UC, ocorrências/DEC-FEC e fila de suspeitas.
+A leitura dessas fontes está implementada, mas depende das tabelas e colunas necessárias
+na exportação configurada. A Análise da Receita calcula a decomposição preço × volume pela A3
+`fato_segmento_mensal`, para qualquer par de períodos de mesma duração e sem sobreposição. O fator
+GD compara as mesmas UCs nos dois períodos (as que têm GD no fim do período atual, regra da A4) e,
+por isso, vem da A2 `fato_consumo_faturamento`, que tem o grão por UC; sem a A2 exportada, os dois
+volumes de GD voltam nulos e o restante da tela funciona. A A4 `receita_decomposicao` não é lida
+pela tela. A consulta global `faturas(...)` continua devolvendo 501 no adaptador SQLite e não é
+mais usada pela Receita. `tests/manual/validar_receita_gold.py` confere a A3 contra a A2 e os
+números do diagnóstico no `gold.db` real.
+
+## Dashboard Executivo
+
+O Dashboard já consulta a API para todos os seus cards e gráficos. A interface mantém somente
+filtros temporais; filtros por município, bairro e classe continuam disponíveis nos endpoints
+que os suportam e nas demais funcionalidades. As rotas e respostas estão detalhadas no
+[README do backend](../README.md#períodos-e-kpis-do-dashboard).
+
+| Indicador | Fonte / regra |
+|---|---|
+| Receita de energia | Soma de `receita_energia`, sem tributos, nas competências selecionadas |
+| Consumo faturado | Soma do consumo mensal nas competências selecionadas |
+| Preço médio por kWh | Soma da receita de energia / soma do consumo, sem média simples de taxas |
+| UCs faturadas | Posição da última competência; preservada na API, mesmo sem card na tela |
+| Faturamento em aberto | A3: `SUM(valor_em_aberto) / SUM(receita_total) * 100` |
+| UCs cadastradas e GD | A5: `qtd_ucs_cadastradas` e `qtd_ucs_com_gd` da última competência |
+| Consumo por classe | A3: soma de `consumo_kwh` por classe em cada intervalo |
+
+Na visão geral, os três primeiros indicadores e UCs faturadas usam a A5; nas consultas com
+filtros regionais, usam a A3 agregada por competência. A seleção `indicador=executivo` evita
+dependência da A8 e preserva UCs faturadas na resposta.
+
+O consolidado de faturamento em aberto é uma regra derivada da API para o intervalo solicitado,
+aplicando a definição monetária da Gold, não uma nova coluna da A5. Soma os segmentos antes
+da divisão e usa `receita_total`, incluindo tributos, como denominador. Considera todas as
+faturas ainda em aberto na data de corte **30/06/2026**, inclusive não vencidas, preservando
+a competência original. Não usa `dias_atraso` de faturas pagas. A diferença entre taxas é
+em pontos percentuais; a taxa da última competência é apresentada separadamente, sem segunda variação.
+
+Os gráficos de evolução usam valores mensais, sem acumulação progressiva. Contagens de UCs
+não são somadas entre competências. A participação de GD é `qtd_ucs_com_gd / qtd_ucs_cadastradas * 100`.
+
+### Completude e agregação
+
+- As competências são mensais (`YYYY-MM`), de jul/2022 a jun/2026 na base do case.
+  A duração dos intervalos é inclusiva, sem contagem por dias.
+- Competências ausentes não são substituídas por outros meses nem preenchidas com zero.
+  Um consolidado incompleto fica indisponível; a última competência pode continuar válida.
+- Na A3, existem apenas as combinações presentes na base. Por decisão de implementação,
+  uma classe sem registro em algum mês selecionado tem seu consolidado indisponível,
+  pois a ausência sozinha não distingue consumo zero de dados faltantes. Um total incompleto
+  também impede calcular as participações das classes.
+- Zeros registrados são preservados. Denominador zero ou inválido não produz percentual;
+  referência zero ou ausente não produz variação percentual relativa.
+- Duplicações no grão da agregada são reportadas em vez de somadas duas vezes.
+  Município e bairro compõem o recorte; bairro isolado não deve identificar um segmento.
+
+## Mapeamento do cadastro
+
+| Portal | `dim_uc` | Observação |
+|---|---|---|
+| `uc_id` | `id_uc` | Chave comum às fatos; busca ignora caixa |
+| `titular` | `nome_titular_mascarado` | Expor somente o nome mascarado |
+| `classe` | `classe` | RESIDENCIAL, COMERCIAL, INDUSTRIAL, PODER PUBLICO ou RURAL |
+| `subgrupo_tarifario` | `subgrupo_tarifario` | Campo separado de classe: B1, B2, B3 ou A4 |
+| `alimentador_id` | `alimentador` | Cadastro do alimentador derivado das UCs; município principal pelo maior número de UCs |
+| `possui_gd` | `possui_gd` | Situação cadastral da UC |
+| `medidor` | Campos do medidor ativo | Ausente quando a UC não possui medidor ativo |
+| `geracao_distribuida` | Campos de GD da UC | Potência, conexão, modalidade e energia injetada; preservar a sinalização de energia atípica |
+
+As quantidades mensais de GD do Dashboard vêm da A5, respeitando a competência de conexão;
+não são reconstruídas a partir da posição cadastral atual da A1.
+
+## Limites e validação pendente
+
+- `DATA_SOURCE=mock` usa dados fictícios determinísticos; `DATA_SOURCE=sqlite` abre a
+  exportação indicada por `SQLITE_PATH`, somente para leitura.
+- Tabela ou coluna necessária ausente resulta em 501, com identificação no `detail`.
+  Um registro mensal ausente em tabela existente é tratado como indisponibilidade do dado.
+- Na fila, `score / 100` é adaptado ao campo `probabilidade` do portal; é uma escala de
+  prioridade, não uma probabilidade estatística calibrada.
+- `ordens_inspecao` pertence ao portal e fica no banco separado `data/portal.db`
+  (configurável por `PORTAL_DB_PATH`). A exportação da Gold não armazena nem sobrescreve essas ordens.
+- Os testes com mocks e SQLite sintético verificam os adaptadores e a API, mas não substituem
+  a **homologação da exportação oficial**, que continua pendente. Divergências entre A3 e A5
+  devem ser investigadas na fonte, sem correções silenciosas de valores no portal.

@@ -1,5 +1,8 @@
 // Dados fictícios exclusivos da apresentação do layout. Não representam uma consulta à Gold.
 // Receita sem tributos e consumo em R$ e kWh, respectivamente.
+import type { Periodo } from '../../api/types'
+import { deslocarMes, quantidadeMeses } from '../../utils/periodosDashboard'
+
 export const dashboardMock = {
   inicioBase: '2022-07',
   meses: [
@@ -42,19 +45,19 @@ export const dashboardMock = {
     ucsFaturadas: 44_820,
     ucsFaturadasReferencia: 43_940,
     ucsCadastradas: 45_000,
-    inadimplencia: 7.8,
-    faturasEmAberto: 3_480,
     ucsGd: 3_420,
     atendimentos: 84_300,
     satisfacao: 4.1,
   },
 }
 
-export const locaisMock = [
-  { municipio: 'Recife', bairros: ['Boa Viagem', 'Casa Amarela', 'Várzea'] },
-  { municipio: 'Olinda', bairros: ['Bairro Novo', 'Casa Caiada', 'Rio Doce'] },
-  {
-    municipio: 'Jaboatão dos Guararapes',
-    bairros: ['Candeias', 'Piedade', 'Prazeres'],
-  },
-]
+// Recorta somente os valores fictícios já existentes; não inventa os meses anteriores.
+export function dadosPeriodoMock(periodo: Periodo) {
+  const meses = new Map<string, { receita: number; consumo: number }>()
+  for (const serie of [dashboardMock.referencia, dashboardMock.atual]) {
+    serie.receita.forEach((receita, i) => meses.set(deslocarMes(serie.inicio, i), { receita, consumo: serie.consumo[i] }))
+  }
+  const selecionados = Array.from({ length: quantidadeMeses(periodo) }, (_, i) => meses.get(deslocarMes(periodo.inicio, i)))
+  if (selecionados.some((m) => !m)) return null
+  return { receita: selecionados.map((m) => m!.receita), consumo: selecionados.map((m) => m!.consumo) }
+}

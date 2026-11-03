@@ -1,0 +1,19 @@
+[
+  {"nome":"mês com ano anterior","atual":{"inicio":"2026-05","fim":"2026-05"},"base":{"inicio":"2025-05","fim":"2025-05"},"valido":true},
+  {"nome":"meses diferentes e virada de ano","atual":{"inicio":"2024-12","fim":"2025-03"},"base":{"inicio":"2025-06","fim":"2025-09"},"valido":true},
+  {"nome":"durações diferentes","atual":{"inicio":"2026-01","fim":"2026-06"},"base":{"inicio":"2026-03","fim":"2026-06"},"valido":false},
+  {"nome":"período versus mês","atual":{"inicio":"2025-01","fim":"2025-12"},"base":{"inicio":"2026-01","fim":"2026-01"},"valido":false},
+  {"nome":"mês versus período","atual":{"inicio":"2026-01","fim":"2026-01"},"base":{"inicio":"2025-01","fim":"2025-12"},"valido":false},
+  {"nome":"30 meses comparados","atual":{"inicio":"2022-07","fim":"2024-12"},"base":{"inicio":"2024-01","fim":"2026-06"},"valido":false},
+  {"nome":"24 meses sem comparação","atual":{"inicio":"2024-07","fim":"2026-06"},"base":null,"valido":true},
+  {"nome":"25 meses sem comparação","atual":{"inicio":"2024-06","fim":"2026-06"},"base":null,"valido":false},
+  {"nome":"13 meses comparados","atual":{"inicio":"2025-06","fim":"2026-06"},"base":{"inicio":"2023-06","fim":"2024-06"},"valido":false},
+  {"nome":"sobreposição com mesma duração","atual":{"inicio":"2026-01","fim":"2026-04"},"base":{"inicio":"2025-12","fim":"2026-03"},"valido":false},
+  {"nome":"intervalos adjacentes","atual":{"inicio":"2026-01","fim":"2026-04"},"base":{"inicio":"2025-09","fim":"2025-12"},"valido":true},
+  {"nome":"início fora da base","atual":{"inicio":"2022-06","fim":"2022-07"},"base":null,"valido":false},
+  {"nome":"fim fora da base","atual":{"inicio":"2026-06","fim":"2026-07"},"base":null,"valido":false},
+  {"nome":"intervalo invertido","atual":{"inicio":"2026-02","fim":"2026-01"},"base":null,"valido":false},
+  {"nome":"mês inválido","atual":{"inicio":"2026-13","fim":"2026-13"},"base":null,"valido":false},
+  {"nome":"um mês sem comparação","atual":{"inicio":"2022-07","fim":"2022-07"},"base":null,"valido":true},
+  {"nome":"12 meses comparados","atual":{"inicio":"2025-07","fim":"2026-06"},"base":{"inicio":"2022-07","fim":"2023-06"},"valido":true}
+]

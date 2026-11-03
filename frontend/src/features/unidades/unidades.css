@@ -118,6 +118,13 @@
   align-items: center;
   gap: 10px;
 }
+.ucv-summary .info-tip,
+.ucv-conta-alta header .info-tip {
+  margin-left: auto;
+}
+.ucv-conta-alta header .info-tip-botao svg {
+  color: currentColor;
+}
 .ucv-summary svg {
   color: var(--text-muted);
 }
@@ -239,16 +246,30 @@
 }
 .ucv-chart-tooltip {
   position: absolute;
-  width: 200px;
+  width: 260px;
   max-width: calc(100% - 24px);
-  padding: 12px;
+  padding: 14px 16px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-elevated);
+  border-radius: 10px;
+  background: var(--surface);
   color: var(--text-primary);
   font-size: 12px;
-  box-shadow: var(--shadow-tooltip);
+  box-shadow: var(--shadow-popover);
+  line-height: 1.6;
   pointer-events: none;
+}
+.ucv-chart-tooltip-label {
+  display: block;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+.ucv-chart-tooltip strong {
+  font-size: 14px;
+  font-weight: 600;
 }
 .ucv-chart-tooltip p {
   display: flex;
@@ -260,6 +281,12 @@
 }
 .ucv-chart-tooltip .ucv-chart-tooltip-current {
   color: var(--accent);
+}
+.ucv-chart-tooltip .ucv-chart-tooltip-note {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
 }
 .ucv-chart-legend {
   display: flex;
@@ -438,10 +465,25 @@
   overflow-x: auto;
 }
 .ucv-interrupcoes,
-.ucv-atendimentos,
+.ucv-medidores,
 .ucv-history-results {
   display: grid;
   gap: 20px;
+}
+.ucv-medidor-detail {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.ucv-troca-note {
+  padding: 16px 22px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.ucv-diagnostic-result > .ucv-troca-note {
+  padding: 12px 0;
 }
 .ucv-history-filter {
   display: flex;
@@ -526,14 +568,104 @@
 .ucv-atendimento[data-status='Fechado' i] {
   color: var(--success);
 }
-.ucv-atendimento[data-status='Em aberto' i] {
+.ucv-atendimento[data-status='Aberto' i] {
   color: var(--accent);
 }
-.ucv-atendimento-detail {
-  display: block;
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 11px;
+:root[data-theme='light'] .ucv-page .badge {
+  background: color-mix(in srgb, currentColor 18%, var(--surface));
+  border-color: color-mix(in srgb, currentColor 45%, var(--surface));
+}
+:root[data-theme='light'] .ucv-page .badge.ucv-fatura--aberta,
+:root[data-theme='light'] .ucv-page .ucv-atendimento[data-status='Aberto' i] {
+  background: #fff1b8;
+  border-color: #d8c069;
+}
+.ucv-atendimentos-filtros {
+  padding: 16px 22px 0;
+}
+.ucv-atendimentos-descricao {
+  padding: 12px 22px 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.ucv-faturas-resumo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 20px 22px;
+}
+.ucv-faturas-resumo > div {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.ucv-faturas-resumo span,
+.ucv-faturas-resumo small,
+.ucv-faturas-descricao {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.ucv-faturas-resumo strong {
+  font-size: 24px;
+  font-weight: 600;
+}
+.ucv-faturas-tabs {
+  margin-inline: 22px;
+}
+.ucv-faturas-descricao {
+  padding: 16px 22px;
+}
+.ucv-faturas-resultados {
+  min-height: 180px;
+}
+.ucv-faturas-resultados[aria-busy='true'] {
+  opacity: 0.6;
+}
+.ucv-fatura-link,
+.ucv-atendimento-link {
+  padding: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ucv-fatura-link:hover,
+.ucv-atendimento-link:hover {
+  color: var(--accent);
+}
+.ucv-fatura-dialog-content,
+.ucv-atendimento-dialog-content {
+  display: grid;
+  gap: 20px;
+  padding: 22px;
+}
+.ucv-fatura-dialog-content > header,
+.ucv-atendimento-dialog-content > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ucv-fatura-dialog-content > .badge,
+.ucv-atendimento-dialog-content > .badge {
+  justify-self: start;
+}
+.ucv-fatura-dialog .ucv-fields,
+.ucv-atendimento-dialog .ucv-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0;
+}
+
+@media (max-width: 479px) {
+  .ucv-faturas-resumo {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 1279px) {

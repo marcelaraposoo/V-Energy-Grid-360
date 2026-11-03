@@ -2,37 +2,27 @@
 
 Este documento descreve o recorte do schema físico Gold utilizado pelo agente para geração de SQL, com semântica do dicionário oficial da Gold.
 
-Utilize exclusivamente as tabelas, colunas, relacionamentos e definições descritos abaixo.
-
-Não invente tabelas, colunas, métricas ou relacionamentos ausentes deste contexto.
+Use exclusivamente as tabelas, colunas e relacionamentos descritos abaixo; não invente nenhum.
 
 ## Banco
 
-- Dialeto SQL: SQLite
-- Nomes de tabelas e colunas: `snake_case`
-- `mes_referencia`: texto no formato `yyyy-MM`
-- Datas seguem os campos explicitamente definidos em cada tabela
-- No SQLite, datas e timestamps são `TEXT`, booleanos são `INTEGER` (0/1) e decimais são `REAL`.
-- A janela de competências disponível neste snapshot é `2022-07` a `2026-06`; não use a data atual como fim automático da base.
+- Dialeto SQL: SQLite. `mes_referencia` é texto `yyyy-MM`.
+- Datas e timestamps são `TEXT`, booleanos `INTEGER` (0/1), decimais `REAL`.
+- Janela de competências: `2022-07` a `2026-06`; não use a data atual como fim da base.
 
 ### Datas e timestamps
 
 Datas usam `yyyy-MM-dd`; timestamps locais, sem fuso, usam `yyyy-MM-dd HH:mm:ss`.
+Competência (`mes_referencia`) não é emissão, vencimento nem pagamento.
 Para um mês de timestamps, prefira intervalo semiaberto:
 `campo >= '2026-06-01 00:00:00' AND campo < '2026-07-01 00:00:00'`.
 Evite `campo <= '2026-06-30'`, que excluiria registros com horário nesse dia.
-Competência (`mes_referencia`) não é emissão, vencimento nem pagamento.
-Uma data de pagamento pode ser posterior à última competência; faturamento não é automaticamente caixa/arrecadação.
 
 ## Regras semânticas importantes
 
 ### Bairro
 
-O mesmo nome de bairro pode existir em municípios diferentes.
-
-Quando uma pergunta envolver um bairro específico, utilize `municipio` junto com `bairro` sempre que o município estiver disponível no contexto da pergunta.
-
-Não trate `bairro` isoladamente como identificador global.
+O mesmo bairro pode existir em municípios diferentes: use `municipio` junto com `bairro` quando o município estiver disponível. Não trate `bairro` como identificador global.
 
 ### Classe de consumo
 

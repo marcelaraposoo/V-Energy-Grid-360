@@ -1,3 +1,5 @@
+export const situacoesFatura = { paga: 'Paga', aberta: 'Em aberto', atrasada: 'Atrasada' }
+
 const numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 })
 const moeda = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -44,14 +46,17 @@ export function formatarCompetencia(valor: string): string {
   return `${mes}/${ano}`
 }
 
+// A Gold pode chegar ao SQLite como ISO ('2025-07-01T14:30:00') ou com espaço ('2025-07-01 14:30:00').
+const SEPARADOR_DATA_HORA = /[T ]/
+
 export function formatarData(valor: string | null | undefined): string {
   if (!valor) return 'Não disponível'
-  const [ano, mes, dia] = valor.split('T')[0].split('-')
+  const [ano, mes, dia] = valor.split(SEPARADOR_DATA_HORA)[0].split('-')
   return dia ? `${dia}/${mes}/${ano}` : formatarCompetencia(valor)
 }
 
 export function formatarDataHora(valor: string | null): string {
   if (!valor) return 'Não disponível'
-  const horario = valor.split('T')[1]?.slice(0, 5)
+  const horario = valor.split(SEPARADOR_DATA_HORA)[1]?.slice(0, 5)
   return `${formatarData(valor)}${horario ? ` às ${horario}` : ''}`
 }

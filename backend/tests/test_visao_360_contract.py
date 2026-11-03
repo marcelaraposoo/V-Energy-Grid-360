@@ -26,6 +26,7 @@ def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
         resposta = visao_360(repo, uc_id).model_dump(mode="json")
         assert resposta["cadastro"] | repo.uc(uc_id) == resposta["cadastro"]
         assert resposta["medidor"] == repo.medidor_uc(uc_id)
+        assert resposta["trocas_medidor"] == repo.trocas_medidor_uc(uc_id)
         assert resposta["geracao_distribuida"] == repo.gd_uc(uc_id)
         if uc["possui_gd"]:
             assert resposta["geracao_distribuida"]["modalidade"] == uc["modalidade_gd"]
@@ -41,7 +42,12 @@ def test_contrato_preserva_campos_do_mock_em_todas_as_ucs(repo):
         assert interrupcoes["historico"] == sorted(originais, key=lambda o: o["data"], reverse=True)
 
         por_competencia = {f["competencia"]: f for f in repo.faturas_uc(uc_id)}
-        for fatura in resposta["faturas"] + resposta["faturas_em_aberto"]:
+        assert len(resposta["faturas"]) <= 1
+        assert "faturas_em_aberto" not in resposta
+        resumo = resposta["resumo_faturas"]
+        abertas = [f for f in por_competencia.values() if f["status"] != "paga"]
+        assert resumo["pendencias_recentes"] + resumo["pendencias_antigas"] == len(abertas)
+        for fatura in resposta["faturas"]:
             original = por_competencia[fatura["competencia"]]
             assert fatura | original == fatura
 
@@ -71,8 +77,9 @@ def test_contrato_aceita_historico_insuficiente_e_blocos_sem_registros(resposta)
     resposta.update(
         consumo=[],
         faturas=[],
-        faturas_em_aberto=[],
+        resumo_faturas={"pendencias_recentes": 0, "pendencias_antigas": 0},
         medidor=None,
+        trocas_medidor=[],
         geracao_distribuida=None,
         atendimentos=[],
     )
@@ -90,6 +97,7 @@ def test_contrato_aceita_historico_insuficiente_e_blocos_sem_registros(resposta)
     resposta["interrupcoes"].update(
         escopo="uc", historico=[], qtd_ocorrencias=0, duracao_total_min=0, dec_horas=None, fec_vezes=None,
         periodo_inicio=None, periodo_fim=None,
+        qtd_ucs_alimentador_mes=None, competencia_base_ucs=None, horas_interrompidas=None,
     )
     contrato = Visao360.model_validate(resposta)
     assert contrato.model_dump(mode="json") == resposta

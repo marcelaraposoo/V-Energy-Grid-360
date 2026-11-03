@@ -15,9 +15,11 @@ type Resultado<T> = { chave: string; tentativa: number; data: T | null; error: E
 // - Chama ao montar e sempre que `deps` mudar (use valores simples: ids, textos, números).
 // - Cancela a chamada anterior e ignora respostas atrasadas.
 // - `reload()` tenta de novo; durante o reload os dados anteriores continuam disponíveis.
+// - `manterDadosAnteriores` preserva a última resposta enquanto outra consulta carrega.
 export function useApi<T>(
   carregar: (signal: AbortSignal) => Promise<T>,
   deps: readonly unknown[],
+  { manterDadosAnteriores = false }: { manterDadosAnteriores?: boolean } = {},
 ): ApiState<T> {
   const chave = JSON.stringify(deps)
   const [tentativa, setTentativa] = useState(0)
@@ -50,7 +52,7 @@ export function useApi<T>(
   const reload = useCallback(() => setTentativa((n) => n + 1), [])
 
   return {
-    data: mesmaChave ? resultado.data : null,
+data: mesmaChave || manterDadosAnteriores ? resultado?.data ?? null : null,
     error: respondeu ? resultado.error : null,
     loading: !respondeu,
     reload,

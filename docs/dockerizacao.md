@@ -6,7 +6,8 @@ A aplicação usa **três containers**: `frontend`, `backend` e `redis`, definid
 no `compose.yaml` da raiz. O navegador acessa o frontend/Nginx; chamadas a
 `/api/...` seguem pelo proxy até o backend/FastAPI, que acessa dois bancos SQLite
 independentes: a Gold analítica somente leitura e o portal operacional com escrita.
-Redis é o cache opcional de respostas finais da C2, acessado pela rede Docker.
+Redis mantém o cache opcional de respostas finais da C2 e a memória curta de
+sessão da C7, acessados pela rede Docker. Auditoria C7 fica no portal.db.
 
 Essa organização mantém interface e API na mesma origem para o navegador,
 centraliza o acesso aos dados no backend e separa dados analíticos publicados
@@ -23,7 +24,7 @@ do backend: GET falha como MISS e SET falha sem descartar resposta aprovada.
 |---|---|
 | `frontend` | O build em Node executa `npm ci` e compila o React com Vite. A imagem final usa Nginx para servir os arquivos estáticos, aplicar o fallback da SPA e encaminhar `/api/...` ao backend. O Node não permanece como servidor em execução. |
 | `backend` | Executa FastAPI com Uvicorn na porta interna 8000, acessa a Gold, mantém o banco operacional e incorpora os componentes e prompts da IA. |
-| `redis` | Cache efêmero da C2 na porta interna 6379; healthcheck com `redis-cli ping`, sem porta publicada no host. |
+| `redis` | Cache C2 e memória curta C7 na porta interna 6379; healthcheck com `redis-cli ping`, sem porta publicada no host. |
 
 O fallback da SPA permite abrir diretamente uma rota como `/uc`: quando não há
 arquivo estático correspondente, o Nginx entrega `index.html` e o React resolve
@@ -79,6 +80,8 @@ PORTAL_DB_PATH=/data/portal/portal.db
 REDIS_URL=redis://redis:6379/0
 CACHE_TTL_SECONDS=300
 CACHE_TIMEOUT_SECONDS=1
+MEMORY_TTL_SECONDS=86400
+MEMORY_TIMEOUT_SECONDS=1
 ```
 
 `GOLD_DATA_VERSION` deve ser fornecida explicitamente e identificar o snapshot
@@ -86,9 +89,14 @@ montado. Com cache habilitado, versão ausente/em branco impede a inicializaçã
 do backend. Não se calcula hash do banco por requisição nem versão por mtime.
 Fora do Compose, omitir `REDIS_URL` desabilita o cache.
 
-Redis não preserva respostas após recriação: RDB/AOF ficam desabilitados e
+Redis não preserva cache/memória após recriação: RDB/AOF ficam desabilitados e
 `/data` usa tmpfs, substituindo o volume implícito da imagem. Nenhum volume
 Redis é adicionado; `portal_data` continua sendo o único volume persistente.
+Auditoria é gravada na tabela `agent_audit` desse portal.db, sem tocar a Gold.
+`MEMORY_TTL_SECONDS` renova a validade da sessão a cada append; o timeout de
+memória é finito. Falha de leitura causa UNAVAILABLE e bypass de cache, e a
+resposta continua. A C7 e seus testes reais estão em
+[C7-finalizacao.md](../backend/app/agent/docs/C7-finalizacao.md).
 
 ## 5. Pré-requisitos e preparação
 
@@ -307,8 +315,8 @@ Estas são pendências da aplicação, não falhas da Dockerização:
 - A rota de perguntas usa o pipeline do agente com cache C2, mas o Compose não
   injeta credenciais de providers. A validação C2 foi controlada e não comprova
   chamadas a LLMs autenticados.
-- Cache Redis está integrado à C2; memória Redis, auditoria persistente e
-  Logfire permanecem fora desta etapa.
+- Cache C2, memória curta Redis e auditoria SQLite C7 estão integrados.
+  Logfire permanece fora desta etapa.
 
 Limites do ambiente Docker atual: acesso local por HTTP em loopback, usuário
 padrão da imagem backend e dependências Python/tags base não totalmente fixadas.

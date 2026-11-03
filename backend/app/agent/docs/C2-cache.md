@@ -19,16 +19,17 @@ Pergunta → C1 → pergunta normalizada
                → prepare_request_state (contexto + chave original + GET)
                   ├─ HIT → entrega PostProcessingResult, sem novo SET
                   └─ MISS/falha → C4.1 → C4.2 → C4.3 → C4.4 → C5 → C6
-                                  → SET se elegível → entrega
+                                  → C7: auditoria + memória + SET elegível → entrega
 ```
 
 HIT pula providers, geração/validação/execução SQL, síntese, Output Guardrail e
 pós-processamento. C1 e revalidação Pydantic do payload continuam necessárias.
 O resultado interno mantém `outcome=ANSWERED`, `cache_hit=True` e um `request_id`
-novo. SQL e tentativas dos providers não são recuperados. São interfaces para
-a futura C7, sem auditoria persistente.
+novo. SQL e tentativas dos providers não são recuperados. Toda entrega passa
+pela [C7](C7-finalizacao.md), inclusive HIT, com auditoria e memória elegível.
 
-SET usa exatamente a chave calculada no início. Exige resposta aprovada e
+SET ocorre uma única vez, no finalizer C7, usando a chave calculada no início.
+O pipeline não chama `write_cache` diretamente. Exige resposta aprovada e
 pós-processada, outcome e síntese `ANSWERED`, resultado não truncado e
 `row_count == len(rows)`. `NO_DATA`, esclarecimentos, bloqueios, erros,
 incompletude e HIT não geram SET. O status de entrega existente do pipeline
@@ -73,9 +74,11 @@ sessão não aparecem em texto puro na key; o digest não autentica propriedade
 de sessão. Mudanças incompatíveis de comportamento/contrato exigem revisão do
 namespace; TTL não substitui versionamento.
 
-Não foi implementado store de memória Redis. Contexto recebido pelo parâmetro
-existente participa exatamente da chave e da geração; um `MemoryStore` injetado
-com sessão usa o helper existente.
+O `RedisMemoryStore` agora é disponibilizado pela C7 quando há `REDIS_URL`.
+Contexto recebido pelo parâmetro existente continua aceito; com sessão e store
+configurados, o helper carrega a memória antes da chave e da geração.
+Acrescentar uma interação muda o contexto e pode causar MISS no próximo pedido
+da mesma sessão. Não se removeu o contexto da chave para aumentar HITs.
 
 | Estado | Significado |
 |---|---|
@@ -119,7 +122,7 @@ persistente. Backend não tem `depends_on` para Redis e funciona sem ele.
 
 ## Validação executada
 
-**254 testes locais passaram**, cobrindo chave/sessão/versão e contexto exato,
+Na implementação inicial da C2, **254 testes locais passaram**, cobrindo chave/sessão/versão e contexto exato,
 codec, configuração, adapter, GET/SET com exception/timeout, cancelamento,
 MISS com SET, HIT sem etapas caras/SET, política de outcomes/completude,
 memória indisponível, sessão HTTP e regressões de helpers/finalizer/pipeline/API.
@@ -138,7 +141,8 @@ No Compose real, versão `validacao-c2-local-v1` apenas para esta validação:
 - Inspeção final: nenhuma porta Redis publicada ou volume persistente;
   mounts Gold RO e portal RW preservados.
 
-Reprodução a partir da raiz, sem incluir testes na imagem:
+Reprodução isolada da C2 (o script desabilita memória e auditoria somente no
+ensaio para fixar o contexto), sem incluir testes na imagem:
 
 ```powershell
 Get-Content -Raw backend/tests/manual/validate_redis_cache.py |
@@ -160,8 +164,7 @@ alterados; não houve FLUSHDB e o script remove apenas suas próprias chaves.
 
 ## Ainda fora da C2
 
-- Memória Redis.
-- Auditoria persistente e implementação operacional da C7.
+- Memória Redis e auditoria persistente: implementadas pela [C7](C7-finalizacao.md).
 - Logfire/instrumentação.
 - Otimização de compartilhamento entre sessões e cache semântico.
 - Publicação automática de `GOLD_DATA_VERSION` pelo pipeline de Dados.

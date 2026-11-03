@@ -759,6 +759,11 @@ code {
     height: 32px;
   }
 }
+.panel-title-with-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .panel-header-aside {
   display: flex;
   align-items: center;

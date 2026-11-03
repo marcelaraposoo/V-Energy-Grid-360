@@ -1,6 +1,7 @@
 import {
   ChartNoAxesCombined,
   ClipboardList,
+  Gauge,
   LayoutDashboard,
   ScanLine,
   Sparkles,
@@ -19,6 +20,7 @@ export const navigation = [
     items: [
       { title: 'Análise de Receita', to: '/receita', icon: TrendingUpDown },
       { title: 'Visão 360 da UC', to: '/uc', icon: ScanLine },
+      { title: 'Qualidade do Serviço', to: '/qualidade', icon: Gauge },
     ],
   },
   {

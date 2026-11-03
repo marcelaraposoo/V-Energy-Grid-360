@@ -150,3 +150,93 @@ def test_acumulado_usa_indices_da_gold_sem_recalcular_com_horas_arredondadas():
     assert resumo["horas_interrompidas"] == 0.04
     assert resumo["qtd_ucs_alimentador_mes"] == 40
     assert resumo["competencia_base_ucs"] == "2026-02"
+
+
+def test_resumo_consolida_recorte_serie_e_causas():
+    from app.services.continuidade import resumo
+    repo = MockRepository()
+    atual, base = Periodo(inicio="2025-07", fim="2026-06"), Periodo(inicio="2022-07", fim="2023-06")
+    r = resumo(repo, atual, base)
+    linhas = repo.indicadores_continuidade("2025-07", "2026-06")
+    esperado = resumo_periodo(linhas)
+    assert r.atual.dec_horas == esperado["dec_horas"] and r.atual.fec_vezes == esperado["fec_vezes"]
+    assert r.atual.qtd_interrupcoes == esperado["n_ocorrencias"]
+    assert r.atual.horas_causas_evitaveis == pytest.approx(sum(l["horas_causas_evitaveis"] for l in linhas))
+    assert r.qtd_alimentadores == len(repo.alimentadores())
+    assert len(r.serie) == len(r.serie_base) == 12
+    # O DEC do período é a soma dos DEC mensais da região.
+    assert sum(p.dec_horas for p in r.serie) == pytest.approx(r.atual.dec_horas, abs=1e-5)
+    assert sum(c.qtd_interrupcoes for c in r.causas) == r.atual.qtd_interrupcoes
+    assert sum(c.horas for c in r.causas) == pytest.approx(r.atual.horas_interrompidas, abs=0.1)
+    assert [c.horas for c in r.causas] == sorted((c.horas for c in r.causas), reverse=True)
+    assert sum(c.pct_horas for c in r.causas) == pytest.approx(100, abs=0.1)
+
+
+def test_resumo_filtra_alimentador_e_aceita_sem_referencia():
+    from app.services.continuidade import resumo
+    repo = MockRepository()
+    r = resumo(repo, Periodo(inicio="2025-07", fim="2026-06"), None, alimentador_id="AL001")
+    assert r.base is None and r.serie_base == [] and r.qtd_alimentadores == 1
+    serie = serie_mensal(repo, "AL001", Periodo(inicio="2025-07", fim="2026-06"))
+    assert [p.dec_horas for p in r.serie] == pytest.approx([s["dec_horas"] for s in serie], abs=1e-6)
+    vazio = resumo(repo, Periodo(inicio="2025-07", fim="2026-06"), None, municipio="Recife", alimentador_id="NAO-EXISTE")
+    assert vazio.atual is None and vazio.serie == [] and vazio.causas == []
+
+
+def test_api_resumo_valida_filtros_e_periodos():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+    padrao = client.get("/api/continuidade/resumo").json()
+    assert padrao["periodo_atual"] == {"inicio": "2025-07", "fim": "2026-06"}
+    assert padrao["periodo_base"] == {"inicio": "2022-07", "fim": "2023-06"}
+    alimentador = MockRepository().alimentadores()[0]
+    r = client.get("/api/continuidade/resumo", params={"alimentador": alimentador["id"].lower(), "comparar": "false"})
+    assert r.status_code == 200 and r.json()["alimentador_id"] == alimentador["id"] and r.json()["base"] is None
+    outro = next(m for m in client.get("/api/filtros").json()["municipios"] if m["nome"] != alimentador["municipio"])
+    assert client.get("/api/continuidade/resumo", params={"alimentador": alimentador["id"], "municipio": outro["nome"]}).status_code == 422
+    assert client.get("/api/continuidade/resumo", params={"alimentador": "XYZ"}).status_code == 422
+    assert client.get("/api/continuidade/resumo", params={"municipio": "Atlântida"}).status_code == 422
+    sobreposto = {"atual_inicio": "2025-07", "atual_fim": "2026-06", "base_inicio": "2025-01", "base_fim": "2025-12"}
+    assert client.get("/api/continuidade/resumo", params=sobreposto).status_code == 422
+
+
+def test_ranking_conta_ucs_afetadas_distintas():
+    from app.services.continuidade import ranking_alimentadores
+    repo = MockRepository()
+    periodo = Periodo(inicio="2025-07", fim="2026-06")
+    ranking = {r.alimentador_id: r for r in ranking_alimentadores(repo, periodo)}
+    ocorrencias = repo.ocorrencias(periodo.inicio, periodo.fim)
+    for alimentador, linha in ranking.items():
+        proprias = [o for o in ocorrencias if o["alimentador_id"] == alimentador]
+        assert linha.qtd_ucs_afetadas == len({o["uc_id"] for o in proprias})
+        assert linha.qtd_ucs_afetadas <= linha.n_ocorrencias
+
+
+def test_locais_por_municipio_e_por_bairro():
+    from app.services.continuidade import resumo
+    repo = MockRepository()
+    periodo = Periodo(inicio="2025-07", fim="2026-06")
+    geral = resumo(repo, periodo, None)
+    assert geral.nivel_locais == "municipio" and all(l.bairro is None for l in geral.locais)
+    assert sum(l.qtd_interrupcoes for l in geral.locais) == geral.atual.qtd_interrupcoes
+    assert sum(l.horas for l in geral.locais) == pytest.approx(geral.atual.horas_interrompidas, abs=0.1)
+    assert [l.horas for l in geral.locais] == sorted((l.horas for l in geral.locais), reverse=True)
+    ocorrencias = repo.ocorrencias(periodo.inicio, periodo.fim)
+    for local in geral.locais:
+        afetadas = {o["uc_id"] for o in ocorrencias if o["municipio"] == local.municipio}
+        cadastradas = sum(u["municipio"] == local.municipio for u in repo.d["dim_uc"])
+        assert local.qtd_ucs_afetadas == len(afetadas) and local.qtd_ucs == cadastradas
+        assert local.pct_ucs_afetadas == pytest.approx(100 * len(afetadas) / cadastradas, abs=0.01)
+    municipio = geral.locais[0].municipio
+    por_bairro = resumo(repo, periodo, None, municipio=municipio)
+    assert por_bairro.nivel_locais == "bairro"
+    assert all(l.municipio == municipio and l.bairro for l in por_bairro.locais)
+    assert sum(l.qtd_interrupcoes for l in por_bairro.locais) == por_bairro.atual.qtd_interrupcoes
+    alimentador = next(a["id"] for a in repo.alimentadores(municipio))
+    do_alimentador = resumo(repo, periodo, None, alimentador_id=alimentador)
+    assert do_alimentador.nivel_locais == "bairro"
+    for local in do_alimentador.locais:
+        # O denominador do alimentador conta só as UCs dele no bairro.
+        assert local.qtd_ucs == sum(u["alimentador"] == alimentador and u["bairro"] == local.bairro
+                                    and u["municipio"] == local.municipio for u in repo.d["dim_uc"])

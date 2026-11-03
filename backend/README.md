@@ -217,8 +217,9 @@ As rotas abaixo são disponibilizadas sob o prefixo `/api`, salvo indicação em
 | POST | `/api/perdas/ordens/{id}/iniciar` | Início de uma ordem |
 | POST | `/api/perdas/ordens/{id}/resultado` | Registro do resultado de uma ordem |
 | POST | `/api/perdas/ordens/{id}/cancelar` | Cancelamento de uma ordem |
-| GET | `/api/continuidade/alimentadores` | Indicadores de continuidade por alimentador |
-| GET | `/api/alimentadores/{id}/serie` | Série de continuidade do alimentador |
+| GET | `/api/continuidade/alimentadores` | Ranking de DEC/FEC por alimentador, com UCs afetadas e horas evitáveis |
+| GET | `/api/continuidade/alimentadores/{id}/serie` | Série mensal de DEC/FEC do alimentador |
+| GET | `/api/continuidade/resumo?municipio=&alimentador=` | Qualidade do Serviço: DEC/FEC do recorte, série mensal, causas e locais (município ou bairro), com os períodos do Dashboard |
 | POST | `/api/ia/perguntar` | Interface de perguntas do módulo de IA, atualmente identificada como stub |
 | GET | `/api/ia/insights?tela=` | Insights associados à tela |
 

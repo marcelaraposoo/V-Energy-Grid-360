@@ -20,6 +20,8 @@ import type {
   Pagina,
   PerguntaIa,
   PontoDecFec,
+  ResumoContinuidade,
+  ResumoContinuidadeParams,
   RespostaIa,
   ResultadoInspecao,
   SeriePonto,
@@ -86,6 +88,8 @@ export function createApi(http: Http) {
     },
 
     continuidade: {
+      resumo: (params: ResumoContinuidadeParams = {}, signal?: AbortSignal) =>
+        http.get<ResumoContinuidade>('/api/continuidade/resumo', { params: prepararParametrosDashboard(params) as ResumoContinuidadeParams, signal }),
       alimentadores: (params: ContinuidadeParams & { municipio?: string } = {}, signal?: AbortSignal) =>
         http.get<AlimentadorDecFec[]>('/api/continuidade/alimentadores', { params, signal }),
       serie: (alimentadorId: string, params: ContinuidadeParams = {}, signal?: AbortSignal) =>

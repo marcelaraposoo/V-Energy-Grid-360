@@ -6,6 +6,7 @@ import { api, useApi } from '../../api'
 import type { SuspeitaFila } from '../../api'
 import { SelectField } from '../../components/ui/Controls'
 import { ErrorState, LoadingState } from '../../components/ui/Feedback'
+import { InfoTipContent } from '../../components/ui/InfoTip'
 import { InsightsPanel } from '../../components/ui/InsightsPanel'
 import { Panel } from '../../components/ui/Panel'
 import { fmtDecimal, fmtInteiro, mensagemDeErro } from '../../utils/format'
@@ -91,7 +92,14 @@ export function FilaTab({ onOrdemCriada }: Props) {
       <Panel
         className="panel--filters"
         title="Unidades suspeitas"
-        description="Da mais promissora para a menos promissora: prioridade = probabilidade × energia recuperável."
+        description="Da mais promissora para a menos promissora."
+        infoPosition="title"
+        info={<InfoTipContent resumo="A fila destaca as unidades com maior potencial de recuperação de energia."
+          itens={[
+            { rotulo: 'Probabilidade', texto: 'Chance estimada de encontrar uma irregularidade na inspeção.' },
+            { rotulo: 'Energia recuperável', texto: 'Estimativa de energia que pode voltar a ser faturada.' },
+          ]}
+        />}
         actions={
           <a className="button button--secondary" href={exportar} download>
             <Download size={16} aria-hidden="true" /> Exportar CSV

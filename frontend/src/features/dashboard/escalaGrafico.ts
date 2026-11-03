@@ -15,7 +15,11 @@ export function escalaGrafico(valores: number[]) {
   }
 }
 
-export function unidadeDaEscala(unidade: 'R$' | 'kWh', prefixo: string) {
+export type UnidadeGrafico = 'R$' | 'kWh' | 'h' | 'un'
+
+export function unidadeDaEscala(unidade: UnidadeGrafico, prefixo: string) {
+  if (unidade === 'h') return prefixo ? `${prefixo} de horas` : 'horas'
+  if (unidade === 'un') return prefixo || 'unidades'
   if (!prefixo) return unidade
   if (unidade === 'R$') return `R$ ${prefixo}`
   return `${prefixo}${prefixo === 'mil' ? '' : ' de'} kWh`

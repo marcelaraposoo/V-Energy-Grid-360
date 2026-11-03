@@ -398,7 +398,63 @@ class AlimentadorDecFec(BaseModel):
     horas_interrompidas: float
     qtd_ucs_alimentador_mes: int | None
     competencia_base_ucs: Competencia | None
+    horas_causas_evitaveis: float = 0
+    qtd_ucs_afetadas: int = Field(0, description="UCs distintas com ao menos uma interrupção no período.")
     posicao_pior: int
+
+
+class IndicadoresContinuidade(BaseModel):
+    """DEC/FEC de um conjunto de alimentadores no período: soma dos índices mensais ponderados pelas UCs."""
+    dec_horas: float
+    fec_vezes: float
+    qtd_interrupcoes: int
+    horas_interrompidas: float
+    horas_causas_evitaveis: float
+    qtd_ucs: int | None
+    competencia_base_ucs: Competencia | None
+
+
+class PontoContinuidade(BaseModel):
+    competencia: Competencia
+    dec_horas: float
+    fec_vezes: float
+    qtd_interrupcoes: int
+    horas_interrompidas: float
+
+
+class CausaContinuidade(BaseModel):
+    causa: str | None = Field(description="Nula quando a origem não informa a causa.")
+    causa_evitavel: bool
+    qtd_interrupcoes: int
+    horas: float
+    pct_horas: float | None
+
+
+class LocalInterrupcao(BaseModel):
+    """Interrupções agregadas por local da UC. Sem DEC: o do alimentador não vale para o bairro (contrato A8)."""
+    municipio: str
+    bairro: str | None = Field(description="Preenchido no nível bairro; sempre junto do município.")
+    qtd_interrupcoes: int
+    horas: float
+    pct_horas: float | None
+    qtd_ucs_afetadas: int
+    qtd_ucs: int = Field(description="UCs cadastradas no local (no recorte do alimentador, quando houver).")
+    pct_ucs_afetadas: float | None
+
+
+class ResumoContinuidade(BaseModel):
+    periodo_atual: Periodo
+    periodo_base: Periodo | None
+    municipio: str | None
+    alimentador_id: str | None
+    qtd_alimentadores: int
+    atual: IndicadoresContinuidade | None
+    base: IndicadoresContinuidade | None
+    serie: list[PontoContinuidade]
+    serie_base: list[PontoContinuidade]
+    causas: list[CausaContinuidade]
+    nivel_locais: Literal["municipio", "bairro"]
+    locais: list[LocalInterrupcao]
 
 
 # ---------- IA ----------

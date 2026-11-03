@@ -17,14 +17,16 @@ type KpiCardProps = {
   variacao?: number | null
   /** Pinta a variação (verde sobe, vermelho cai). Desligado para o preço, bom para a receita e ruim para o cliente. */
   colorir?: boolean
+  /** Inverte as cores: subir é desfavorável (ex.: DEC e FEC). */
+  menorMelhor?: boolean
   /** Cor do próprio valor, para cards cujo valor já é uma variação. */
   tendenciaValor?: 'favoravel' | 'desfavoravel'
   /** Substitui as linhas de referência e comparação. */
   children?: ReactNode
 }
 
-// Card de KPI comum ao Dashboard e à Análise de Receita.
-export function KpiCard({ titulo, icone: Icone, valor, info, referencia, variacao = null, colorir = true, tendenciaValor, children }: KpiCardProps) {
+// Card de KPI comum às telas de análise.
+export function KpiCard({ titulo, icone: Icone, valor, info, referencia, variacao = null, colorir = true, menorMelhor = false, tendenciaValor, children }: KpiCardProps) {
   const Seta = variacao === null || variacao === 0 ? Minus : variacao < 0 ? ArrowDownRight : ArrowUpRight
   return (
     <article className="panel kpi-card">
@@ -37,7 +39,7 @@ export function KpiCard({ titulo, icone: Icone, valor, info, referencia, variaca
         <p className="kpi-card-referencia">Referência: {referencia.valor}</p>
         <p className="kpi-comparacao" title={`Referência: ${referencia.periodo}`}>
           {variacao !== null
-            ? <><span data-tendencia={colorir ? tendencia(variacao) : undefined}><Seta size={15} aria-hidden="true" />{formatarVariacao(variacao)}</span></>
+            ? <><span data-tendencia={colorir ? tendencia(menorMelhor ? -variacao : variacao) : undefined}><Seta size={15} aria-hidden="true" />{formatarVariacao(variacao)}</span></>
             : 'Sem dados para comparação'}
         </p>
       </>)}

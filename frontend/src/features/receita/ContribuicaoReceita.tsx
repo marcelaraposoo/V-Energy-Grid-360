@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, ChevronRight, Table2, X } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Panel } from '../../components/ui/Panel'
+import { InfoTipContent } from '../../components/ui/InfoTip'
 import { formatarCompetencia } from '../dashboard/formatacao'
 import { agrupamentosDisponiveis, aprofundar, filtrar } from './drilldown'
 import type { Recorte } from './drilldown'
@@ -58,7 +59,9 @@ export function ContribuicaoReceita({ analise, recorte, onRecorte }: Props) {
   return (
     <Panel title="Onde a receita mudou" description="Selecione uma linha para detalhar."
       className="receita-contribuicao"
-      info="Contribuição de cada segmento para a variação da receita, com a mesma decomposição da ponte. Detalhamento: município → bairro → classe. UCs: faturadas na última competência do período atual."
+      info={<InfoTipContent resumo="Selecione um município para ver seus bairros; depois, um bairro para ver as classes." itens={[
+        { rotulo: 'UCs', texto: 'Unidades faturadas na última competência do período atual.' },
+      ]} nota="Os efeitos usam o preço de cada segmento. Por isso, sua soma pode diferir dos efeitos do total." />}
       actions={disponiveis.length > 1 ? <div className="segmented" role="group" aria-label="Ver por">
         {disponiveis.map((a) => (
           <button key={a} type="button" className="button button--secondary" aria-pressed={recorte.agrupar_por === a}

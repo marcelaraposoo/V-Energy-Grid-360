@@ -9,6 +9,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState, LoadingState } from '../../components/ui/Feedback'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Panel } from '../../components/ui/Panel'
+import { InfoTipContent } from '../../components/ui/InfoTip'
 import { limitesDashboard as limites, quantidadeMeses, sugerirReferencia, validarPeriodo, validarPeriodosDashboard } from '../../utils/periodosDashboard'
 import { formatarPeriodo } from '../dashboard/formatacao'
 import { alterarPeriodos, estadoInicial } from '../dashboard/periodos'
@@ -111,12 +112,10 @@ export function ReceitaPage() {
                 <section className="receita-decomposicao" aria-label="Decomposição preço × volume">
                   <Panel title="Ponte da receita: volume × preço" className="receita-ponte"
                     description={`${formatarPeriodo(referenciaExibida)} → ${formatarPeriodo(periodoExibido)}`}
-                    info={<>
-                      Efeito volume = (energia atual − energia de referência) × preço médio da referência.
-                      Efeito preço = (preço atual − preço de referência) × energia atual.
-                      Os dois somam exatamente a variação da receita. O efeito preço inclui reajuste tarifário,
-                      bandeira e mudança no mix de classes.
-                    </>}>
+                    info={<InfoTipContent resumo="Veja como a receita de referência chega ao valor atual." itens={[
+                      { rotulo: 'Volume', texto: 'Variação da energia × preço médio da referência.' },
+                      { rotulo: 'Preço', texto: 'Variação do preço médio × energia atual.' },
+                    ]} nota="O preço reúne reajuste, bandeira tarifária e mudança no mix de classes." />}>
                     <WaterfallReceita total={analise.total} periodo={periodoExibido} referencia={referenciaExibida} />
                   </Panel>
                   <FatoresReceita analise={analise} />

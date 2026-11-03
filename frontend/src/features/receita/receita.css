@@ -148,64 +148,282 @@
 }
 .receita-waterfall-tooltip {
   display: grid;
-  gap: 6px;
-  line-height: 1.5;
+  gap: 4px;
 }
-.receita-waterfall-tooltip span {
+.receita-page .dashboard-chart-tooltip {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+  line-height: 1.6;
+}
+.receita-tooltip-titulo {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+.receita-tooltip-valor {
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  line-height: 1.3;
+}
+.receita-tooltip-contexto {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.receita-tooltip-descricao {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
   color: var(--text-secondary);
 }
-.receita-fatores-lista {
+.receita-fatores-blocos {
   display: grid;
-  gap: 16px;
-  margin: 0;
-  padding: 0 22px;
-  list-style: none;
+  padding: 0 18px;
 }
-.receita-fatores-lista li {
+.receita-fator {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--subtle-overlay);
+}
+.receita-fatores-blocos > * {
+  grid-area: 1 / 1;
+  align-self: stretch;
+  visibility: hidden;
+}
+.receita-fatores-blocos > [data-ativo='true'] {
+  visibility: visible;
+}
+.receita-fatores-pagina-dupla {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
+  align-content: start;
   gap: 12px;
 }
-.receita-fatores-lista li + li {
-  padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
+.receita-fatores-navegacao {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px 16px;
+}
+.receita-fatores-indicadores {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.receita-fatores-indicadores i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.receita-fatores-indicadores i[data-ativo='true'] {
+  width: 16px;
+  border-radius: 4px;
+  background: var(--chart-current);
+}
+.receita-fatores-pagina {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.receita-fatores-controles {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.receita-fatores-seta {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+.receita-fator--gd {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border-subtle));
+}
+.receita-fator-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.receita-fator-cabecalho h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.receita-fator-cabecalho .info-tip {
+  margin-left: auto;
 }
 .receita-fatores-icone {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--badge-overlay);
   color: var(--text-secondary);
 }
-.receita-fatores-lista h3 {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
-  font-size: 13px;
+.receita-fator--gd .receita-fatores-icone {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
 }
-/* Sem tabela dentro: o balão das explicações pode passar da borda do painel. */
-.panel.receita-fatores {
-  overflow: visible;
-  padding-bottom: 20px;
-}
-.receita-fatores-lista p {
+.receita-fator-base,
+.receita-fator-indisponivel {
+  margin: 8px 0 0;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.6;
 }
-.receita-fatores-lista strong {
+.receita-fator-base strong {
   color: var(--text-primary);
   font-weight: 600;
 }
-.receita-fatores-destaque {
-  margin-top: 6px;
-  padding: 8px 10px;
-  border-left: 2px solid var(--accent);
-  background: var(--subtle-overlay);
+.receita-fator-leitura {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.receita-fator-variacao {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--badge-overlay);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.receita-fator-comparacao {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.receita-fator-barra-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 5px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.receita-fator-barra-label strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.receita-fator-trilho {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--border-subtle);
+}
+.receita-fator-trilho > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-muted);
+}
+[data-atual='true'] > .receita-fator-trilho > span {
+  background: var(--chart-current);
+}
+.receita-fator-impacto {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.receita-fator-impacto small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.receita-fator-impacto strong {
+  color: var(--text-primary);
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+}
+.receita-fator-demais {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 12px 0 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.receita-fator-demais strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.receita-fator-bandeiras {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.receita-fator-participacao > span:first-child {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.receita-fator-participacao > strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+.receita-fator-participacao > small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.receita-fator-seta {
+  color: var(--text-muted);
+}
+.receita-fator-legenda {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.receita-fator-legenda strong {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.receita-fator-medidores {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 10px 0 0;
+}
+.receita-fator-medidores strong {
+  color: var(--text-primary);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.7px;
+}
+.receita-fator-medidores > span {
+  color: var(--text-secondary);
+  font-size: 11px;
 }
 
 /* Contribuição */

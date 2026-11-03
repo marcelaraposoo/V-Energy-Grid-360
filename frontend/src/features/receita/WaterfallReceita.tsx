@@ -40,15 +40,15 @@ export function WaterfallReceita({ total, periodo, referencia }: { total: LinhaR
   const aposVolume = total.receita_base + total.efeito_volume
   const barras: Barra[] = [
     { titulo: 'Receita', subtitulo: formatarPeriodo(referencia), de: 0, ate: total.receita_base, valor: reais(total.receita_base), tipo: 'base',
-      detalhe: `Receita de energia (sem tributos) em ${formatarPeriodo(referencia)}: ${reaisCompletos(total.receita_base)}.` },
+      detalhe: 'Receita de energia no período de referência, com bandeira tarifária e sem tributos.' },
     { titulo: 'Efeito volume', subtitulo: kwhComSinal(total.energia_atual_kwh - total.energia_base_kwh), de: total.receita_base, ate: aposVolume,
       valor: reaisComSinal(total.efeito_volume), tipo: 'efeito', delta: total.efeito_volume,
-      detalhe: 'Variação da energia faturada, valorizada ao preço médio da referência: (V1 − V0) × P0.' },
+      detalhe: 'Mudança na energia faturada, calculada ao preço médio da referência.' },
     { titulo: 'Efeito preço', subtitulo: 'reajuste, bandeira e mix', de: aposVolume, ate: total.receita_atual,
       valor: reaisComSinal(total.efeito_preco), tipo: 'efeito', delta: total.efeito_preco,
-      detalhe: 'Variação do preço médio por kWh aplicada à energia atual: (P1 − P0) × V1. Inclui reajuste tarifário, bandeira e mudança no mix de classes.' },
+      detalhe: 'Mudança no preço médio aplicada à energia atual. Reúne reajuste, bandeira e mix de classes.' },
     { titulo: 'Receita', subtitulo: formatarPeriodo(periodo), de: 0, ate: total.receita_atual, valor: reais(total.receita_atual), tipo: 'atual',
-      detalhe: `Receita de energia (sem tributos) em ${formatarPeriodo(periodo)}: ${reaisCompletos(total.receita_atual)}.` },
+      detalhe: 'Receita de energia no período analisado, com bandeira tarifária e sem tributos.' },
   ]
   const { minimo, maximo, marcacoes, passo } = escala([total.receita_base, aposVolume, total.receita_atual])
   const y = (valor: number) => base - ((Math.max(valor, minimo) - minimo) / (maximo - minimo)) * (base - topo)
@@ -132,8 +132,10 @@ export function WaterfallReceita({ total, periodo, referencia }: { total: LinhaR
       {ativa && (
         <div ref={tooltipRef} id={tooltipId} role="tooltip" className="dashboard-chart-tooltip receita-waterfall-tooltip"
           style={{ left: ativa.x, top: ativa.y }}>
-          <strong>{barras[ativa.indice].titulo} · {barras[ativa.indice].valor}</strong>
-          <span>{barras[ativa.indice].detalhe}</span>
+          <span className="receita-tooltip-titulo">{barras[ativa.indice].titulo}</span>
+          <strong className="receita-tooltip-valor">{reaisCompletos(barras[ativa.indice].delta ?? barras[ativa.indice].ate)}</strong>
+          <span className="receita-tooltip-contexto">{barras[ativa.indice].subtitulo}</span>
+          <span className="receita-tooltip-descricao">{barras[ativa.indice].detalhe}</span>
         </div>
       )}
     </figure>

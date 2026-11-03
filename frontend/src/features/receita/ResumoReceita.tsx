@@ -1,6 +1,7 @@
 import { Banknote, CircleDollarSign, Scale, Zap } from 'lucide-react'
 import type { Periodo } from '../../api/types'
 import { KpiCard } from '../../components/ui/KpiCard'
+import { InfoTipContent } from '../../components/ui/InfoTip'
 import { explicacoes } from '../../utils/indicadores'
 import { formatarPeriodo } from '../dashboard/formatacao'
 import { kwh, reais, reaisComSinal, tarifa, tendencia } from './formatacao'
@@ -21,7 +22,10 @@ export function ResumoReceita({ total, referencia }: { total: LinhaReceita; refe
         referencia={{ valor: tarifa(total.preco_base_kwh), periodo }} variacao={variacaoPreco} colorir={false} />
       <KpiCard titulo="Variação da receita" icone={Scale} valor={reaisComSinal(total.variacao_receita)}
         tendenciaValor={tendencia(total.variacao_receita)}
-        info="Receita atual − receita de referência, separada em efeito volume (variação da energia faturada ao preço da referência) e efeito preço (variação do preço médio sobre a energia atual). Os dois somam exatamente a variação.">
+        info={<InfoTipContent resumo="Diferença entre a receita atual e a receita de referência." itens={[
+          { rotulo: 'Efeito volume', texto: 'Quanto a mudança na energia faturada representa em receita.' },
+          { rotulo: 'Efeito preço', texto: 'Quanto a mudança no preço médio representa em receita.' },
+        ]} nota="Os dois efeitos somam a variação da receita." />}>
         <dl className="receita-resumo-efeitos">
           <div><dt>Efeito volume</dt><dd data-tendencia={tendencia(total.efeito_volume)}>{reaisComSinal(total.efeito_volume)}</dd></div>
           <div><dt>Efeito preço</dt><dd data-tendencia={tendencia(total.efeito_preco)}>{reaisComSinal(total.efeito_preco)}</dd></div>

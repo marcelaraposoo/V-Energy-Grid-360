@@ -1,6 +1,7 @@
 import { ArrowLeft, TrendingDown } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Panel } from '../../components/ui/Panel'
+import { InfoTipContent } from '../../components/ui/InfoTip'
 import { aprofundar } from './drilldown'
 import type { Recorte } from './drilldown'
 import { reaisComSinal, variacao } from './formatacao'
@@ -16,7 +17,8 @@ export function RankingQuedas({ analise, recorte, onRecorte, onVoltar }: { anali
   return (
     <Panel title="Maiores perdas por volume" description={`Efeito volume dos ${nivel[analise.agrupar_por]} com queda, em R$`}
       className="receita-ranking-panel"
-      info="Efeito volume = (energia atual − energia de referência) × preço médio da referência do segmento. Mostra os segmentos que mais perderam receita por queda de energia faturada.">
+      info={<InfoTipContent resumo="Segmentos com as maiores perdas de receita associadas à queda da energia faturada."
+        nota="A perda é estimada ao preço médio da referência de cada segmento." />}>
       {!quedas.length ? <EmptyState icon={TrendingDown} title="Nenhuma perda por volume" description="Nenhum segmento do recorte perdeu receita por volume." compact />
         : <ol className="receita-ranking">
           {quedas.map((linha) => {

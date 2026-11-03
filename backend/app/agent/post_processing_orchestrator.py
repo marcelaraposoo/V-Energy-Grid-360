@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.core.observability import observe
+
 from app.agent.post_processor import post_process
 from app.agent.schemas import (
     PostProcessingResult,
@@ -8,6 +10,7 @@ from app.agent.schemas import (
 from app.agent.synthesis_orchestrator import SynthesisFlowResult
 
 
+@observe("C6")
 def process_approved_response(
     flow: SynthesisFlowResult,
     result: QueryExecutionResult,

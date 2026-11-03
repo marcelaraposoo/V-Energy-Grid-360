@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from app.core.observability import observe
 from enum import Enum
 
 from app.agent.schemas import PostProcessingResult
@@ -27,6 +28,7 @@ class RequestState:
         return self.cached_response is not None
 
 
+@observe("C2")
 async def prepare_request_state(
     *,
     normalized_question: str,

@@ -37,6 +37,20 @@ class Settings:
     # Aplicação
     app_name: str = "V-Energy Grid 360 API"
 
+    # Observabilidade: opt-in explícito; token nunca aparece no repr das settings.
+    logfire_enabled: bool = field(
+        default_factory=lambda: os.getenv("LOGFIRE_ENABLED", "false").strip().lower() in {"1", "true"}
+    )
+    logfire_token: str | None = field(
+        default_factory=lambda: os.getenv("LOGFIRE_TOKEN", "").strip() or None, repr=False
+    )
+    logfire_service_name: str = field(
+        default_factory=lambda: os.getenv("LOGFIRE_SERVICE_NAME", "v-energy-grid-360-backend")
+    )
+    logfire_base_url: str | None = field(
+        default_factory=lambda: os.getenv("LOGFIRE_BASE_URL", "").strip() or None
+    )
+
     # C2: sem URL, o agente funciona sem cache. Snapshot explícito se habilitado.
     redis_url: str | None = field(
         default_factory=lambda: os.getenv("REDIS_URL", "").strip() or None

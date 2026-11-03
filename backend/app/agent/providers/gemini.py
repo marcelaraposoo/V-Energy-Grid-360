@@ -1,4 +1,5 @@
 import logging
+from app.core.observability import observe
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
@@ -100,6 +101,7 @@ def classify_gemini_error(
     return ProviderErrorType.UNKNOWN
 
 
+@observe("provider")
 async def run_gemini(
     prompt: str,
     *,

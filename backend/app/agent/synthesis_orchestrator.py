@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from app.core.observability import observe
 
 from app.agent.answer_synthesizer import synthesize_answer
 from app.agent.guardrails.output_guardrail import (
@@ -50,6 +51,7 @@ class SynthesisFlowResult:
         )
 
 
+@observe("synthesis_flow")
 async def synthesize_and_validate(
     question: str,
     sql: str,

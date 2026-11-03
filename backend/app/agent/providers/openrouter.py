@@ -1,4 +1,5 @@
 import logging
+from app.core.observability import observe
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
@@ -133,6 +134,7 @@ def classify_openrouter_error(
     return ProviderErrorType.UNKNOWN
 
 
+@observe("provider")
 async def run_openrouter(
     model_name: str,
     prompt: str,

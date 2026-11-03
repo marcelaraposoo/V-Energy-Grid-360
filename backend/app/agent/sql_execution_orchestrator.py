@@ -1,4 +1,5 @@
 import re
+from app.core.observability import observe
 
 from app.agent.guardrails.sql_guardrail import (
     build_retry_feedback,
@@ -75,6 +76,7 @@ def build_execution_retry_feedback(
     )
 
 
+@observe("sql_flow")
 async def generate_validate_and_execute(
     question: str,
     database_context: str,

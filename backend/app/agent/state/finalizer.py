@@ -1,4 +1,5 @@
 import logging
+from app.core.observability import observe, set_metadata
 
 from app.agent.schemas import (
     AuditRecord,
@@ -20,6 +21,7 @@ from app.agent.state.memory import MemoryStore, should_store_in_memory
 logger = logging.getLogger(__name__)
 
 
+@observe("C7")
 async def finalize(
     *,
     audit_store: AuditStore,
@@ -44,6 +46,12 @@ async def finalize(
     - cache hit não reescreve o mesmo valor;
     - falhas de persistência não impedem a resposta ao usuário.
     """
+
+    set_metadata(
+        request_id=audit_record.request_id, outcome=audit_record.outcome.value,
+        cache_hit=audit_record.cache_hit, row_count=audit_record.row_count,
+        truncated=audit_record.truncated, regenerations=audit_record.regenerations,
+    )
 
     try:
         await audit_store.save(audit_record)

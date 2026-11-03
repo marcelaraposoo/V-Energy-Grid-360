@@ -1,3 +1,4 @@
+from app.core.observability import observe
 from app.agent.prompts.sql_generation.loader import (
     load_sql_generation_prompts,
 )
@@ -52,6 +53,7 @@ def build_sql_generation_prompt(
     )
 
 
+@observe("C4.1")
 async def generate_sql(
     question: str,
     database_context: str,

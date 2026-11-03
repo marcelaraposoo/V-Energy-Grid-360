@@ -8,3 +8,4 @@ filelock>=3.16
 pydantic-ai>=2.59,<3
 sqlglot>=30.24.0
 redis>=5.0,<6
+logfire[fastapi]>=5.3,<6

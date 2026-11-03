@@ -13,6 +13,9 @@ uvicorn app.main:app --reload --port 8000
 ```
 Docs interativas: http://localhost:8000/docs · Testes: `pytest`
 
+Observabilidade opcional com Logfire: configuração, spans, privacidade e limitações
+em [docs/observabilidade.md](docs/observabilidade.md).
+
 ## Usar a Gold local (parcial)
 1. Coloque o `gold.db` exportado em `backend/data/` (ou aponte `SQLITE_PATH` no `.env`) e use `DATA_SOURCE=sqlite`.
 2. O arquivo precisa ter a tabela `dim_uc` (colunas do notebook `03_gold_dim_uc`). O banco é aberto só para leitura.

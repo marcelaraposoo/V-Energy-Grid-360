@@ -1,3 +1,4 @@
+from app.core.observability import observe
 from app.agent.schemas import (
     GuardrailDecision,
     GuardrailReason,
@@ -38,6 +39,7 @@ VALIDATION_RULES = (
 )
 
 
+@observe("C1")
 def validate_input(message: str) -> InputGuardrailResult:
     original_input = message
 

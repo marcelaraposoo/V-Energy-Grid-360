@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from uuid import uuid4
+from app.core.observability import observe_pipeline, request_id
 
 from app.agent.context.loader import load_database_context
 from app.agent.execution_responses import get_execution_message
@@ -73,7 +73,7 @@ class PipelineResult:
     # Metadado interno para o futuro mapeamento central de outcomes/auditoria.
     input_guardrail_reason: GuardrailReason | None = None
     provider_attempts: tuple[ProviderAttempt, ...] = ()
-    request_id: str = field(default_factory=lambda: uuid4().hex)
+    request_id: str = field(default_factory=request_id)
     cache_hit: bool = False
     outcome: AgentOutcome | None = None
 
@@ -160,6 +160,7 @@ def _generation_message(flow) -> str:
     return _INSUFFICIENT_MESSAGE
 
 
+@observe_pipeline
 async def answer_question(
     question: str,
     *,

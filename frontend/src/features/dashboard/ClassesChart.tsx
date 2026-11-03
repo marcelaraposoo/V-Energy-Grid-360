@@ -29,7 +29,7 @@ export function ClassesChart({ estado: { data, loading, error, reload }, periodo
   }
 
   return <Panel title="Energia faturada por classe" description={formatarPeriodo(periodo)} className="dashboard-classes-panel"
-    info="Energia faturada (kWh) de cada classe no período. Participação = energia da classe ÷ energia total. Com referência, a variação compara a mesma classe nos dois períodos.">
+    info="Energia faturada (kWh) de cada classe no período. Com referência, a variação compara a mesma classe nos dois períodos.">
     {loading ? <LoadingState label="Carregando consumo por classe…" />
       : error ? <ErrorState error={error} onRetry={reload} />
         : !data?.classes.length ? <EmptyState icon={ChartNoAxesCombined} title="Sem dados por classe" description="Não há dados disponíveis no período selecionado." compact />

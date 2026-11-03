@@ -60,6 +60,23 @@
 .qualidade-escopo strong {
   color: var(--text-primary);
 }
+.qualidade-escopo-titulo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.qualidade-escopo[data-filtrado] {
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--text-secondary);
+}
+.qualidade-escopo[data-filtrado] .qualidade-escopo-titulo svg {
+  color: var(--accent);
+}
 .qualidade-escopo-limpar {
   display: inline-flex;
   align-items: center;
@@ -197,6 +214,29 @@
 .qualidade-ordenar:hover {
   color: var(--text-primary);
 }
+.qualidade-tabela th[aria-sort='ascending'],
+.qualidade-tabela th[aria-sort='descending'] {
+  background: var(--accent-selected-bg, color-mix(in srgb, var(--accent) 5%, transparent));
+  box-shadow: inset 0 -2px var(--accent-selected-border, color-mix(in srgb, var(--accent) 20%, transparent));
+  color: var(--accent);
+}
+.qualidade-tabela th[aria-sort='ascending'] .qualidade-ordenar,
+.qualidade-tabela th[aria-sort='descending'] .qualidade-ordenar {
+  font-weight: 700;
+}
+.qualidade-tabela th[aria-sort='ascending'] svg,
+.qualidade-tabela th[aria-sort='descending'] svg {
+  color: var(--accent);
+}
+.qualidade-tabela th,
+.qualidade-tabela td,
+.qualidade-tabela .num {
+  text-align: center;
+  vertical-align: middle;
+}
+.qualidade-tabela th:nth-child(2) {
+  text-align: left;
+}
 .qualidade-tabela td small {
   margin-left: 4px;
   color: var(--text-muted);
@@ -237,8 +277,12 @@
 .qualidade-tabela-selecionar:hover span {
   text-decoration: underline;
 }
-.qualidade-tabela tr[data-ativo] {
-  background: var(--hover-overlay);
+.qualidade-tabela tbody tr[data-ativo],
+.qualidade-tabela tbody tr[data-ativo]:hover {
+  background: var(--accent-selected-bg, color-mix(in srgb, var(--accent) 5%, transparent));
+}
+.qualidade-tabela tr[data-ativo] > :first-child {
+  box-shadow: inset 3px 0 var(--accent);
 }
 .qualidade-tabela tr[data-ativo] .qualidade-tabela-selecionar {
   color: var(--accent);

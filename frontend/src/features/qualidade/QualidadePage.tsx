@@ -1,5 +1,5 @@
 import { useReducer, useState } from 'react'
-import { RotateCcw, X } from 'lucide-react'
+import { Filter, RotateCcw, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { api, useApi } from '../../api'
 import { SelectField } from '../../components/ui/Controls'
@@ -104,8 +104,11 @@ export function QualidadePage() {
           : <div className="qualidade-resultados" aria-busy={resumo.loading}>
             {resumo.loading && <div className="qualidade-atualizando"><LoadingState label="Atualizando indicadores…" /></div>}
             <div className="qualidade-resultados-conteudo" inert={resumo.loading}>
-              <p className="qualidade-escopo">
-                <span>Recorte: <strong>{escopo}</strong></span>
+              <p className="qualidade-escopo" data-filtrado={Boolean(dados.alimentador_id || dados.municipio) || undefined}>
+                <span className="qualidade-escopo-titulo"><Filter size={14} aria-hidden="true" />
+                  {dados.alimentador_id ? 'Alimentador ativo: ' : dados.municipio ? 'Município ativo: ' : 'Recorte: '}
+                  <strong>{escopo}</strong>
+                </span>
                 {dados.alimentador_id
                   ? <>
                     {selecionado && <span>{selecionado.municipio}</span>}

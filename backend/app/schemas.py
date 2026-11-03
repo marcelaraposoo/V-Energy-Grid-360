@@ -430,6 +430,18 @@ class CausaContinuidade(BaseModel):
     pct_horas: float | None
 
 
+class LocalInterrupcao(BaseModel):
+    """Interrupções agregadas por local da UC. Sem DEC: o do alimentador não vale para o bairro (contrato A8)."""
+    municipio: str
+    bairro: str | None = Field(description="Preenchido no nível bairro; sempre junto do município.")
+    qtd_interrupcoes: int
+    horas: float
+    pct_horas: float | None
+    qtd_ucs_afetadas: int
+    qtd_ucs: int = Field(description="UCs cadastradas no local (no recorte do alimentador, quando houver).")
+    pct_ucs_afetadas: float | None
+
+
 class ResumoContinuidade(BaseModel):
     periodo_atual: Periodo
     periodo_base: Periodo | None
@@ -441,6 +453,8 @@ class ResumoContinuidade(BaseModel):
     serie: list[PontoContinuidade]
     serie_base: list[PontoContinuidade]
     causas: list[CausaContinuidade]
+    nivel_locais: Literal["municipio", "bairro"]
+    locais: list[LocalInterrupcao]
 
 
 # ---------- IA ----------

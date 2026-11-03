@@ -211,3 +211,32 @@ def test_ranking_conta_ucs_afetadas_distintas():
         proprias = [o for o in ocorrencias if o["alimentador_id"] == alimentador]
         assert linha.qtd_ucs_afetadas == len({o["uc_id"] for o in proprias})
         assert linha.qtd_ucs_afetadas <= linha.n_ocorrencias
+
+
+def test_locais_por_municipio_e_por_bairro():
+    from app.services.continuidade import resumo
+    repo = MockRepository()
+    periodo = Periodo(inicio="2025-07", fim="2026-06")
+    geral = resumo(repo, periodo, None)
+    assert geral.nivel_locais == "municipio" and all(l.bairro is None for l in geral.locais)
+    assert sum(l.qtd_interrupcoes for l in geral.locais) == geral.atual.qtd_interrupcoes
+    assert sum(l.horas for l in geral.locais) == pytest.approx(geral.atual.horas_interrompidas, abs=0.1)
+    assert [l.horas for l in geral.locais] == sorted((l.horas for l in geral.locais), reverse=True)
+    ocorrencias = repo.ocorrencias(periodo.inicio, periodo.fim)
+    for local in geral.locais:
+        afetadas = {o["uc_id"] for o in ocorrencias if o["municipio"] == local.municipio}
+        cadastradas = sum(u["municipio"] == local.municipio for u in repo.d["dim_uc"])
+        assert local.qtd_ucs_afetadas == len(afetadas) and local.qtd_ucs == cadastradas
+        assert local.pct_ucs_afetadas == pytest.approx(100 * len(afetadas) / cadastradas, abs=0.01)
+    municipio = geral.locais[0].municipio
+    por_bairro = resumo(repo, periodo, None, municipio=municipio)
+    assert por_bairro.nivel_locais == "bairro"
+    assert all(l.municipio == municipio and l.bairro for l in por_bairro.locais)
+    assert sum(l.qtd_interrupcoes for l in por_bairro.locais) == por_bairro.atual.qtd_interrupcoes
+    alimentador = next(a["id"] for a in repo.alimentadores(municipio))
+    do_alimentador = resumo(repo, periodo, None, alimentador_id=alimentador)
+    assert do_alimentador.nivel_locais == "bairro"
+    for local in do_alimentador.locais:
+        # O denominador do alimentador conta só as UCs dele no bairro.
+        assert local.qtd_ucs == sum(u["alimentador"] == alimentador and u["bairro"] == local.bairro
+                                    and u["municipio"] == local.municipio for u in repo.d["dim_uc"])

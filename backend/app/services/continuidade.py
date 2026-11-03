@@ -8,7 +8,8 @@ from __future__ import annotations
 from collections import defaultdict
 
 from app.schemas import (
-    AlimentadorDecFec, CausaContinuidade, IndicadoresContinuidade, Periodo, PontoContinuidade, ResumoContinuidade,
+    AlimentadorDecFec, CausaContinuidade, IndicadoresContinuidade, LocalInterrupcao, Periodo, PontoContinuidade,
+    ResumoContinuidade,
 )
 
 
@@ -93,6 +94,21 @@ def _causas(repo, periodo: Periodo, alimentador_id: str | None, municipio: str |
     return sorted(causas, key=lambda c: (-c.horas, c.causa or "~"))
 
 
+def _locais(repo, periodo: Periodo, nivel: str, alimentador_id: str | None, municipio: str | None) -> list[LocalInterrupcao]:
+    grupos = repo.interrupcoes_por_local(periodo.inicio, periodo.fim, nivel, alimentador_id=alimentador_id, municipio=municipio)
+    ucs = repo.ucs_por_local(nivel, alimentador_id=alimentador_id, municipio=municipio)
+    total = sum(g["minutos"] for g in grupos)
+    locais = []
+    for g in grupos:
+        base = ucs.get((g["municipio"], g["bairro"]), 0)
+        locais.append(LocalInterrupcao(
+            municipio=g["municipio"], bairro=g["bairro"], qtd_interrupcoes=g["qtd"], horas=round(g["minutos"] / 60, 2),
+            pct_horas=round(100 * g["minutos"] / total, 2) if total else None, qtd_ucs_afetadas=g["ucs_afetadas"], qtd_ucs=base,
+            pct_ucs_afetadas=round(100 * g["ucs_afetadas"] / base, 2) if base else None,
+        ))
+    return sorted(locais, key=lambda l: (-l.horas, l.municipio, l.bairro or ""))
+
+
 def resumo(repo, atual: Periodo, base: Periodo | None, municipio: str | None = None,
            alimentador_id: str | None = None) -> ResumoContinuidade:
     """Indicadores, série mensal e causas de um recorte (distribuidora, município ou alimentador)."""
@@ -100,6 +116,8 @@ def resumo(repo, atual: Periodo, base: Periodo | None, municipio: str | None = N
         return repo.indicadores_continuidade(p.inicio, p.fim, alimentador_id=alimentador_id, municipio=municipio)
 
     atuais = linhas(atual)
+    # Distribuidora: por município. Com município ou alimentador escolhido: por bairro.
+    nivel = "bairro" if municipio or alimentador_id else "municipio"
     bases = linhas(base) if base else []
     return ResumoContinuidade(
         periodo_atual=atual, periodo_base=base, municipio=municipio, alimentador_id=alimentador_id,
@@ -107,4 +125,6 @@ def resumo(repo, atual: Periodo, base: Periodo | None, municipio: str | None = N
         atual=_indicadores(atuais), base=_indicadores(bases) if base else None,
         serie=_serie(atuais), serie_base=_serie(bases),
         causas=_causas(repo, atual, alimentador_id, municipio),
+        nivel_locais=nivel,
+        locais=_locais(repo, atual, nivel, alimentador_id, municipio),
     )

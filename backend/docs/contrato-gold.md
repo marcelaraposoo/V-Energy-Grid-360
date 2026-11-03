@@ -23,9 +23,14 @@ Os modelos expostos ao frontend estão em [schemas.py](../app/schemas.py).
 | B2 `fila_inspecao` | UC priorizada | Fila de inspeção e motivos de suspeita |
 
 A leitura dessas fontes está implementada, mas depende das tabelas e colunas necessárias
-na exportação configurada. A4 `receita_decomposicao` não está integrada como fonte do serviço
-de receita atual. A consulta global `faturas(...)`, ainda usada pela Análise da Receita,
-devolve 501 no adaptador SQLite; isso não impede as consultas de faturas de uma UC nem o Dashboard.
+na exportação configurada. A Análise da Receita calcula a decomposição preço × volume pela A3
+`fato_segmento_mensal`, para qualquer par de períodos de mesma duração e sem sobreposição. O fator
+GD compara as mesmas UCs nos dois períodos (as que têm GD no fim do período atual, regra da A4) e,
+por isso, vem da A2 `fato_consumo_faturamento`, que tem o grão por UC; sem a A2 exportada, os dois
+volumes de GD voltam nulos e o restante da tela funciona. A A4 `receita_decomposicao` não é lida
+pela tela. A consulta global `faturas(...)` continua devolvendo 501 no adaptador SQLite e não é
+mais usada pela Receita. `tests/manual/validar_receita_gold.py` confere a A3 contra a A2 e os
+números do diagnóstico no `gold.db` real.
 
 ## Dashboard Executivo
 

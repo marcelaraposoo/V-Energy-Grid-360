@@ -74,44 +74,39 @@ test('card de faturamento em aberto respeita mês, consolidado, comparação e i
     await t.test('mês × mês mostra somente uma taxa e uma variação em pp', () => {
       const html = renderizar({ inicio: '2026-06', fim: '2026-06' }, { inicio: '2025-06', fim: '2025-06' })
       assert.match(html, /\+1,1 p\.p\./)
-      assert.match(html, /vs\. referência · Jun\/2025/)
+      assert.match(html, /vs\. referência\s+\(Jun\/2025\)/)
       assert.equal((html.match(/<small>%<\/small>/g) ?? []).length, 1)
-      assert.doesNotMatch(html, /Última competência/)
     })
-    await t.test('intervalo sem comparação destaca consolidado e identifica a última competência', () => {
+    await t.test('intervalo mostra só o consolidado: a última competência concentra faturas a vencer', () => {
       const html = renderizar(periodo, null)
       assert.match(html, /Consolidado · Jan–Jun\/2026/)
-      assert.match(html, /6,2<small>%<\/small>/)
-      assert.match(html, /Última competência · Jun\/2026/)
-      assert.equal((html.match(/<small>%<\/small>/g) ?? []).length, 2)
-      assert.doesNotMatch(html, /p\.p\.|vs\./)
+      assert.match(html, /5,8<small>%<\/small>/)
+      assert.equal((html.match(/<small>%<\/small>/g) ?? []).length, 1)
+      assert.doesNotMatch(html, /Última competência|6,2|p\.p\.|vs\./)
+    })
+    await t.test('a explicação diz que faturas ainda não vencidas na data de corte entram na conta', () => {
+      const html = renderizar(periodo, referencia)
+      assert.match(html, /Sobre: Faturamento em aberto/)
+      assert.match(html, /em aberto em 30\/06\/2026/)
+      assert.match(html, /ainda não tinham vencido/)
     })
     await t.test('período × período mantém uma única comparação junto ao consolidado', () => {
       const html = renderizar(periodo, referencia)
-      assert.match(html, /vs\. referência · Jan–Jun\/2025/)
+      assert.match(html, /vs\. referência\s+\(Jan–Jun\/2025\)/)
       assert.equal((html.match(/p\.p\./g) ?? []).length, 1)
-      assert.ok(html.indexOf('p.p.') < html.indexOf('Última competência'))
       assert.match(html, /Consolidado · Jan–Jun\/2026/)
     })
-    await t.test('lacuna não esconde a última taxa disponível e não mostra pp inválidos', () => {
+    await t.test('lacuna fica indisponível e não mostra pp inválidos', () => {
       const html = renderizar(periodo, referencia, { ...kpi, valor_atual: null })
       assert.match(html, /Indisponível/)
-      assert.match(html, /6,2<small>%<\/small>/)
       assert.doesNotMatch(html, /p\.p\./)
       const semBase = renderizar(periodo, referencia, { ...kpi, valor_base: null })
       assert.match(semBase, /5,8<small>%<\/small>/)
       assert.doesNotMatch(semBase, /p\.p\./)
     })
-    await t.test('último mês ausente também fica indisponível; zero continua sendo um valor', () => {
-      const semFinal = renderizar(periodo, null, {
-        ...kpi, valor_atual: null, inadimplencia: { ...kpi.inadimplencia!, ultima_competencia_pct: null },
-      })
-      assert.equal((semFinal.match(/Indisponível/g) ?? []).length, 2)
-      const zero = renderizar(periodo, referencia, {
-        ...kpi, valor_atual: 0, valor_base: 0, variacao_pp: 0,
-        inadimplencia: { ...kpi.inadimplencia!, ultima_competencia_pct: 0 },
-      })
-      assert.equal((zero.match(/0,0<small>%<\/small>/g) ?? []).length, 2)
+    await t.test('zero continua sendo um valor', () => {
+      const zero = renderizar(periodo, referencia, { ...kpi, valor_atual: 0, valor_base: 0, variacao_pp: 0 })
+      assert.equal((zero.match(/0,0<small>%<\/small>/g) ?? []).length, 1)
       assert.match(zero, /0,0 p\.p\./)
       assert.doesNotMatch(zero, /Indisponível/)
     })

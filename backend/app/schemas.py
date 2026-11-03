@@ -87,22 +87,47 @@ class ConsumoClassesResponse(BaseModel):
 
 class VariacaoLinha(BaseModel):
     chave: str
+    rotulo: str = Field(description="Nome de exibição: município, bairro ou descrição da classe.")
+    municipio: str | None
+    bairro: str | None
+    classe: ClasseConsumo | None
     receita_base: float
     receita_atual: float
     variacao_receita: float
+    variacao_receita_pct: float | None
     efeito_preco: float
     efeito_volume: float
     energia_base_kwh: float
     energia_atual_kwh: float
     variacao_energia_pct: float | None
+    preco_base_kwh: float | None = Field(description="Receita / energia; nulo sem volume no período (regra da A4).")
+    preco_atual_kwh: float | None
+    qtd_ucs_base: int = Field(ge=0, description="UCs faturadas na última competência do período de referência.")
+    qtd_ucs_atual: int = Field(ge=0, description="UCs faturadas na última competência do período atual.")
+
+
+class FatoresReceita(BaseModel):
+    qtd_ucs_com_gd: int = Field(ge=0, description="UCs com GD conectada até a última competência do período atual.")
+    energia_ucs_gd_base_kwh: float | None = Field(
+        description="Volume, na referência, das UCs com GD no fim do período atual (A2). Nulo sem a A2 exportada."
+    )
+    energia_ucs_gd_atual_kwh: float | None = Field(description="Volume dessas mesmas UCs no período atual (A2).")
+    qtd_trocas_medidor_atual: int = Field(ge=0)
+    pct_faturas_bandeira_nao_verde_base: float | None
+    pct_faturas_bandeira_nao_verde_atual: float | None
 
 
 class VariacaoResponse(BaseModel):
     agrupar_por: Literal["municipio", "bairro", "classe"]
     periodo_base: Periodo
     periodo_atual: Periodo
+    recorte: Literal["diagnostico", "personalizado"] = Field(
+        description="diagnostico = períodos fixos da Gold (2022-07 a 2023-06 × 2025-07 a 2026-06)."
+    )
     total: VariacaoLinha
     linhas: list[VariacaoLinha]
+    fatores: FatoresReceita
+    serie: list[SeriePonto] = Field(description="Valores mensais da seleção: referência e depois período atual.")
 
 
 # ---------- unidades ----------

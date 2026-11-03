@@ -1,7 +1,10 @@
 import { useReducer } from 'react'
-import { RotateCcw } from 'lucide-react'
+import { ArrowRight, RotateCcw } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api, useApi } from '../../api'
+import { DataCorte } from '../../components/ui/DataCorte'
 import { PageHeader } from '../../components/ui/PageHeader'
+import { linkReceita } from '../receita/periodos'
 import { SeletorPeriodo } from './SeletorPeriodo'
 import { InadimplenciaCard } from './InadimplenciaCard'
 import { ClassesChart } from './ClassesChart'
@@ -38,6 +41,9 @@ export function DashboardPage() {
       <PageHeader
         title="Dashboard Executivo"
         description="Receita, consumo e indicadores do negócio em um só lugar."
+        actions={<Link className="button button--secondary" to={linkReceita(periodo, referencia)}>
+          Investigar na Análise de Receita <ArrowRight size={14} aria-hidden="true" />
+        </Link>}
       />
 
       <form
@@ -73,6 +79,7 @@ export function DashboardPage() {
         <button type="reset" className="button button--secondary">
           <RotateCcw size={14} aria-hidden="true" /> Limpar
         </button>
+        <DataCorte />
         {aviso && <p className="dashboard-temporal-help" role="status" aria-live="polite">{aviso}</p>}
       </form>
 

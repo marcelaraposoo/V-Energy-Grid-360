@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Headphones } from 'lucide-react'
 import { Panel } from '../../../components/ui/Panel'
+import { InfoTipContent } from '../../../components/ui/InfoTip'
 import { EmptyState } from '../../../components/ui/EmptyState'
 import { formatarData, formatarNumero } from '../formatters'
 import type { AtendimentoUC, Visao360 } from '../types'
@@ -30,7 +31,9 @@ export function AtendimentosSection({ dados }: { dados: Visao360 }) {
   const vazio = situacoes.find(item => item.id === situacao)!.vazio
 
   return (
-    <Panel title="Chamados de atendimento" description="Histórico completo da unidade" className="ucv-atendimentos">
+    <Panel title="Chamados de atendimento" description="Histórico completo da unidade" className="ucv-atendimentos"
+      info={<InfoTipContent resumo="Chamados da unidade, do mais recente ao mais antigo. Selecione um protocolo para ver os detalhes."
+        nota="A situação considera o fechamento do chamado. A última ação registrada não define se ele está aberto." />}>
       <div className="ucv-history-periods ucv-atendimentos-filtros" role="group" aria-label="Situação dos atendimentos">
         {situacoes.map(item => (
           <button key={item.id} type="button" className="button button--secondary"

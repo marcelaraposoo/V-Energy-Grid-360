@@ -1,4 +1,5 @@
 import { CircleHelp } from 'lucide-react'
+import { InfoTip, InfoTipContent } from '../../../components/ui/InfoTip'
 import {
   formatarCompetencia,
   formatarMoeda,
@@ -50,6 +51,12 @@ export function ContaAltaCard({
       <header>
         <CircleHelp size={20} strokeWidth={1.6} aria-hidden="true" />
         <h2 id="ucv-conta-alta-title">A conta veio alta?</h2>
+        <InfoTip titulo="Como comparar a conta">
+          <InfoTipContent resumo="Escolha dois meses para separar a mudança no consumo da mudança no valor cobrado." itens={[
+            { rotulo: 'Consumo', texto: 'Compara a energia faturada, em kWh.' },
+            { rotulo: 'Valor cobrado', texto: 'Compara o total da fatura, incluindo tributos.' },
+          ]} nota="Uma conta maior não significa, necessariamente, mais consumo. Sem referência válida, a variação fica indisponível." />
+        </InfoTip>
       </header>
       <p>
         Compare a energia utilizada com o valor cobrado nos meses com histórico

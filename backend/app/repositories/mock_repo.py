@@ -49,6 +49,22 @@ class MockRepository:
             and (classe is None or r["classe"] == classe)
         ], key=lambda r: (r["mes_referencia"], r["municipio"], r["bairro"], r["classe"]))
 
+    def gd_mesmas_ucs(self, base_inicio, base_fim, atual_inicio, atual_fim, municipio=None, bairro=None, classe=None):
+        validar_filtro_bairro(municipio, bairro)
+        faturas = self.d["fato_consumo_faturamento"]
+        ucs = {
+            f["id_uc"] for f in faturas
+            if f["mes_referencia"] == atual_fim and f["possui_gd_no_mes"]
+            and (municipio is None or f["municipio"] == municipio)
+            and (bairro is None or f["bairro"] == bairro)
+            and (classe is None or f["classe"] == classe)
+        }
+
+        def energia(inicio, fim):
+            return float(sum(f["consumo_kwh"] for f in faturas if f["id_uc"] in ucs and inicio <= f["mes_referencia"] <= fim))
+
+        return {"qtd_ucs": len(ucs), "energia_base_kwh": energia(base_inicio, base_fim), "energia_atual_kwh": energia(atual_inicio, atual_fim)}
+
     # faturamento
     def faturas(self, inicio, fim, municipio=None, bairro=None, classe=None):
         return [

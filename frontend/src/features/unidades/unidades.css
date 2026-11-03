@@ -118,6 +118,13 @@
   align-items: center;
   gap: 10px;
 }
+.ucv-summary .info-tip,
+.ucv-conta-alta header .info-tip {
+  margin-left: auto;
+}
+.ucv-conta-alta header .info-tip-botao svg {
+  color: currentColor;
+}
 .ucv-summary svg {
   color: var(--text-muted);
 }
@@ -239,16 +246,30 @@
 }
 .ucv-chart-tooltip {
   position: absolute;
-  width: 200px;
+  width: 260px;
   max-width: calc(100% - 24px);
-  padding: 12px;
+  padding: 14px 16px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-elevated);
+  border-radius: 10px;
+  background: var(--surface);
   color: var(--text-primary);
   font-size: 12px;
-  box-shadow: var(--shadow-tooltip);
+  box-shadow: var(--shadow-popover);
+  line-height: 1.6;
   pointer-events: none;
+}
+.ucv-chart-tooltip-label {
+  display: block;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+.ucv-chart-tooltip strong {
+  font-size: 14px;
+  font-weight: 600;
 }
 .ucv-chart-tooltip p {
   display: flex;

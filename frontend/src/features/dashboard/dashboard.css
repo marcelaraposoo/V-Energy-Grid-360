@@ -150,25 +150,9 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
-.dashboard-kpi {
-  padding: 18px;
-}
 .dashboard-kpis-feedback {
   grid-column: 1 / -1;
 }
-.dashboard-kpi h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-.dashboard-kpi h2 svg {
-  color: var(--text-muted);
-}
-.dashboard-kpi-value,
 .dashboard-secondary-value {
   margin-top: 16px;
   font-family: 'Manrope', sans-serif;
@@ -176,28 +160,6 @@
   font-weight: 700;
   letter-spacing: -0.6px;
   overflow-wrap: anywhere;
-}
-.dashboard-kpi-detail {
-  min-height: 33px;
-  margin-top: 6px;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-.dashboard-kpi-comparison {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-.dashboard-kpi-comparison span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-primary);
-  font-weight: 500;
 }
 .dashboard-charts {
   display: grid;
@@ -373,21 +335,6 @@
   color: var(--text-muted);
   font-size: 11px;
 }
-.dashboard-secondary-detail {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 20px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border-subtle);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-.dashboard-secondary-detail strong {
-  color: var(--text-primary);
-  font-weight: 500;
-}
 .dashboard-secondary-main > .dashboard-inadimplencia-comparison {
   margin-top: 12px;
   line-height: 1.6;
@@ -396,34 +343,16 @@
   color: var(--text-primary);
   font-weight: 500;
 }
-.dashboard-kpi-comparison [data-tendencia='favoravel'],
-.dashboard-inadimplencia-comparison [data-tendencia='favoravel'] {
+.dashboard-inadimplencia-comparison [data-tendencia='favoravel'],
+.dashboard-class-change[data-tendencia='favoravel'] {
   color: var(--success);
 }
-.dashboard-kpi-comparison [data-tendencia='desfavoravel'],
-.dashboard-inadimplencia-comparison [data-tendencia='desfavoravel'] {
+.dashboard-inadimplencia-comparison [data-tendencia='desfavoravel'],
+.dashboard-class-change[data-tendencia='desfavoravel'] {
   color: var(--danger);
-}
-.dashboard-inadimplencia-last {
-  display: block;
-}
-.dashboard-inadimplencia-last .dashboard-secondary-value {
-  margin: 0 0 6px;
-  font-size: 16px;
-}
-.dashboard-inadimplencia-last .dashboard-secondary-value small {
-  margin-left: 4px;
-  font-size: 11px;
-}
-.dashboard-inadimplencia-last > p:last-child {
-  font-size: 11px;
-  color: var(--text-muted);
 }
 .dashboard-secondary-value.dashboard-inadimplencia-unavailable {
   font-size: 18px;
-}
-.dashboard-inadimplencia-last .dashboard-inadimplencia-unavailable {
-  font-size: 14px;
 }
 .dashboard-cadastro-gd {
   font-size: 12px;
@@ -546,9 +475,6 @@
 @media (max-width: 767px) {
   .dashboard-filters {
     grid-template-columns: minmax(0, 1fr);
-    padding: 18px;
-  }
-  .dashboard-kpi {
     padding: 18px;
   }
   .dashboard-secondary-body {

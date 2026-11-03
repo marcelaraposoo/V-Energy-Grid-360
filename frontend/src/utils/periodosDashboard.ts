@@ -6,6 +6,14 @@ export type ModoAutomatico = Exclude<ModoReferencia, 'personalizado'>
 export const limitesDashboard: LimitesPeriodos = { minimo: '2022-07', maximo: '2026-06' }
 export const periodoInicialDashboard: Periodo = { inicio: '2025-07', fim: '2026-06' }
 export const referenciaInicialDashboard: Periodo = { inicio: '2022-07', fim: '2023-06' }
+// Fim da base no contrato da Gold: valores em aberto, idades e janelas são medidos até essa data.
+export const dataCorteGold = '2026-06-30'
+
+/** '2026-06-30' → '30/06/2026'. */
+export function formatarData(iso: string): string {
+  const [ano, mes, dia] = iso.slice(0, 10).split('-')
+  return `${dia}/${mes}/${ano}`
+}
 
 export function indiceMes(mes: string): number {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) return NaN

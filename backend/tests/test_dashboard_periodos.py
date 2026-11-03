@@ -91,10 +91,16 @@ def test_base_curta_sem_referencia_permite_continuar_sem_comparacao():
     assert resolver(repo=repo, comparar=False, atual_inicio="2025-01", atual_fim="2025-08")[0] is None
 
 
-def test_receita_mantem_dependencia_anterior_sem_regras_novas_do_dashboard():
+def test_receita_exige_periodos_comparaveis():
+    # Preço × volume entre durações diferentes misturaria a duração no efeito volume.
     repo = SimpleNamespace(competencias=lambda: COMPETENCIAS)
-    base, atual = periodos_dep(base_inicio="2025-01", base_fim="2025-02", atual_inicio="2025-02", atual_fim="2025-06", repo=repo)
-    assert base.fim == atual.inicio  # Recortes sobrepostos e diferentes continuam permitidos nesta outra tela.
+    # Sobrepostos; e durações diferentes (2 × 3 meses).
+    for base_fim, atual_inicio in (("2025-02", "2025-02"), ("2025-02", "2025-04")):
+        with pytest.raises(HTTPException) as erro:
+            periodos_dep(base_inicio="2025-01", base_fim=base_fim, atual_inicio=atual_inicio, atual_fim="2025-06", repo=repo)
+        assert erro.value.status_code == 422
+    base, atual = periodos_dep(base_inicio="2025-01", base_fim="2025-02", atual_inicio="2025-05", atual_fim="2025-06", repo=repo)
+    assert (base.inicio, atual.fim) == ("2025-01", "2025-06")
 
 
 def test_kpis_sem_comparacao_nao_consultam_base_nem_retornam_variacoes():

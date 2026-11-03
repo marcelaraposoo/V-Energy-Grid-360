@@ -31,9 +31,8 @@ Se o backend estiver em outro endereço, copie `frontend/.env.example` para `fro
 ## Dashboard Executivo
 
 A integração atende à [versão base do Dashboard](../../README.md#dashboard-executivo--versão-base).
-O atalho para a Análise da Receita e a respectiva tela são evoluções previstas do frontend;
-não estão implementados. O cliente `api.receita.variacao(...)` já existe, mas seu adaptador
-SQLite ainda depende da implementação da consulta global de faturas no backend.
+A [Análise de Receita](../../README.md#análise-de-receita) usa `api.receita.variacao(...)`, com
+os parâmetros montados por `parametrosReceita` (`features/receita/tipos.ts`).
 
 A tela envia somente períodos. `api.dashboard.kpis({ ...params, indicador: 'executivo' }, signal)`
 retorna os KPIs principais e o faturamento em aberto sem depender da A8. O contrato padrão

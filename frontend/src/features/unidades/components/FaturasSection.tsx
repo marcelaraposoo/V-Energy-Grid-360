@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import { Panel } from '../../../components/ui/Panel'
+import { InfoTipContent } from '../../../components/ui/InfoTip'
 import { EmptyState } from '../../../components/ui/EmptyState'
 import { SelectField } from '../../../components/ui/Controls'
 import { ErrorState, LoadingState } from '../../../components/ui/Feedback'
@@ -64,7 +65,11 @@ export function FaturasSection({ dados }: { dados: Visao360 }) {
   }
 
   return (
-    <Panel title="Faturas e pagamentos" description="Consulte faturas recentes e o histórico completo de pagamentos e pendências." className="panel--filters ucv-faturas">
+    <Panel title="Faturas e pagamentos" description="Consulte faturas recentes e o histórico completo de pagamentos e pendências." className="panel--filters ucv-faturas"
+      info={<InfoTipContent resumo="Consulte o valor total, o pagamento e a situação de cada fatura." itens={[
+        { rotulo: 'Recentes', texto: 'Últimas 12 competências, sem pendências com mais de 90 dias de atraso.' },
+        { rotulo: 'Histórico completo', texto: 'Inclui as pendências antigas, com filtros por ano e situação.' },
+      ]} nota="As contagens de pendências consideram todo o histórico da unidade, independentemente dos filtros." />}>
       <div className="ucv-faturas-resumo" aria-label="Pendências em todas as competências da UC">
         <div>
           <span>Pendências recentes</span>

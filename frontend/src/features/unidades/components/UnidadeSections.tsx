@@ -1,4 +1,5 @@
-import { FileText, Gauge, Sun, Unplug } from 'lucide-react'
+import { ArrowRight, FileText, Gauge, Sun, Unplug } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Panel } from '../../../components/ui/Panel'
 import { InfoTipContent } from '../../../components/ui/InfoTip'
 import { EmptyState } from '../../../components/ui/EmptyState'
@@ -319,6 +320,10 @@ export function InterrupcoesSection({
                 { rotulo: 'FEC · frequência', texto: 'Número equivalente de interrupções por unidade consumidora.' },
                 { rotulo: 'Impacto · UC × horas', texto: 'Soma das horas sem energia de todas as unidades afetadas.' },
               ]} nota="São indicadores do alimentador inteiro, não apenas desta UC. A competência informa a base de unidades usada." />}
+              actions={interrupcoes.alimentador_id ? <Link className="link-button ucv-link-qualidade"
+                to={`/qualidade?alimentador=${encodeURIComponent(interrupcoes.alimentador_id)}`}>
+                Ver na Qualidade do Serviço <ArrowRight size={13} aria-hidden="true" />
+              </Link> : undefined}
             >
               <UnidadeFields
                 fields={[

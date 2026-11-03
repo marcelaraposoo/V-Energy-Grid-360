@@ -12,6 +12,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { EmptyState } from '../../../components/ui/EmptyState'
+import { InfoTip, InfoTipContent } from '../../../components/ui/InfoTip'
 import { consultarVisao360 } from '../api'
 import {
   formatarCompetencia,
@@ -210,6 +211,8 @@ export function UnidadeProfile({ id }: { id: string }) {
               : 'Sem histórico de consumo',
             icon: Zap,
             value: formatarNumero(ultimoConsumo?.consumo_kwh),
+            info: <InfoTipContent resumo="Energia faturada na competência mais recente com leitura disponível."
+              nota="O valor está em kWh; não representa o total em reais da conta." />,
           },
           {
             label: 'Valor total da fatura',
@@ -218,18 +221,23 @@ export function UnidadeProfile({ id }: { id: string }) {
               : 'Sem fatura disponível',
             icon: FileText,
             value: formatarMoeda(ultimaFatura?.valor_total),
+            info: <InfoTipContent resumo="Valor da fatura mais recente, incluindo energia, bandeira tarifária e tributos."
+              nota="Na Análise de Receita, o indicador de receita considera apenas a energia, sem tributos." />,
           },
           {
             label: 'Faturas em aberto',
             detail: 'Pendências de pagamento',
             icon: CircleDashed,
             value: formatarNumero(dados.resumo_faturas.pendencias_recentes + dados.resumo_faturas.pendencias_antigas),
+            info: <InfoTipContent resumo="Quantidade de faturas sem pagamento registrado até a data de corte da base."
+              nota="Inclui pendências antigas e faturas que ainda não venceram. Consulte os detalhes na aba Faturas." />,
           },
-        ].map(({ label, detail, icon: Icon, value }) => (
+        ].map(({ label, detail, icon: Icon, value, info }) => (
           <section className="panel ucv-summary" key={label}>
             <div>
               <Icon size={17} aria-hidden="true" />
               <h3>{label}</h3>
+              <InfoTip titulo={label}>{info}</InfoTip>
             </div>
             <p>{value}</p>
             <small>{detail}</small>

@@ -60,8 +60,8 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
     const container = containerRef.current?.getBoundingClientRect()
     if (!container) return
     const larguraTooltip =
-      tooltipRef.current?.offsetWidth ?? Math.min(200, container.width - 24)
-    const alturaTooltip = tooltipRef.current?.offsetHeight ?? 100
+      tooltipRef.current?.offsetWidth ?? Math.min(260, container.width - 24)
+    const alturaTooltip = tooltipRef.current?.offsetHeight ?? 150
     const cursorX = clientX - container.left
     const cursorY = clientY - container.top
     const x =
@@ -211,6 +211,7 @@ export function ConsumoChart({ consumo }: { consumo: ConsumoMensalUC[] }) {
             className="ucv-chart-tooltip"
             style={{ left: tooltip.x, top: tooltip.y }}
           >
+            <span className="ucv-chart-tooltip-label">Consumo faturado</span>
             {mostrarAnterior && (
               <p>
                 <span>

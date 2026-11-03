@@ -1,170 +1,111 @@
-# Camada 2 — Cache de respostas finais
+# C2 — cache automático e memória conversacional
 
-## Implementado
+## Implementado e limites atuais
 
-Cache Redis opcional integrado a `answer_question`, reutilizando `CacheStore`,
-codec JSON/Pydantic, `prepare_request_state`, chave e política já revisados.
+C2 armazena `PostProcessingResult` aprovado: texto, assumptions e visualização.
+C7 mantém memória para compreender o diálogo. O botão de repetir consulta e o
+parâmetro `repetir_ultima` foram removidos; não existe recuperação por tema.
+Nenhuma chamada LLM adicional foi introduzida.
 
-- Adapter assíncrono `state/redis_cache.py`: GET e SET com expiração.
-- GET/HIT/SET no pipeline real; a rota HTTP repassa `sessao_id`.
-- TTL padrão de **300 segundos**; timeout de **1 segundo por operação**.
-- `GOLD_DATA_VERSION` explícita e obrigatória quando cache habilitado.
-- Falha/timeout de GET vira MISS; falha/timeout de SET preserva a resposta.
-- Redis no Compose, sem porta publicada, persistência ou dependência de startup.
+O cache conserva respostas anteriores até sua expiração ou remoção pelo limite
+por sessão. Não é limitado à última resposta. Recupera automaticamente uma
+pergunta normalizada quando o contexto efetivo também for idêntico, inclusive
+após outros pedidos se esse contexto permanecer ou voltar a ser idêntico.
+Não inferimos independência semântica: contexto alterado implica MISS hoje.
 
-## Fluxo GET/HIT/SET
+A C1 normaliza texto e valida segurança; não resolve intenção. A C4.1 interpreta
+a pergunta usando memória depois da C2. Não há evidência estruturada antes do
+GET para separar pergunta independente de acompanhamento. "E no mês anterior?"
+não pode reutilizar uma resposta antiga apenas porque o texto é igual. Perguntas
+com redações diferentes também dão MISS. Isso preserva confiabilidade, mas ainda
+não entrega cache independente da memória para perguntas livres.
 
-```text
-Pergunta → C1 → pergunta normalizada
-               → prepare_request_state (contexto + chave original + GET)
-                  ├─ HIT → entrega PostProcessingResult, sem novo SET
-                  └─ MISS/falha → C4.1 → C4.2 → C4.3 → C4.4 → C5 → C6
-                                  → C7: auditoria + memória + SET elegível → entrega
-```
+## Identidade e isolamento
 
-HIT pula providers, geração/validação/execução SQL, síntese, Output Guardrail e
-pós-processamento. C1 e revalidação Pydantic do payload continuam necessárias.
-O resultado interno mantém `outcome=ANSWERED`, `cache_hit=True` e um `request_id`
-novo. SQL e tentativas dos providers não são recuperados. Toda entrega passa
-pela [C7](C7-finalizacao.md), inclusive HIT, com auditoria e memória elegível.
+`agent:answer:v3:<scope_sha256>:<query_sha256>`
 
-SET ocorre uma única vez, no finalizer C7, usando a chave calculada no início.
-O pipeline não chama `write_cache` diretamente. Exige resposta aprovada e
-pós-processada, outcome e síntese `ANSWERED`, resultado não truncado e
-`row_count == len(rows)`. `NO_DATA`, esclarecimentos, bloqueios, erros,
-incompletude e HIT não geram SET. O status de entrega existente do pipeline
-não substitui o outcome na decisão de cache.
+O scope identifica sessão e identidade de usuário, quando disponível. A identidade
+da consulta inclui pergunta normalizada pela C1, sessão, usuário, versão Gold e
+contexto efetivo. Valores não aparecem em texto puro nas chaves. A função de
+chave aceita `user_identity` interno, mas o HTTP atual não oferece autenticação
+nem identidade confiável: não declaramos isolamento por usuário autenticado em
+produção. O backend não aceita identidade de usuário via body para autorizar
+cache. Ownership/autorização de sessão permanece pendente com DEV, conforme C7.
+Sem sessão não vazia, a C2 não faz GET/SET; uma UUID no navegador não é prova de
+ownership nem garantia de sessão válida no backend.
 
-## Configuração operacional
+Nova conversa gera outra sessão. Outra versão Gold produz outra chave: invalidação
+lógica sem limpar o Redis inteiro. O namespace v3 não lê entradas v2. Falta de
+memória por erro/corrupção continua impedindo GET/SET. TTL não substitui identidade.
 
-Configuração no `Settings` existente, sem duplicação de settings:
+## Expiração e limites
 
-| Ambiente | Padrão | Efeito |
+| Configuração | Padrão | Comportamento |
 |---|---|---|
-| `REDIS_URL` | ausente | Sem URL, cache desabilitado; Compose usa `redis://redis:6379/0`. |
-| `GOLD_DATA_VERSION` | ausente | Identificador explícito e não vazio do snapshot. |
-| `CACHE_TTL_SECONDS` | `300` | Inteiro positivo, expiração no SET. |
-| `CACHE_TIMEOUT_SECONDS` | `1` | Positivo e finito, por GET/SET. |
+| `CACHE_TTL_SECONDS` | 86400 | 24 h por resposta, contadas do SET; GET não renova |
+| `CACHE_MAX_ENTRIES_PER_SESSION` | 100 | Todas as perguntas/contextos/versões no mesmo scope |
+| `CACHE_TIMEOUT_SECONDS` | 1 | Limite de operação Redis |
+| `MEMORY_TTL_SECONDS` | 86400 | Renovado ao ler memória válida ou finalizar turno elegível |
+| Limite de memória | 20 turnos | Contexto usa até 5 e 4000 caracteres |
 
-Com URL e versão ausente/em branco, a inicialização falha por configuração
-inválida, conforme o contrato existente. TTL/timeout inválidos também são
-rejeitados quando habilitado. Sem URL, não se exige versão.
+Um índice técnico sorted set por scope permite limitar armazenamento de forma
+atômica: SET com TTL, remoção de referências expiradas e evicção das entradas
+mais antigas acima do limite ocorrem num script Redis. O índice tem expiração
+compatível com as entradas; não contém outra cópia de perguntas/respostas. O GET
+continua revalidando o payload via Pydantic estrito e respeitando a expiração do
+Redis. Duas escritas concorrentes não ultrapassam o limite após a operação.
 
-Antes de subir o Compose, defina a versão real do snapshot:
+O Redis atual do Compose é volátil (tmpfs, sem persistência). Reiniciá-lo invalida
+memória/cache mesmo com navegador aberto. Fechar o navegador não apaga o Redis;
+o TTL e os limites são a garantia no backend. Aumentar o TTL no código não muda
+entradas existentes nem overrides de 300 s em `.env`/terminal. Configure 86400 e
+recrie o backend para adotar a política. Não foram editadas credenciais locais.
 
-```powershell
-$env:GOLD_DATA_VERSION = '2026-06-v1' # Exemplo; use a versão real.
-docker compose up --detach --build --wait
-```
+## C7 e cache HIT
 
-Snapshot e versão devem ser atualizados juntos, com recriação do backend para
-reler o ambiente. Não há hash completo do banco por requisição, versão baseada
-apenas em mtime ou integração automática com a publicação do time de Dados.
+HIT evita SQL/providers e preserva texto, assumptions e gráfico integralmente.
+Continua gerando request_id novo e auditoria C7 com `cache_hit=true`, sem SET.
+Na memória, a entrega não duplica um turno consecutivo idêntico. Se outra
+pergunta estava por último, o turno da entrega atual precisa ser registrado para
+que o próximo acompanhamento aponte ao referente correto. O adapter Redis
+compara/anexa/limita/renova TTL atomicamente, inclusive sob concorrência. A C7
+mantém elegibilidade dos outcomes e falhas best-effort. Logfire continua exportando
+somente sua whitelist; conteúdo e histórico não entram na telemetria.
 
-## Chave, sessão e memória
+## Evolução proposta: intenção resolvida antes da C2
 
-```text
-agent:answer:v2:<digest SHA-256>
-```
+Para separar definitivamente cache e memória, a menor evolução de contrato é
+um `ResolvedQueryIntent` validado antes do lookup, contendo:
 
-JSON determinístico da pergunta normalizada pela C1, `session_id`, contexto
-efetivamente encaminhado ao agente e versão Gold gera o digest. Não há nova
-normalização, casefold ou compartilhamento entre sessões. Pergunta, memória e
-sessão não aparecem em texto puro na key; o digest não autentica propriedade
-de sessão. Mudanças incompatíveis de comportamento/contrato exigem revisão do
-namespace; TTL não substitui versionamento.
+- métrica e perspectiva financeira explícitas (receita, valor faturado e despesa são distintas);
+- operação, filtros tipados e valores, período absoluto e calendário;
+- granularidade, ordenação, quantidade/top-N e escopo do subconjunto;
+- versão do contrato/Gold e identidade autenticada/sessão;
+- resolução das referências ou marcação explícita de que ainda faltam dados.
 
-O `RedisMemoryStore` agora é disponibilizado pela C7 quando há `REDIS_URL`.
-Contexto recebido pelo parâmetro existente continua aceito; com sessão e store
-configurados, o helper carrega a memória antes da chave e da geração.
-Acrescentar uma interação muda o contexto e pode causar MISS no próximo pedido
-da mesma sessão. Não se removeu o contexto da chave para aumentar HITs.
+Nível A: texto normalizado pode apontar à intenção somente se a resolução atual
+for comprovadamente a mesma. Intenção independente e completamente resolvida não
+inclui o hash da conversa inteira. Acompanhamento precisa resolver novamente seu
+referente em atributos absolutos; referente diferente implica outra identidade.
 
-| Estado | Significado |
-|---|---|
-| `NOT_REQUESTED` | Sem contexto fornecido nem carregamento solicitado. |
-| `EMPTY` | Memória carregada com sucesso, sem contexto útil. |
-| `LOADED` | Contexto disponível. |
-| `UNAVAILABLE` | Falha no carregamento/preparação da memória solicitada. |
+Nível B: intenções canônicas iguais podem compartilhar resposta dentro do mesmo
+scope, mesmo com textos diferentes. Sem intenção completa, MISS. Não usar apenas
+palavras parecidas, embeddings, aliases de SQL ou declaração não verificada do
+modelo como certificado. Um campo emitido pela C4.1 existente não basta para
+interpretar a próxima pergunta antes da C2.
 
-Em `UNAVAILABLE`, não há GET, a chave fica `None` e não há SET. O pipeline
-continua sem cache; o `RequestState` preserva a distinção entre falha e memória
-vazia. `EMPTY` permite GET. A C2 não escreve memória.
+Uma entrada estruturada de consulta (ou parser determinístico com gramática
+explicitamente suportada e validação de todos os atributos) é o caminho menor
+para produzir esse contrato sem novo LLM. Texto livre fora dessa cobertura
+continua no pipeline atual. Essa evolução não foi implementada nesta tarefa:
+falta um resolvedor confiável no contrato atual; fingir equivalência seria inseguro.
 
-## Payload e adapter
+## Validação
 
-Somente `PostProcessingResult` é serializado: `answer`, `assumptions` e
-`visualization`. Credenciais de configuração, pergunta, memória, SQL bruto,
-request IDs e histórico de providers não são serializados.
-
-O codec existente valida antes de gerar JSON e revalida com Pydantic estrito
-no GET. Payload inválido/incompatível vira MISS, sem reparo ou migração.
-`read_cache` também revalida retornos de stores injetados.
-
-O adapter usa `redis.asyncio`, timeouts de conexão/comando e limite total via
-`asyncio.timeout`, sem retries. Os helpers mantêm seus limites. Cancelamento
-é propagado; logs incluem somente o tipo da exceção, sem URL, chave ou payload.
-Referência: [cliente Redis](https://redis.io/docs/latest/develop/clients/redis-py/produsage/).
-
-O HTTP atual usa `asyncio.run` por pergunta: cada operação abre e fecha seu
-cliente/pool para não compartilhar conexões entre event loops. Não há conexão
-ou PING obrigatório no startup/health do backend.
-
-## Compose e persistência
-
-`frontend → backend → redis:6379`, pela rede Docker. Gold em
-`/data/gold/gold.db` RO e portal em `/data/portal/portal.db` RW preservados.
-Somente frontend publica porta no host.
-
-Redis usa healthcheck `redis-cli ping`, RDB/AOF desabilitados e `/data` em
-tmpfs. Isso substitui o `VOLUME /data` da imagem e evita volume anônimo
-persistente. Backend não tem `depends_on` para Redis e funciona sem ele.
-
-## Validação executada
-
-Na implementação inicial da C2, **254 testes locais passaram**, cobrindo chave/sessão/versão e contexto exato,
-codec, configuração, adapter, GET/SET com exception/timeout, cancelamento,
-MISS com SET, HIT sem etapas caras/SET, política de outcomes/completude,
-memória indisponível, sessão HTTP e regressões de helpers/finalizer/pipeline/API.
-
-No Compose real, versão `validacao-c2-local-v1` apenas para esta validação:
-
-- Build/startup concluídos; backend/Redis saudáveis e frontend em execução.
-- Primeiro pedido: MISS e SET; TTL observado de 300 segundos.
-- Segundo pedido equivalente: HIT, outro request ID e nenhum novo SET.
-- Contadores: GET=2, SET=1; geração, SQL Guardrail, executor, síntese,
-  Output Guardrail e C6 executados uma única vez.
-- Payload inválido e expiração real com TTL=1: MISS.
-- Redis parado sozinho: backend permaneceu saudável, health HTTP retornou
-  `ok` e duas respostas aprovadas foram entregues apesar dos timeouts de GET/SET.
-- Redis religado: saudável e MISS/HIT confirmados novamente.
-- Inspeção final: nenhuma porta Redis publicada ou volume persistente;
-  mounts Gold RO e portal RW preservados.
-
-Reprodução isolada da C2 (o script desabilita memória e auditoria somente no
-ensaio para fixar o contexto), sem incluir testes na imagem:
-
-```powershell
-Get-Content -Raw backend/tests/manual/validate_redis_cache.py |
-    docker compose exec -T backend python - healthy
-docker compose stop redis
-try {
-    Get-Content -Raw backend/tests/manual/validate_redis_cache.py |
-        docker compose exec -T backend python - offline
-} finally {
-    docker compose up --detach --wait redis
-}
-```
-
-**Limite:** geração e síntese foram substituídas por funções determinísticas no
-processo de validação. SQL Guardrail, executor SQL RO da Gold montada, Output
-Guardrail, C6 e Redis foram reais. Não se comprovou conversa HTTP com providers
-autenticados: o Compose não injeta suas credenciais. Gold/portal não foram
-alterados; não houve FLUSHDB e o script remove apenas suas próprias chaves.
-
-## Ainda fora da C2
-
-- Memória Redis e auditoria persistente: implementadas pela [C7](C7-finalizacao.md).
-- Logfire/instrumentação.
-- Otimização de compartilhamento entre sessões e cache semântico.
-- Publicação automática de `GOLD_DATA_VERSION` pelo pipeline de Dados.
+A suíte cobre identidade, sessões/usuários no construtor de chaves, versões,
+contexto, recuperação após outra pergunta com snapshot idêntico, MISS para
+paráfrases e métricas distintas, TTL, payload completo, auditoria e concorrência.
+`backend/tests/manual/validate_cache_session_limits.py` usa Redis real com chaves
+sintéticas isoladas e removidas ao final; testa limite concorrente, isolamento,
+expiração, GET sem renovar TTL, deduplicação de memória e sequência A→B→A.
+Os testes não comprovam equivalência semântica para linguagem natural livre.

@@ -43,6 +43,7 @@ export function AssistentePage() {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [texto, setTexto] = useState('')
   const [carregando, setCarregando] = useState(false)
+  const enviando = useRef(false)
   const sessao = useRef(novaSessao())
   const proximoId = useRef(1)
   const fim = useRef<HTMLDivElement>(null)
@@ -68,13 +69,15 @@ export function AssistentePage() {
 
   async function perguntar(pergunta: string) {
     const limpa = pergunta.trim()
-    if (limpa.length < MIN || limpa.length > MAX || carregando) return
+    if (limpa.length < MIN || limpa.length > MAX || enviando.current) return
+    enviando.current = true
+    const sessaoDoPedido = sessao.current
     adicionar({ papel: 'usuario', texto: limpa })
     setTexto('')
     setCarregando(true)
     try {
-      const r = await api.ia.perguntar({ pergunta: limpa, sessao_id: sessao.current })
-      if (!montado.current) return
+      const r = await api.ia.perguntar({ pergunta: limpa, sessao_id: sessaoDoPedido })
+      if (!montado.current || sessao.current !== sessaoDoPedido) return
       adicionar({
         papel: 'assistente',
         texto: r.resposta,
@@ -84,9 +87,10 @@ export function AssistentePage() {
         visualizacao: r.visualizacao,
       })
     } catch (e) {
-      if (!montado.current) return
+      if (!montado.current || sessao.current !== sessaoDoPedido) return
       adicionar({ papel: 'assistente', texto: mensagemDeErro(e), status: 'erro' })
     } finally {
+      enviando.current = false
       if (montado.current) setCarregando(false)
     }
   }
@@ -122,7 +126,7 @@ export function AssistentePage() {
         title="Converse com os dados"
         description="O assistente só consulta os dados, nunca altera nada. Se não souber, ele diz que não sabe."
         actions={
-          <button type="button" className="button button--secondary button--small" onClick={novaConversa} disabled={mensagens.length === 0 && !carregando}>
+          <button type="button" className="button button--secondary button--small" onClick={novaConversa} disabled={carregando || mensagens.length === 0}>
             <RotateCcw size={14} aria-hidden="true" /> Nova conversa
           </button>
         }

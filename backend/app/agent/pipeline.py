@@ -1,7 +1,8 @@
+from app.agent.providers.latency_policy import provider_request
 import logging
 from dataclasses import dataclass, replace
 from enum import Enum
-from uuid import uuid4
+from app.core.observability import observe_pipeline, request_id as observability_request_id
 
 from app.agent.context.loader import load_database_context
 from app.agent.execution_responses import get_execution_message
@@ -166,6 +167,8 @@ def _generation_message(flow) -> str:
     return _INSUFFICIENT_MESSAGE
 
 
+@observe_pipeline
+@provider_request
 async def answer_question(
     question: str,
     *,
@@ -175,7 +178,7 @@ async def answer_question(
     state_dependencies: AgentStateDependencies | None = None,
 ) -> PipelineResult:
     """C1 → C2 GET → agente se MISS → C7 (auditoria, memória, SET) → entrega."""
-    request_id = uuid4().hex
+    request_id = observability_request_id()
     dependencies = state_dependencies
     state = None
     clean_question = question

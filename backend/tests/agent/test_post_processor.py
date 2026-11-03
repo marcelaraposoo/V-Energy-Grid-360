@@ -418,3 +418,42 @@ def test_titles_have_accents_for_known_columns():
     assert viz.x_label == "Mês de referência"
     assert viz.y_label == "Receita de energia"
     assert viz.unit == "R$"
+
+
+@pytest.mark.parametrize("labels", [["2024-01", "2024-03", "2025-02"], ["2024-03", "2024-01"]])
+def test_nonconsecutive_months_use_bars_without_reordering_ranking(labels):
+    result = _result(columns=["mes_referencia", "valor_faturado"], rows=[[label, i + 1] for i, label in enumerate(labels)])
+    original = result.model_dump()
+    viz = post_process(_synthesis(), result).visualization
+    assert viz.type == VisualizationType.BAR
+    assert viz.title == "Valor faturado por mês de referência"
+    assert [p.label for p in viz.points] == labels
+    assert result.model_dump() == original
+
+
+def test_billed_metric_sql_answer_and_chart_remain_consistent(tmp_path):
+    import sqlite3
+    from app.agent.sql_executor import execute_sql
+    from app.agent.guardrails.output_guardrail import validate_output
+    from app.agent.schemas import OutputGuardrailDecision
+    from app.agent.state.cache import serialize_cache_value, deserialize_cache_value
+    path = tmp_path / "synthetic.db"
+    with sqlite3.connect(path) as db:
+        db.executescript("""CREATE TABLE kpis_mensal (mes_referencia TEXT, receita_total REAL);
+            INSERT INTO kpis_mensal VALUES ('2024-01', 30), ('2024-03', 20), ('2024-05', 10), ('2024-07', 1);""")
+    # O usuário definiu gasto como valor faturado, não despesa operacional.
+    sql = "SELECT mes_referencia, receita_total AS valor_faturado FROM kpis_mensal ORDER BY receita_total DESC LIMIT 3"
+    result = execute_sql(sql, database_path=str(path)).result
+    synthesis = _synthesis("O valor faturado foi R$ 30 em janeiro de 2024, R$ 20 em março de 2024 e R$ 10 em maio de 2024.")
+    assert validate_output(synthesis.answer, [], "Quais os maiores valores faturados?", sql, result).decision == OutputGuardrailDecision.ALLOW
+    processed = post_process(synthesis, result)
+    assert "receita" not in processed.visualization.title.lower()
+    assert processed.visualization.unit == "R$"
+    assert processed.visualization.type == VisualizationType.BAR
+    assert deserialize_cache_value(serialize_cache_value(processed)) == processed
+    # Acompanhamento: menor dentre os três anteriores, não mínimo global.
+    followup_sql = "SELECT mes_referencia, receita_total AS valor_faturado FROM kpis_mensal WHERE mes_referencia IN ('2024-01','2024-03','2024-05') ORDER BY receita_total ASC LIMIT 1"
+    followup = execute_sql(followup_sql, database_path=str(path)).result
+    assert followup.rows == [["2024-05", 10.0]]
+    answer = "Dentre os meses indicados, maio de 2024 teve o menor valor faturado: R$ 10."
+    assert validate_output(answer, [], "Qual o menor dentre esses meses?", followup_sql, followup).decision == OutputGuardrailDecision.ALLOW

@@ -221,10 +221,12 @@ def _build_visualization(
         for label in labels
     )
 
+    # Meses isolados de um ranking não representam uma série contínua.
+    monthly = all(re.fullmatch(r"\d{4}-(?:0[1-9]|1[0-2])", label) for label in labels)
+    month_ordinals = sorted(int(label[:4]) * 12 + int(label[5:]) for label in labels) if monthly else []
+    consecutive = not monthly or all(b - a == 1 for a, b in zip(month_ordinals, month_ordinals[1:]))
     visualization_type = (
-        VisualizationType.LINE
-        if all_temporal
-        else VisualizationType.BAR
+        VisualizationType.LINE if all_temporal and consecutive else VisualizationType.BAR
     )
 
     pairs = list(zip(labels, values, strict=True))

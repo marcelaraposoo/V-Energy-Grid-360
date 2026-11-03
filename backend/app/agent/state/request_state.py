@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
+from app.core.observability import observe
 from enum import Enum
 
 from app.agent.schemas import PostProcessingResult
@@ -27,11 +28,13 @@ class RequestState:
     memory_status: MemoryContextStatus
     cached_response: PostProcessingResult | None = None
 
+
     @property
     def cache_hit(self) -> bool:
         return self.cached_response is not None
 
 
+@observe("C2")
 async def prepare_request_state(
     *,
     normalized_question: str,
@@ -45,6 +48,7 @@ async def prepare_request_state(
         else MemoryContextStatus.NOT_REQUESTED
     )
 
+    entries = []
     if (
         session_id is not None
         and dependencies.memory_store is not None
@@ -67,6 +71,7 @@ async def prepare_request_state(
 
     if (
         dependencies.cache_store is not None
+        and isinstance(session_id, str) and bool(session_id.strip())
         and memory_status != MemoryContextStatus.UNAVAILABLE
     ):
         assert dependencies.data_version is not None  # Validada na configuração.

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.observability import configure_observability
 from app.core.errors import ConflitoDeEstado, NaoDisponivelNaGold, NaoEncontrado
 from app.routers import catalogos, continuidade, dashboard, ia, perdas, unidades
 
@@ -33,3 +34,6 @@ async def _501(_: Request, exc: NaoDisponivelNaGold):
 @app.get("/api/health", tags=["infra"])
 def health():
     return {"status": "ok", "data_source": settings.data_source}
+
+
+configure_observability(app, settings)

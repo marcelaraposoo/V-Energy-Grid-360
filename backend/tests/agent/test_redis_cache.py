@@ -47,11 +47,12 @@ def test_set_serializes_only_final_result_and_expires(client):
 
     asyncio.run(RedisCacheStore("redis://redis").set("key", value, 300))
 
-    args, kwargs = redis.set.await_args
-    assert args[0] == "key"
-    assert json.loads(args[1]) == value.model_dump(mode="json")
-    assert set(json.loads(args[1])) == {"answer", "assumptions", "visualization"}
-    assert kwargs == {"ex": 300}
+    args, kwargs = redis.eval.await_args
+    assert args[1:4] == (2, "key", "key:entries")
+    assert json.loads(args[4]) == value.model_dump(mode="json")
+    assert set(json.loads(args[4])) == {"answer", "assumptions", "visualization"}
+    assert args[5:] == (300, 100)
+    assert kwargs == {}
     redis.__aexit__.assert_awaited_once()
 
 
@@ -59,7 +60,7 @@ def test_set_serializes_only_final_result_and_expires(client):
 @pytest.mark.parametrize("failure", ["connection", "timeout"])
 def test_redis_failures_degrade_safely(client, operation, failure, caplog):
     redis, _ = client
-    command = getattr(redis, operation)
+    command = getattr(redis, "eval" if operation == "set" else operation)
     if failure == "connection":
         command.side_effect = ConnectionError("segredo-na-url")
     else:

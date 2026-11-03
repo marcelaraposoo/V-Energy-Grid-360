@@ -60,7 +60,7 @@ def get_state_dependencies() -> AgentStateDependencies:
         ),
         memory_timeout_seconds=settings.memory_timeout_seconds,
         cache_store=(
-            RedisCacheStore(settings.redis_url, timeout_seconds=settings.cache_timeout_seconds)
+            RedisCacheStore(settings.redis_url, timeout_seconds=settings.cache_timeout_seconds, max_entries_per_session=settings.cache_max_entries_per_session)
             if settings.redis_url else None
         ),
         data_version=settings.gold_data_version,

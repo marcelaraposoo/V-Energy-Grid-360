@@ -448,3 +448,17 @@ def test_every_retryable_reason_has_feedback(reason):
     )
 
     assert build_output_retry_feedback(result) is not None
+
+
+@pytest.mark.parametrize(("answer", "allowed"), [
+    ("Janeiro de 2024 teve R$ 7.", True),
+    ("Fevereiro de 2024 teve R$ 7.", False),
+    ("Janeiro de 2025 teve R$ 7.", False),
+    ("15 de janeiro de 2024 teve R$ 7.", False),
+])
+def test_named_months_are_validated_as_dates_not_just_years(answer, allowed):
+    result = QueryExecutionResult(columns=["mes_referencia", "valor"], rows=[["2024-01", 7]], row_count=1)
+    decision = validate_output(answer, [], "Qual o valor?", "SELECT mes_referencia, valor FROM resumo", result)
+    assert (decision.decision == OutputGuardrailDecision.ALLOW) == allowed
+    if not allowed:
+        assert decision.reason == OutputGuardrailReason.UNSUPPORTED_NUMBER

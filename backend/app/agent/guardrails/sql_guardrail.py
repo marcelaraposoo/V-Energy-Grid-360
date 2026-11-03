@@ -1,4 +1,5 @@
 from sqlglot import exp, parse
+from app.core.observability import observe
 from sqlglot.errors import ParseError
 
 from app.agent.guardrails.allowed_tables import ALLOWED_TABLES
@@ -160,6 +161,7 @@ def build_retry_feedback(
     )
 
 
+@observe("C4.2")
 def validate_sql(
     sql: str,
 ) -> SQLGuardrailResult:

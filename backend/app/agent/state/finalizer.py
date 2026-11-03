@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from app.core.observability import observe, set_metadata
 
 from app.agent.schemas import (
     AuditRecord,
@@ -23,6 +24,7 @@ from app.agent.state.memory import (
 logger = logging.getLogger(__name__)
 
 
+@observe("C7")
 async def finalize(
     *,
     audit_store: AuditStore | None,
@@ -49,6 +51,12 @@ async def finalize(
     - falhas de persistência não impedem a resposta ao usuário.
     """
 
+    set_metadata(
+        request_id=audit_record.request_id, outcome=audit_record.outcome.value,
+        cache_hit=audit_record.cache_hit, row_count=audit_record.row_count,
+        truncated=audit_record.truncated, regenerations=audit_record.regenerations,
+    )
+
     try:
         if audit_store is not None:
             async with asyncio.timeout(2.0):
@@ -67,7 +75,16 @@ async def finalize(
     ):
         try:
             async with asyncio.timeout(memory_timeout_seconds):
-                await memory_store.append(audit_record.session_id, memory_entry)
+                append_turn = True
+                if audit_record.cache_hit:
+                    entries = await memory_store.get_context(audit_record.session_id)
+                    if entries:
+                        last = entries[-1]
+                        append_turn = (last.question, last.answer, last.outcome) != (
+                            memory_entry.question, memory_entry.answer, memory_entry.outcome,
+                        )
+                if append_turn:
+                    await memory_store.append(audit_record.session_id, memory_entry)
         except Exception as error:
             logger.warning(
                 "Falha ao persistir memória. error_type=%s",

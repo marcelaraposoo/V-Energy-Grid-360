@@ -1,6 +1,13 @@
 import type { Visualizacao } from '../../api'
 import '../../components/ui/portal.css'
 
+export function formatarMesReferencia(label: string): string {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(label)
+  if (!match) return label
+  const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+  return `${meses[Number(match[2]) - 1]}/${match[1]}`
+}
+
 const numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 })
 
 function formatar(valor: number, unidade?: string | null): string {
@@ -17,8 +24,8 @@ function Barras({ spec }: { spec: Visualizacao }) {
     <ul className="viz-bars">
       {spec.points.map((p) => (
         <li key={p.label}>
-          <span className="viz-label" title={p.label}>
-            {p.label}
+          <span className="viz-label" title={formatarMesReferencia(p.label)}>
+            {formatarMesReferencia(p.label)}
           </span>
           <span className="viz-track" aria-hidden="true">
             <span
@@ -55,15 +62,15 @@ function Linha({ spec }: { spec: Visualizacao }) {
       <path d={caminho} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
       {pontos.map((p, i) => (
         <circle key={p.label} cx={x(i)} cy={y(p.value)} r="3.5" fill="var(--accent)">
-          <title>{`${p.label}: ${formatar(p.value, spec.unit)}`}</title>
+          <title>{`${formatarMesReferencia(p.label)}: ${formatar(p.value, spec.unit)}`}</title>
         </circle>
       ))}
       <text x={MARGEM.e} y={A - 8} textAnchor="start">
-        {pontos[0].label}
+        {formatarMesReferencia(pontos[0].label)}
       </text>
       {n > 1 && (
         <text x={L - MARGEM.d} y={A - 8} textAnchor="end">
-          {pontos[n - 1].label}
+          {formatarMesReferencia(pontos[n - 1].label)}
         </text>
       )}
     </svg>
@@ -74,7 +81,10 @@ export function VisualizacaoChart({ spec }: { spec: Visualizacao }) {
   return (
     <figure className="viz">
       <figcaption className="viz-title">{spec.title}</figcaption>
-      {spec.type === 'line' ? <Linha spec={spec} /> : <Barras spec={spec} />}
+      <details className="viz-chart">
+        <summary><span className="viz-show">Ver gráfico</span><span className="viz-hide">Ocultar gráfico</span></summary>
+        {spec.type === 'line' ? <Linha spec={spec} /> : <Barras spec={spec} />}
+      </details>
       {(spec.x_label || spec.y_label) && (
         <p className="viz-axes">
           {[spec.x_label, spec.y_label].filter(Boolean).join(' · ')}
@@ -94,7 +104,7 @@ export function VisualizacaoChart({ spec }: { spec: Visualizacao }) {
           <tbody>
             {spec.points.map((p) => (
               <tr key={p.label}>
-                <th scope="row">{p.label}</th>
+                <th scope="row">{formatarMesReferencia(p.label)}</th>
                 <td className="num">{formatar(p.value, spec.unit)}</td>
               </tr>
             ))}

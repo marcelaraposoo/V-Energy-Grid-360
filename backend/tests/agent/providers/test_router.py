@@ -19,6 +19,7 @@ def anyio_backend():
 @pytest.fixture
 def fake_settings():
     return SimpleNamespace(
+        provider_timeout_seconds=20.0,
         gemini_model="gemini",
         gemini_last_resort_model=None,
         openrouter_models=(
@@ -827,6 +828,7 @@ LAST_RESORT = "gemini-ultimo-recurso"
 
 def _settings(last_resort=LAST_RESORT, primary="gemini"):
     return SimpleNamespace(
+        provider_timeout_seconds=20.0,
         gemini_model=primary,
         gemini_last_resort_model=last_resort,
         openrouter_models=("cohere", "nemotron-ultra"),

@@ -72,7 +72,7 @@ def test_default_ttl_and_timeout_with_explicit_snapshot():
         audit_store=FakeAuditStore(), cache_store=FakeCacheStore(), data_version="gold-v1"
     )
 
-    assert dependencies.cache_ttl_seconds == 300
+    assert dependencies.cache_ttl_seconds == 86400
     assert dependencies.cache_timeout_seconds == 1.0
 
 

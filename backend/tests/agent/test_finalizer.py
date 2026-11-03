@@ -321,7 +321,7 @@ def test_set_timeout_does_not_break_finalization():
     assert cache.values == []
 
 
-def test_default_ttl_is_300_seconds():
+def test_default_ttl_is_24_hours():
     cache = FakeCacheStore()
     value = _cache_value()
     _run(
@@ -330,4 +330,4 @@ def test_default_ttl_is_300_seconds():
         cache_data_version="gold-v1", cache_response_complete=True,
     )
 
-    assert cache.values == [("cache-key", value, 300)]
+    assert cache.values == [("cache-key", value, 86400)]

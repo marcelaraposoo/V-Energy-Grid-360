@@ -19,7 +19,7 @@ def test_cache_is_disabled_without_url(monkeypatch):
     monkeypatch.delenv("CACHE_TIMEOUT_SECONDS", raising=False)
     config = Settings()
     monkeypatch.setattr("app.core.config.settings", config)
-    assert config.cache_ttl_seconds == 300
+    assert config.cache_ttl_seconds == 86400
     assert config.cache_timeout_seconds == 1
     assert get_state_dependencies().cache_store is None
 

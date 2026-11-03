@@ -267,6 +267,13 @@ o adicional não vem separado e não permite atribuir todo o efeito apenas à ta
 ## Uso
 
 Indicadores gerais do negócio e comparações mensais.
+Para totais e rankings por mês do conjunto inteiro (inclusive meses com maiores
+valores faturados), prefira esta tabela agregada quando a métrica existir aqui.
+`receita_total` já soma `valor_total` da `fato_consumo_faturamento` por mês;
+`receita_energia` soma `valor_energia` e `consumo_total_kwh` soma `consumo_kwh`.
+Evite recalcular esses totais varrendo a fato detalhada. Use a fato quando houver
+filtros ou dimensões não disponíveis no agregado (por exemplo UC, município ou
+classe), preservando o grão e as definições financeiras deste contrato.
 
 ## Colunas
 

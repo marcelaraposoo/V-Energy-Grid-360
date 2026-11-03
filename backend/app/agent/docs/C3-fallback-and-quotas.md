@@ -9,6 +9,16 @@ A aplicação controla a cadeia em `providers/router.py`:
 3. OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free`, somente se permitido pela política de dados;
 4. Gemini `gemini-3.1-flash-lite`, se diferente do principal e sem credencial Gemini invalidada.
 
+Essa é a ordem base. Durante `answer_question`, a C3 guarda somente o último
+provider/modelo bem-sucedido em contexto isolado da requisição. Na próxima
+passagem (inclusive regeneração), ele vai primeiro se ainda estiver na cadeia,
+elegível pela política de dados e compatível com o contrato de saída. Os adapters
+atuais suportam texto e os schemas de SQL/síntese via Native/PromptedOutput;
+contratos novos não recebem preferência sem avaliação explícita. A preferência
+não persiste em sessão, Redis ou auditoria e é removida no retorno ou cancelamento.
+Se falhar, a cadeia base continua sem repetir o modelo já tentado e respeitando
+as falhas de credencial/quota por provider. Não há chamadas paralelas.
+
 Sucesso encerra a cadeia. Modelos repetidos no pool OpenRouter são deduplicados.
 São no máximo quatro tentativas por passagem com a configuração atual, ou três
 quando o Nemotron está desabilitado. Regenerações e síntese fazem novas passagens.
@@ -42,15 +52,57 @@ não pretende descrever sozinho todas as causas. Sucesso retorna erro agregado n
 
 ### Timeout, retries e saída estruturada
 
-O timeout é **20 segundos por chamada ao modelo**, via `request_timeout` do
-PydanticAI. `max_retries=0` e retries de tools/output iguais a zero mantêm uma
+O Gemini principal recebe **8 segundos quando inicia a passagem**. Um modelo
+preferido de fallback recebe até **20 segundos**, assim como as demais tentativas.
+Se o Gemini principal vier depois de uma preferência que falhou, recebe o prazo
+das demais tentativas. O prazo é passado a `request_timeout` e aplicado também ao
+adapter completo com `asyncio.timeout`, incluindo overhead local. O cancelamento
+é aguardado antes do fallback; isso não garante interrupção/custo zero no servidor
+remoto. `max_retries=0` e retries de tools/output iguais a zero mantêm uma
 tentativa por modelo por passagem. A aplicação não solicita uma lista de fallback
 ao OpenRouter; isso não controla possíveis redirecionamentos entre upstreams
 feitos pelo serviço dentro de uma chamada ao mesmo modelo.
 
-**Não existe deadline global da requisição HTTP.** Seu orçamento e os timeouts
-de cliente/proxy permanecem pendentes para o E2E. Os 20 s não incluem a soma
-de fallback, regenerações, síntese e demais etapas.
+**Não existe deadline global da requisição HTTP.** Há budgets monotônicos por
+fase, inicialmente desativados: SQL 30 s e síntese 20 s. O deadline é criado na
+entrada do orquestrador e compartilhado entre tentativas e regenerações, sem
+alterar seus limites ou guardrails. Cada tentativa recebe o menor prazo entre seu
+teto e o saldo da fase. Saldo esgotado retorna `TIMEOUT` sem iniciar nova chamada;
+o pipeline mantém o caminho seguro de erro e a finalização C7. Ativar budgets pode
+reduzir respostas recuperadas por C5. Cliente/proxy precisam acomodar o total das
+fases e a finalização; budget de fase não limita sozinho o HTTP inteiro.
+
+Parâmetros (segundos devem ser positivos e finitos):
+
+| Variável | Padrão |
+|---|---|
+| `PROVIDER_PRIMARY_TIMEOUT_SECONDS` | `8` |
+| `PROVIDER_TIMEOUT_SECONDS` (demais tentativas) | `20` |
+| `PROVIDER_REUSE_SUCCESS` | `true` |
+| `PROVIDER_PHASE_BUDGETS_ENABLED` | `false` |
+| `PROVIDER_SQL_BUDGET_SECONDS` | `30` |
+| `PROVIDER_SYNTHESIS_BUDGET_SECONDS` | `20` |
+
+Para retornar a 20 s em todas as tentativas, defina
+`PROVIDER_PRIMARY_TIMEOUT_SECONDS=20` e `PROVIDER_TIMEOUT_SECONDS=20`.
+Para reproduzir também a ordem antiga em cada passagem, defina
+`PROVIDER_REUSE_SUCCESS=false`; mantenha `PROVIDER_PHASE_BUDGETS_ENABLED=false`.
+Em execução local use ambiente do processo ou `backend/.env` e reinicie o backend.
+No Compose, os seis parâmetros são passados explicitamente: configure o ambiente
+ou `.env` da raiz (interpolação Compose). Recrie o backend para aplicar parâmetros;
+reconstrua a imagem para aplicar código. O build não copia `backend/.env`.
+
+Comparação determinística (tempo virtual, **não benchmark de providers reais**):
+
+| Cenário artificial SQL + síntese | Política anterior | Política nova |
+|---|---|---|
+| Principal demora 25 s, fallback responde em 2 s; budgets desligados | 44 s, 2/2 fases respondidas, 4 chamadas | 12 s, 2/2 fases respondidas, 3 chamadas |
+| Principal responde em 15 s, demais demoram 25 s (uma fase) | Responde na primeira chamada | Esgota a cadeia sem resposta |
+
+Esses testes comprovam comportamento e o risco de disponibilidade, sem estimar
+latência, quota ou sucesso reais. Comparação A/B real continua pendente. Metadados
+seguros existentes: fase, provider, modelo, tentativa, timestamp, latência, sucesso
+e categoria de erro. Não registrar conteúdo nem exceções brutas para medir a política.
 
 Gemini usa `NativeOutput`; OpenRouter usa `PromptedOutput` com validação Pydantic
 local, sem exigir `response_format` dos modelos gratuitos. Texto livre e JSON
@@ -95,7 +147,8 @@ Não foi migrado para Redis ou banco. Persistência central é trabalho futuro.
 ### Política de dados confidenciais
 
 O [endpoint gratuito NVIDIA Nemotron](https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b:free)
-informa que não deve receber dados confidenciais ou pessoais. Os dados reais do
+informa que não deve receber dados confidenciais ou pessoais e que registra o uso
+para segurança e melhoria de produtos NVIDIA (verificado em 03/11/2026). Os dados reais do
 case são confidenciais: esse endpoint permanece **bloqueado por padrão**.
 
 `PROVIDER_PAYLOAD_POLICY=confidential` é o padrão. Ausência, opção vazia ou

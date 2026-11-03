@@ -774,3 +774,9 @@ code {
   color: var(--text-muted);
   font-size: 11px;
 }
+
+
+.viz-chart .viz-hide { display: none; }
+.viz-chart[open] .viz-show { display: none; }
+.viz-chart[open] .viz-hide { display: inline; }
+.viz-chart > summary { cursor: pointer; }

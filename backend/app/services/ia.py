@@ -18,7 +18,7 @@ def perguntar(pergunta: str, sessao_id: str | None = None) -> RespostaOut:
     resultado = asyncio.run(answer_question(pergunta, session_id=sessao_id))
 
     if resultado.status == PipelineStatus.ANSWERED:
-        logger.info("Pergunta respondida. sql=%s", resultado.sql)
+        logger.info("Pergunta respondida. request_id=%s", resultado.request_id)
         return RespostaOut(
             status="ok",
             resposta=resultado.message,

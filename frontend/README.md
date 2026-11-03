@@ -47,6 +47,15 @@ não utiliza os mocks locais de apresentação. A fonte dos dados é definida no
 O Dashboard permanece dedicado à visão geral, somente com filtros temporais. Os recortes por
 município, bairro e classe ficam na [Análise de Receita](#análise-de-receita).
 
+### Padrão comum com a Análise de Receita
+
+- **Explicações** de método e definição ficam no "i" do canto de cada card ou painel (`components/ui/InfoTip.tsx`),
+  e não no texto principal.
+- **Formatação e textos** dos indicadores comuns vêm de `utils/indicadores.ts`, para as duas telas mostrarem os
+  mesmos números do mesmo jeito.
+- **Data de corte** ("Dados até 30/06/2026") junto aos filtros (`components/ui/DataCorte.tsx`).
+- **"Investigar na Análise de Receita"** abre a outra tela com os mesmos períodos, pela URL.
+
 ### Períodos e comparação
 
 O período inicial é jul/2025–jun/2026, comparado com jul/2022–jun/2023 (os períodos do
@@ -62,8 +71,9 @@ Os limites disponíveis são jul/2022 a jun/2026, contando competências mensais
 
 ### Organização e indicadores
 
-A primeira linha mostra receita de energia, consumo faturado e preço médio por kWh em três
-colunas iguais. A segunda divide a largura entre faturamento em aberto e cadastro/GD empilhados
+A primeira linha mostra receita de energia, energia faturada e preço médio por kWh em três
+colunas iguais, com o mesmo card de KPI da Análise de Receita (`components/ui/KpiCard.tsx`): valor,
+valor da referência e variação. A segunda divide a largura entre faturamento em aberto e cadastro/GD empilhados
 à esquerda, e consumo por classe à direita. A terceira mantém os gráficos de evolução mensal.
 Em telas menores, as seções ficam em uma coluna.
 
@@ -73,9 +83,10 @@ as cinco classes pelo volume principal e mantém uma única barra por classe. Fa
 de uma classe deixa seu consolidado indisponível; a participação exige um total completo.
 
 Receita e consumo nos KPIs são totais dos meses selecionados; preço médio é a razão entre
-receita de energia e consumo. Faturamento em aberto destaca o consolidado ponderado pelo
-faturamento total, incluindo tributos, e apresenta a taxa da última competência como informação
-secundária apenas em intervalos de vários meses. Sua comparação usa pontos percentuais.
+receita de energia e consumo, exibida com duas casas nas duas telas. Faturamento em aberto mostra
+o consolidado ponderado pelo faturamento total, incluindo tributos, e a comparação em pontos
+percentuais. A taxa da última competência não aparece: é o mês com mais faturas ainda não vencidas
+na data de corte, que a definição do contrato conta como em aberto (o "i" do card explica isso).
 UCs cadastradas e GD não são somadas entre meses; a participação é `UCs com GD / UCs cadastradas × 100`.
 
 Os quatro carregamentos usam `useApi`, com cancelamento de consultas anteriores e tratamento

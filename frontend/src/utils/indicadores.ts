@@ -24,5 +24,5 @@ export function tendencia(valor: number | null) {
 export const explicacoes = {
   receita: 'Soma do valor da energia faturada no período: sem tributos e com o adicional de bandeira tarifária embutido.',
   energia: 'Soma da energia faturada (kWh) no período.',
-  preco: 'Receita de energia ÷ energia faturada do período. É uma razão de somas, não a média dos preços mensais. A variação usa o valor sem arredondar.',
+  preco: 'Receita de energia dividida pela energia faturada no período.',
 }

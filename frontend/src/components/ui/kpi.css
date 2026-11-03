@@ -1,0 +1,65 @@
+/* Card de KPI comum ao Dashboard e à Análise de Receita */
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+}
+.panel.kpi-card {
+  overflow: visible;
+}
+.kpi-card-cabecalho {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.kpi-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.kpi-card h2 svg {
+  color: var(--text-muted);
+}
+.kpi-card-valor {
+  margin-top: 16px;
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(23px, 2vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  overflow-wrap: anywhere;
+}
+.kpi-card-referencia {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.kpi-comparacao {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 16px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.kpi-comparacao > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.kpi-comparacao [data-tendencia='favoravel'],
+.kpi-card-valor[data-tendencia='favoravel'] {
+  color: var(--success);
+}
+.kpi-comparacao [data-tendencia='desfavoravel'],
+.kpi-card-valor[data-tendencia='desfavoravel'] {
+  color: var(--danger);
+}

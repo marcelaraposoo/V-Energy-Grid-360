@@ -642,3 +642,77 @@ code {
     padding: 16px;
   }
 }
+
+/* Explicação em balão (InfoTip): ícone discreto no canto do card ou ao lado de um título */
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.info-tip-botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: default;
+}
+.info-tip-botao:hover,
+.info-tip-botao:focus-visible {
+  color: var(--text-primary);
+  background: var(--hover-overlay);
+}
+.info-tip-balao {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 20;
+  width: max-content;
+  max-width: min(280px, 70vw);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-tooltip);
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-align: left;
+  white-space: normal;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.info-tip--direita .info-tip-balao {
+  right: 0;
+}
+.info-tip--esquerda .info-tip-balao {
+  left: 0;
+}
+.info-tip:hover .info-tip-balao,
+.info-tip:focus-within .info-tip-balao {
+  visibility: visible;
+  opacity: 1;
+}
+.panel-header-aside {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.data-corte {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}

@@ -17,8 +17,8 @@ Os modelos expostos ao frontend estão em [schemas.py](../app/schemas.py).
 | A3 `fato_segmento_mensal` | Competência × município × bairro × classe | KPIs e série com filtros regionais; faturamento em aberto e consumo por classe na visão geral |
 | A5 `kpis_mensal` | Uma competência | KPIs e série da visão geral; posição final de UCs cadastradas, faturadas e com GD |
 | A6 `fato_troca_medidor` | Evento de troca | Histórico de trocas da UC |
-| A7 `fato_interrupcao` | Evento de interrupção | Ocorrências e contexto da UC/alimentador |
-| A8 `dec_fec_alimentador_mensal` | Alimentador × competência | Indicadores de continuidade; KPIs padrão de DEC/FEC |
+| A7 `fato_interrupcao` | Evento de interrupção | Ocorrências e contexto da UC/alimentador; causas e UCs afetadas (distintas) na Qualidade do Serviço |
+| A8 `dec_fec_alimentador_mensal` | Alimentador × competência | Indicadores de continuidade; KPIs padrão de DEC/FEC. DEC/FEC de um período = soma dos índices mensais, ponderados pelas UCs de cada mês quando há mais de um alimentador (confere com `dec_12m_horas`/`fec_12m` em 12 meses) |
 | B1 `fato_atendimento` | Atendimento | Histórico e detalhes de atendimentos da UC |
 | B2 `fila_inspecao` | UC priorizada | Fila de inspeção e motivos de suspeita |
 

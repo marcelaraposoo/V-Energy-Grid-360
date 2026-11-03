@@ -113,7 +113,8 @@ conflito com Dev, e o contrato com o front não muda.
 | GET | `/perdas/fila?q=&pagina=&tamanho=` | Dev | implementada (mock) | fila priorizada, com busca e paginação (total no cabeçalho `X-Total-Count`) |
 | POST/GET | `/perdas/ordens`, `/perdas/ordens/{id}` | Dev | implementada (em memória) | criar, listar e consultar ordens |
 | POST | `/perdas/ordens/{id}/iniciar`, `/resultado`, `/cancelar` | Dev | implementada (em memória) | ciclo da ordem de inspeção |
-| GET | `/continuidade/alimentadores`, `/alimentadores/{id}/serie` | Dev | implementada (mock) | DEC/FEC |
+| GET | `/continuidade/alimentadores`, `/alimentadores/{id}/serie` | Dev | implementada (mock e SQLite) | DEC/FEC: ranking e série por alimentador |
+| GET | `/continuidade/resumo` | Dev | implementada (mock e SQLite) | Qualidade do Serviço: indicadores, série e causas do recorte |
 | **POST** | **`/ia/perguntar`** | **IA** | **stub** (`nao_implementado`) | chat flutuante |
 | **DELETE** | **`/ia/sessoes/{id}`** | **IA** | **stub** (204, não faz nada) | "nova conversa" no chat |
 | **GET** | **`/ia/insights?tela=`** | **IA** | **parcial** (ver abaixo) | painel de insights fechável |

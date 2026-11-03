@@ -128,6 +128,22 @@ quanto foi volume, e onde ela aconteceu. Consulta `api.receita.variacao(...)` e 
 - **Cores:** receita e volume em verde quando sobem e vermelho quando caem; o preço fica neutro.
 - O waterfall não parte do zero, para os efeitos ficarem visíveis, e avisa isso abaixo do gráfico.
 
+## Qualidade do Serviço
+
+A tela `/qualidade` (`src/features/qualidade/`) responde às perguntas P8 (DEC/FEC por alimentador e os piores)
+e P9 (onde priorizar manutenção). Consulta `api.continuidade.resumo(...)` e `api.continuidade.alimentadores(...)`.
+
+- **Períodos:** mesmas regras do Dashboard (referência opcional, mesma duração, sem sobreposição).
+- **Filtros:** município e alimentador. Região é o município: a Gold não tem outro nível, e o DEC do alimentador
+  não deve ser atribuído ao bairro. `/qualidade?alimentador=ALM-...` abre a tela no alimentador; a Visão 360
+  usa esse link no card do alimentador.
+- **Conteúdo:** DEC, FEC, interrupções e horas sem energia (UC × h) com referência; evolução mensal; principais causas,
+  com as evitáveis em destaque; ranking ordenável por qualquer coluna. Clicar num alimentador filtra a tela.
+- **Cores:** aqui subir é desfavorável (`KpiCard` com `menorMelhor`).
+- **DEC e tamanho do alimentador** os alimentadores somam horas parecidas por ano, então o DEC
+  é praticamente o inverso do número de UCs. O ranking mostra DEC junto de UCs, UCs afetadas e horas sem energia,
+  marca "base pequena" abaixo de 50 UCs e avisa quantos dos 10 primeiros por DEC são bases pequenas.
+
 ## Estrutura
 
 ```text
@@ -140,6 +156,8 @@ frontend/
 │   │   ├── assistente/
 │   │   ├── dashboard/
 │   │   ├── inspecoes/
+│   │   ├── qualidade/
+│   │   ├── receita/
 │   │   └── unidades/
 │   ├── pages/            # Página de erro 404
 │   ├── App.tsx           # Rotas da aplicação

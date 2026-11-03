@@ -495,8 +495,54 @@ export type AlimentadorDecFec = {
   dec_horas: number
   fec_vezes: number
   n_ocorrencias: number
+  horas_interrompidas: number
+  qtd_ucs_alimentador_mes: number | null
+  competencia_base_ucs: Competencia | null
+  horas_causas_evitaveis: number
+  qtd_ucs_afetadas: number
   posicao_pior: number
 }
+
+export type IndicadoresContinuidade = {
+  dec_horas: number
+  fec_vezes: number
+  qtd_interrupcoes: number
+  horas_interrompidas: number
+  horas_causas_evitaveis: number
+  qtd_ucs: number | null
+  competencia_base_ucs: Competencia | null
+}
+
+export type PontoContinuidade = {
+  competencia: Competencia
+  dec_horas: number
+  fec_vezes: number
+  qtd_interrupcoes: number
+  horas_interrompidas: number
+}
+
+export type CausaContinuidade = {
+  causa: string | null
+  causa_evitavel: boolean
+  qtd_interrupcoes: number
+  horas: number
+  pct_horas: number | null
+}
+
+export type ResumoContinuidade = {
+  periodo_atual: Periodo
+  periodo_base: Periodo | null
+  municipio: string | null
+  alimentador_id: string | null
+  qtd_alimentadores: number
+  atual: IndicadoresContinuidade | null
+  base: IndicadoresContinuidade | null
+  serie: PontoContinuidade[]
+  serie_base: PontoContinuidade[]
+  causas: CausaContinuidade[]
+}
+
+export type ResumoContinuidadeParams = DashboardParams & { alimentador?: string }
 
 export type PontoDecFec = {
   competencia: Competencia

@@ -4,6 +4,7 @@ import { ChartNoAxesCombined } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { quantidadeMeses } from '../../utils/periodosDashboard'
 import { escalaGrafico, unidadeDaEscala } from './escalaGrafico'
+import type { UnidadeGrafico } from './escalaGrafico'
 
 type EvolucaoChartProps = {
   titulo: string
@@ -11,7 +12,7 @@ type EvolucaoChartProps = {
   referencia?: number[]
   periodoAtual: Periodo
   periodoReferencia?: Periodo | null
-  unidade: 'R$' | 'kWh'
+  unidade: UnidadeGrafico
 }
 
 const competencia = new Intl.DateTimeFormat('pt-BR', {
@@ -77,11 +78,12 @@ export function EvolucaoChart({
     style: 'currency',
     currency: 'BRL',
   })
+  const sufixo = unidade === 'kWh' ? ' kWh' : unidade === 'h' ? ' h' : ''
   const formatarValor = (valor: number) =>
-    unidade === 'R$' ? moeda.format(valor) : `${numero.format(valor)} kWh`
+    unidade === 'R$' ? moeda.format(valor) : `${numero.format(valor)}${sufixo}`
   const compacto = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 2,
     ...(unidade === 'R$' ? { style: 'currency', currency: 'BRL' } : {}) })
-  const valorDaBarra = (valor: number) => `${compacto.format(valor)}${unidade === 'kWh' ? ' kWh' : ''}`
+  const valorDaBarra = (valor: number) => `${compacto.format(valor)}${sufixo}`
 
   function mostrarTooltip(indice: number, clientX: number, clientY: number) {
     const container = containerRef.current?.getBoundingClientRect()

@@ -478,3 +478,37 @@ def test_external_otlp_exporter_cannot_bypass_filter(monkeypatch):
     assert not configured
     create_exporter.assert_not_called()
     assert TestClient(app).get("/health").status_code == 200
+
+
+
+def test_post_sql_cache_hit_has_generation_trace_and_no_execution_or_synthesis(telemetry, monkeypatch, tmp_path):
+    from app.agent.state.sql_cache import PlanLookup
+    class Cache:
+        def __init__(self):
+            self.values = {}
+        async def get(self, key):
+            return None
+        async def set_approved(self, key, value, ttl, *, plan, independent=None):
+            self.values[plan.lookup] = (plan.digest, value)
+        async def get_plan(self, key, *, digest):
+            item = self.values.get(key)
+            return PlanLookup(item[1], "hit") if item and item[0] == digest else PlanLookup(None, "not_found_or_expired")
+    _, _, spans = telemetry
+    audit = Mock(save=AsyncMock())
+    deps = AgentStateDependencies(cache_store=Cache(), audit_store=audit, data_version="synthetic")
+    calls = _synthetic_pipeline(monkeypatch, tmp_path, state_dependencies=deps)
+    first = asyncio.run(pipeline.answer_question("Quantas UCs por município?", session_id="SESSION_PRIVATE"))
+    assert not first.cache_hit
+    calls.clear()  # A segunda requisição começa pela geração, usando a mesma Gold sintética.
+    second = asyncio.run(pipeline.answer_question("Quantas UCs por município?", session_id="SESSION_PRIVATE"))
+    assert second.cache_hit
+    exported = [span for span in spans() if span.attributes.get("request_id") == second.request_id]
+    names = {span.name for span in exported}
+    assert {"agent.C4.1", "agent.C4.2", "agent.C2", "agent.C7"} <= names
+    assert not {"agent.C4.3", "agent.C4.4", "agent.C5", "agent.C6"} & names
+    lookup = next(span for span in exported if span.attributes.get("cache_phase") == "post_sql")
+    assert lookup.attributes["cache_hit"] is True and lookup.attributes["cache_reason"] == "hit"
+    record = audit.save.await_args.args[0]
+    assert record.cache_hit and record.sql is None
+    assert len(second.provider_attempts) == 1
+    assert "SESSION_PRIVATE" not in json.dumps([span.to_json() for span in exported])

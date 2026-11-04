@@ -103,6 +103,34 @@ async def finalize(
             response_complete=cache_response_complete,
         )
     ):
+        # Só a finalização elegível publica o certificado, após C4.2/C4.3/C5/C6.
+        from app.agent.state.cache_eligibility import prove_independence, independent_lookup_key
+        proof = prove_independence(audit_record.question, audit_record.sql)
+        from app.agent.state.sql_cache import sql_cache_plan, canonical_cache_sql, record_cache
+        if audit_record.sql is not None and canonical_cache_sql(audit_record.sql) is None:
+            record_cache("unsupported_plan", "post_sql")
+            return
+        plan = sql_cache_plan(audit_record.question, audit_record.sql, audit_record.session_id, cache_data_version)
+        approved_setter = getattr(cache_store, "set_approved", None)
+        if plan is not None and callable(approved_setter):
+            independent = None
+            if proof is not None:
+                independent = (independent_lookup_key(audit_record.question, audit_record.session_id, cache_data_version), proof)
+            try:
+                async with asyncio.timeout(cache_timeout_seconds):
+                    await approved_setter(cache_key, cache_value, cache_ttl_seconds, plan=plan, independent=independent)
+                return
+            except Exception as error:
+                logger.warning("Falha ao persistir cache por plano. error_type=%s", type(error).__name__)
+        setter = getattr(cache_store, "set_independent", None)
+        if proof is not None and audit_record.session_id and callable(setter):
+            lookup = independent_lookup_key(audit_record.question, audit_record.session_id, cache_data_version)
+            try:
+                async with asyncio.timeout(cache_timeout_seconds):
+                    await setter(cache_key, cache_value, cache_ttl_seconds, lookup_key=lookup, eligibility=proof)
+                return
+            except Exception as error:
+                logger.warning("Falha ao persistir cache independente. error_type=%s", type(error).__name__)
         await write_cache(
             cache_store,
             cache_key,

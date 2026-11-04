@@ -1136,3 +1136,24 @@ def test_no_valid_session_bypasses_cache(monkeypatch, session):
     deps.cache_store.get.assert_not_awaited()
     deps.cache_store.set.assert_not_awaited()
     assert calls["flow"] == 1
+
+
+
+def test_fresh_browser_session_does_not_load_old_cache_or_memory(monkeypatch):
+    calls = _install(monkeypatch)
+    deps = _replay_dependencies()
+    contexts = []
+    execute = pipeline.generate_validate_and_execute
+    async def capture(**kwargs):
+        contexts.append(kwargs["memory_context"])
+        return await execute(**kwargs)
+    monkeypatch.setattr(pipeline, "generate_validate_and_execute", capture)
+    question = "Quantas unidades há?"
+    _ask(question, session_id="before-reload", state_dependencies=deps)
+    old_entries = list(deps.memory_store.entries["before-reload"])
+    new = _ask(question, session_id="after-reload", state_dependencies=deps)
+    assert not new.cache_hit
+    assert contexts == [None, None]
+    assert deps.memory_store.entries["before-reload"] == old_entries
+    assert calls["flow"] == 2
+    assert len(deps.memory_store.entries["after-reload"]) == 1

@@ -26,12 +26,18 @@ STAGES = {"pipeline", "C1", "C2", "C4.1", "C4.2", "C4.3", "C4.4", "C5", "C6", "C
           "provider", "sql_flow", "synthesis_flow"}
 
 
+CACHE_REASONS = {"hit", "not_found_or_expired", "payload_invalid", "redis_error", "plan_mismatch", "unsupported_plan", "cache_disabled", "session_missing", "memory_unavailable"}
+CACHE_PHASES = {"pre_sql", "post_sql"}
+
+
 def safe_attributes(attributes):
     return {
         key: value for key, value in attributes.items()
         if ((key in TEXT_ATTRIBUTES and isinstance(value, str))
             or (key in NUMBER_ATTRIBUTES and type(value) in (int, float))
-            or (key in BOOL_ATTRIBUTES and type(value) is bool))
+            or (key in BOOL_ATTRIBUTES and type(value) is bool)
+            or (key == "cache_reason" and isinstance(value, str) and value in CACHE_REASONS)
+            or (key == "cache_phase" and isinstance(value, str) and value in CACHE_PHASES))
     }
 
 

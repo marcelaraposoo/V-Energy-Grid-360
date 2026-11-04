@@ -243,6 +243,7 @@ class SQLExecutionOutcome(BaseModel):
 class SQLExecutionFlowResult(BaseModel):
     """Resultado do fluxo completo 4.1 a 4.3."""
 
+    cached_response: "PostProcessingResult | None" = None
     generation_status: SQLGenerationStatus | None = None
     generation_reason: str | None = None
     sql: str | None = None
@@ -469,3 +470,6 @@ class MemoryEntry(BaseModel):
     answer: str
     outcome: AgentOutcome
 
+
+
+SQLExecutionFlowResult.model_rebuild()

@@ -23,6 +23,7 @@ def build_cache_key(
 
     scope = hashlib.sha256(json.dumps([session_id, user_identity], separators=(",", ":")).encode()).hexdigest()
     payload = {
+        "policy": "approved-deterministic-v1",
         "question": normalized_question,
         "session_id": session_id,
         "user_identity": user_identity,

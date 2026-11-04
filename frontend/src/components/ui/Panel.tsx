@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import { InfoTip } from './InfoTip'
 
 type PanelProps = {
   title: string
+  /** Ícone opcional antes do título (ex.: estrelas nos insights de IA). */
+  icone?: LucideIcon
   description?: string
   actions?: ReactNode
   /** Explicação de método ou definição, mostrada no "i" do canto do painel. */
@@ -15,6 +18,7 @@ type PanelProps = {
 
 export function Panel({
   title,
+  icone: Icone,
   description,
   actions,
   info,
@@ -26,7 +30,8 @@ export function Panel({
     <section className={`panel ${className}`}>
       <header className="panel-header">
         <div>
-          <h2 className={info && infoPosition === 'title' ? 'panel-title-with-info' : undefined}>
+          <h2 className={[info && infoPosition === 'title' ? 'panel-title-with-info' : '', Icone ? 'panel-title-icone' : ''].filter(Boolean).join(' ') || undefined}>
+            {Icone && <Icone size={16} aria-hidden="true" />}
             {title}
             {info && infoPosition === 'title' && <InfoTip titulo={title} alinhar="esquerda">{info}</InfoTip>}
           </h2>

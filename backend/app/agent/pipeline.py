@@ -1,7 +1,8 @@
+from app.agent.providers.latency_policy import provider_request
 import logging
 from dataclasses import dataclass, replace
 from enum import Enum
-from uuid import uuid4
+from app.core.observability import observe_pipeline, request_id as observability_request_id
 
 from app.agent.context.loader import load_database_context
 from app.agent.execution_responses import get_execution_message
@@ -166,6 +167,8 @@ def _generation_message(flow) -> str:
     return _INSUFFICIENT_MESSAGE
 
 
+@observe_pipeline
+@provider_request
 async def answer_question(
     question: str,
     *,
@@ -175,7 +178,7 @@ async def answer_question(
     state_dependencies: AgentStateDependencies | None = None,
 ) -> PipelineResult:
     """C1 → C2 GET → agente se MISS → C7 (auditoria, memória, SET) → entrega."""
-    request_id = uuid4().hex
+    request_id = observability_request_id()
     dependencies = state_dependencies
     state = None
     clean_question = question
@@ -243,6 +246,9 @@ async def answer_question(
             ), outcome)
 
         clean_question = entry.normalized_input or question
+        from app.agent.context_requirement import requires_complete_question, COMPLETE_QUESTION_MESSAGE
+        if requires_complete_question(clean_question):
+            return await finish(_no_answer(COMPLETE_QUESTION_MESSAGE, PipelineStage.SQL_GENERATION), AgentOutcome.NEEDS_CLARIFICATION)
         state = await prepare_request_state(
             normalized_question=clean_question,
             session_id=session_id,
@@ -260,15 +266,27 @@ async def answer_question(
                 cache_hit=True,
             ), AgentOutcome.ANSWERED)
 
+        lookup_options = {}
+        if (state.cache_key is not None and callable(getattr(dependencies.cache_store, "get_plan", None))):
+            async def lookup_plan(sql):
+                from app.agent.state.sql_cache import lookup_sql_cache
+                lookup = await lookup_sql_cache(
+                    dependencies.cache_store, question=clean_question, sql=sql,
+                    session_id=session_id, data_version=dependencies.data_version,
+                    timeout_seconds=dependencies.cache_timeout_seconds,
+                )
+                return lookup.response
+            lookup_options["cache_lookup"] = lookup_plan
         stage = PipelineStage.SQL_GENERATION
         flow = await generate_validate_and_execute(
             question=clean_question,
             database_context=load_database_context(),
             memory_context=state.memory_context,
             database_path=database_path,
+            **lookup_options,
         )
         provider_attempts = tuple(flow.provider_attempts)
-        executed_sql = flow.sql
+        executed_sql = None if flow.cached_response is not None else flow.sql
         provider_error = flow.provider_error
         regenerations = flow.regenerations
         if provider_error is not None:
@@ -287,6 +305,15 @@ async def answer_question(
                 _GENERATION_BLOCKED_MESSAGE, PipelineStage.SQL_GUARDRAIL,
                 provider_attempts=provider_attempts,
             ), outcome)
+
+        if flow.cached_response is not None:
+            cached = flow.cached_response
+            return await finish(PipelineResult(
+                status=PipelineStatus.ANSWERED, message=cached.answer,
+                stage=PipelineStage.DONE, assumptions=tuple(cached.assumptions),
+                visualization=cached.visualization, cache_hit=True,
+                provider_attempts=provider_attempts,
+            ), AgentOutcome.ANSWERED)
 
         if flow.outcome is None:
             outcomes = {

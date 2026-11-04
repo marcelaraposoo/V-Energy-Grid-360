@@ -1,4 +1,5 @@
 import os
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,10 +34,31 @@ CORS_PADRAO = (
 )
 
 
+def _provider_seconds(name: str, default: str) -> float:
+    value = float(os.getenv(name, default))
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} deve ser positivo e finito.")
+    return value
+
+
 @dataclass(frozen=True)
 class Settings:
     # Aplicação
     app_name: str = "V-Energy Grid 360 API"
+
+    # Observabilidade: opt-in explícito; token nunca aparece no repr das settings.
+    logfire_enabled: bool = field(
+        default_factory=lambda: os.getenv("LOGFIRE_ENABLED", "false").strip().lower() in {"1", "true"}
+    )
+    logfire_token: str | None = field(
+        default_factory=lambda: os.getenv("LOGFIRE_TOKEN", "").strip() or None, repr=False
+    )
+    logfire_service_name: str = field(
+        default_factory=lambda: os.getenv("LOGFIRE_SERVICE_NAME", "v-energy-grid-360-backend")
+    )
+    logfire_base_url: str | None = field(
+        default_factory=lambda: os.getenv("LOGFIRE_BASE_URL", "").strip() or None
+    )
 
     # C2: sem URL, o agente funciona sem cache. Snapshot explícito se habilitado.
     redis_url: str | None = field(
@@ -47,6 +69,9 @@ class Settings:
     )
     cache_ttl_seconds: int = field(
         default_factory=lambda: int(os.getenv("CACHE_TTL_SECONDS", str(DEFAULT_CACHE_TTL_SECONDS)))
+    )
+    cache_max_entries_per_session: int = field(
+        default_factory=lambda: int(os.getenv("CACHE_MAX_ENTRIES_PER_SESSION", "100"))
     )
     cache_timeout_seconds: float = field(
         default_factory=lambda: float(os.getenv("CACHE_TIMEOUT_SECONDS", str(DEFAULT_CACHE_TIMEOUT_SECONDS)))
@@ -63,6 +88,7 @@ class Settings:
             if not has_data_version(self.gold_data_version):
                 raise ValueError("GOLD_DATA_VERSION é obrigatória com REDIS_URL configurada.")
             validate_cache_ttl(self.cache_ttl_seconds)
+            validate_cache_ttl(self.cache_max_entries_per_session)
             validate_cache_timeout(self.cache_timeout_seconds)
             validate_cache_ttl(self.memory_ttl_seconds)
             validate_cache_timeout(self.memory_timeout_seconds)
@@ -133,7 +159,24 @@ class Settings:
         default_factory=lambda: os.getenv("PROVIDER_PAYLOAD_POLICY", "confidential")
     )
 
-    provider_timeout_seconds: float = 20.0
+    provider_timeout_seconds: float = field(
+        default_factory=lambda: _provider_seconds("PROVIDER_TIMEOUT_SECONDS", "20")
+    )
+    provider_primary_timeout_seconds: float = field(
+        default_factory=lambda: _provider_seconds("PROVIDER_PRIMARY_TIMEOUT_SECONDS", "8")
+    )
+    provider_reuse_success: bool = field(
+        default_factory=lambda: os.getenv("PROVIDER_REUSE_SUCCESS", "true").lower() == "true"
+    )
+    provider_phase_budgets_enabled: bool = field(
+        default_factory=lambda: os.getenv("PROVIDER_PHASE_BUDGETS_ENABLED", "false").lower() == "true"
+    )
+    provider_sql_budget_seconds: float = field(
+        default_factory=lambda: _provider_seconds("PROVIDER_SQL_BUDGET_SECONDS", "30")
+    )
+    provider_synthesis_budget_seconds: float = field(
+        default_factory=lambda: _provider_seconds("PROVIDER_SYNTHESIS_BUDGET_SECONDS", "20")
+    )
 
 
 

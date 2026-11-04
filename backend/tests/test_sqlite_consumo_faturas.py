@@ -133,7 +133,7 @@ def test_endpoint_consolidado_usa_a2_sem_mudar_o_contrato(cenario, monkeypatch):
             assert dados["faturas"][0]["competencia"] == "2026-06"
             assert dados["diagnostico_conta_alta"]["competencia_referencia"] == "2026-05"
             pagina = client.get(f"/api/unidades/{cenario.uc_id}/faturas", params={"aba": "historico"}).json()
-            assert pagina["total"] == 48 and len(pagina["itens"]) == 10
+            assert pagina["total"] == 48 and len(pagina["itens"]) == 6
             assert dados["resumo_faturas"] == pagina["resumo"]
     finally:
         app.dependency_overrides.pop(repo_dep, None)

@@ -23,6 +23,7 @@ Evite `campo <= '2026-06-30'`, que excluiria registros com horário nesse dia.
 ### Bairro
 
 O mesmo bairro pode existir em municípios diferentes: use `municipio` junto com `bairro` quando o município estiver disponível. Não trate `bairro` como identificador global.
+Se o par `municipio` + `bairro` citado não existir em `dim_uc`, não afirme que o valor é zero: informe que não encontrou esse bairro nesse município e peça esclarecimento.
 
 ### Classe de consumo
 
@@ -240,14 +241,50 @@ Utilize para perguntas sobre:
 - `efeito_volume = (V1 - V0) × P0`
 - `efeito_preco = (P1 - P0) × V1`
 
-A soma dos efeitos representa a variação da receita.
+A soma dos efeitos representa a variação da receita em cada linha.
 
-Os efeitos de cada linha NÃO são aditivos entre segmentos. Acima do grão
-município/bairro/classe (município, classe ou empresa), some primeiro `receita_0`,
-`receita_1`, `volume_kwh_0` e `volume_kwh_1`; recalcule `P0 = R0 / V0` e
-`P1 = R1 / V1`; então aplique as fórmulas aos totais, protegendo divisão por zero
-com `NULLIF`. Não use `SUM(efeito_preco)`/`SUM(efeito_volume)` para representar os efeitos do conjunto.
-Variações percentuais e preços médios também devem ser recalculados das bases.
+### Efeito volume e efeito preço acima da linha
+
+`efeito_preco` e `efeito_volume` valem só para a linha (município × bairro × classe).
+Eles NÃO são aditivos entre segmentos. Nunca use `SUM(efeito_preco)` nem
+`SUM(efeito_volume)`: a soma por segmento difere do efeito da empresa por causa do
+efeito composição (mix).
+
+Para empresa, município, classe ou qualquer agrupamento acima da linha, some
+`volume_kwh_0`, `volume_kwh_1`, `receita_0` e `receita_1`; recalcule `P0 = R0 / V0`
+e `P1 = R1 / V1`, protegendo a divisão por zero com `NULLIF`, e calcule:
+
+- `variacao_receita = R1 - R0`
+- `efeito_volume = (V1 - V0) × (R0 / V0)`, se `V0 > 0` e `V1 > 0`; senão, toda a variação
+- `efeito_preco = variacao_receita - efeito_volume`
+
+Quando `V0` ou `V1` for zero, conforme a regra do notebook, use
+`efeito_volume = R1 - R0` e `efeito_preco = 0`.
+
+Exemplo (empresa):
+
+```sql
+SELECT
+    SUM(receita_1) - SUM(receita_0) AS variacao_receita,
+    CASE
+        WHEN SUM(volume_kwh_0) > 0 AND SUM(volume_kwh_1) > 0
+        THEN (SUM(volume_kwh_1) - SUM(volume_kwh_0)) * SUM(receita_0)
+             / NULLIF(SUM(volume_kwh_0), 0)
+        ELSE SUM(receita_1) - SUM(receita_0)
+    END AS efeito_volume,
+    (SUM(receita_1) - SUM(receita_0)) -
+    CASE
+        WHEN SUM(volume_kwh_0) > 0 AND SUM(volume_kwh_1) > 0
+        THEN (SUM(volume_kwh_1) - SUM(volume_kwh_0)) * SUM(receita_0)
+             / NULLIF(SUM(volume_kwh_0), 0)
+        ELSE SUM(receita_1) - SUM(receita_0)
+    END AS efeito_preco
+FROM receita_decomposicao;
+```
+
+Use o efeito da própria linha somente quando a pergunta for sobre aquele segmento
+exato (município + bairro + classe). Variações percentuais e preços médios também
+devem ser recalculados das bases.
 
 ## Atenção
 
@@ -266,7 +303,27 @@ o adicional não vem separado e não permite atribuir todo o efeito apenas à ta
 
 ## Uso
 
-Indicadores gerais do negócio e comparações mensais.
+Indicadores gerais da distribuidora inteira e comparações mensais.
+Esta tabela NÃO tem município, bairro, classe nem UC. Se a pergunta citar qualquer
+um deles (por exemplo "consumo de Recife", "receita de Olinda", "residencial"),
+nunca use `kpis_mensal`: filtre a `fato_consumo_faturamento` pela coluna
+correspondente. Um nome de cidade sozinho (Recife, Olinda, Paulista…) é um município.
+
+Exemplo (município):
+
+```sql
+SELECT SUM(consumo_kwh) AS consumo_kwh
+FROM fato_consumo_faturamento
+WHERE municipio = 'Recife' AND mes_referencia BETWEEN '2025-01' AND '2025-12';
+```
+
+Sem esses recortes, para totais e rankings por mês da distribuidora inteira (inclusive
+meses com maiores valores faturados), prefira esta tabela agregada quando a métrica existir aqui.
+`receita_total` já soma `valor_total` da `fato_consumo_faturamento` por mês;
+`receita_energia` soma `valor_energia` e `consumo_total_kwh` soma `consumo_kwh`.
+Evite recalcular esses totais varrendo a fato detalhada. Use a fato quando houver
+filtros ou dimensões não disponíveis no agregado (por exemplo UC, município ou
+classe), preservando o grão e as definições financeiras deste contrato.
 
 ## Colunas
 

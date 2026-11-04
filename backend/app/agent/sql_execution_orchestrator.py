@@ -1,5 +1,16 @@
+from app.agent.providers.latency_policy import provider_phase
 import re
+from app.core.observability import observe
 
+from app.agent.pair_check import (
+    MUNICIPALITY_MESSAGE,
+    clarification_message,
+    extract_municipality,
+    extract_pair,
+    is_empty_or_zero,
+    municipality_exists,
+    lookup_pair,
+)
 from app.agent.guardrails.sql_guardrail import (
     build_retry_feedback,
     validate_sql,
@@ -75,12 +86,15 @@ def build_execution_retry_feedback(
     )
 
 
+@observe("sql_flow")
+@provider_phase("sql")
 async def generate_validate_and_execute(
     question: str,
     database_context: str,
     memory_context: str | None = None,
     *,
     database_path: str | None = None,
+    cache_lookup=None,
 ) -> SQLExecutionFlowResult:
     """
     Orquestra as etapas 4.1, 4.2 e 4.3.
@@ -161,6 +175,20 @@ async def generate_validate_and_execute(
             regenerations += 1
             continue
 
+        if cache_lookup is not None:
+            try:
+                cached = await cache_lookup(generation.sql)
+            except Exception:
+                from app.agent.state.sql_cache import record_cache
+                record_cache("redis_error", "post_sql")
+                cached = None
+            if cached is not None:
+                return SQLExecutionFlowResult(
+                    generation_status=generation.status, sql=generation.sql,
+                    cached_response=cached, regenerations=regenerations,
+                    provider_attempts=provider_attempts,
+                )
+
         # ----- 4.3: execução -----
         kwargs = (
             {"database_path": database_path} if database_path else {}
@@ -179,6 +207,33 @@ async def generate_validate_and_execute(
                 feedback = retry_feedback
                 regenerations += 1
                 continue
+
+        if outcome.result is not None and is_empty_or_zero(
+            outcome.result.columns, outcome.result.rows
+        ):
+            municipality = extract_municipality(generation.sql)
+            if municipality is not None and municipality_exists(
+                municipality, database_path
+            ) is False:
+                return SQLExecutionFlowResult(
+                    generation_status=SQLGenerationStatus.NEEDS_CLARIFICATION,
+                    generation_reason=MUNICIPALITY_MESSAGE,
+                    sql=generation.sql,
+                    regenerations=regenerations,
+                )
+
+            pair = extract_pair(generation.sql)
+            if pair is not None:
+                lookup = lookup_pair(*pair, database_path=database_path)
+                if lookup is not None and lookup[0] != "exists":
+                    return SQLExecutionFlowResult(
+                        generation_status=SQLGenerationStatus.NEEDS_CLARIFICATION,
+                        generation_reason=clarification_message(
+                            lookup[0], None, lookup[1]
+                        ),
+                        sql=generation.sql,
+                        regenerations=regenerations,
+                    )
 
         return SQLExecutionFlowResult(
             generation_status=generation.status,

@@ -19,6 +19,24 @@ MEMORY_KEY_PREFIX = "agent:memory:v1"
 logger = logging.getLogger(__name__)
 
 
+# Evita duplicatas consecutivas mesmo com finalizações concorrentes.
+_APPEND_TURN = """
+local last = redis.call('LINDEX', KEYS[1], -1)
+local duplicate = false
+if last then
+    local ok, previous = pcall(cjson.decode, last)
+    local current = cjson.decode(ARGV[1])
+    if ok and type(previous) == 'table' then
+        duplicate = previous.question == current.question and previous.answer == current.answer and previous.outcome == current.outcome
+    end
+end
+if not duplicate then redis.call('RPUSH', KEYS[1], ARGV[1]) end
+redis.call('LTRIM', KEYS[1], -tonumber(ARGV[2]), -1)
+redis.call('EXPIRE', KEYS[1], ARGV[3])
+return duplicate and 0 or 1
+"""
+
+
 class CorruptedMemoryError(ValueError):
     """Payload inválido; difere de falhas de conexão/timeout do Redis."""
 
@@ -59,6 +77,8 @@ class RedisMemoryStore:
                             type(cleanup_error).__name__,
                         )
                     raise CorruptedMemoryError("Payload de memória incompatível.") from error
+                if entries:
+                    await client.expire(key, self._ttl_seconds)
                 return entries
 
     async def append(self, session_id: str, entry: MemoryEntry) -> None:
@@ -68,9 +88,7 @@ class RedisMemoryStore:
         key = build_memory_key(session_id)
         async with asyncio.timeout(self._timeout_seconds):
             async with create_redis_client(self._url, self._timeout_seconds) as client:
-                # Transação mantém append, limite e renovação do TTL juntos.
-                async with client.pipeline(transaction=True) as transaction:
-                    transaction.rpush(key, validated.model_dump_json())
-                    transaction.ltrim(key, -MEMORY_STORAGE_LIMIT, -1)
-                    transaction.expire(key, self._ttl_seconds)
-                    await transaction.execute()
+                await client.eval(
+                    _APPEND_TURN, 1, key, validated.model_dump_json(exclude_none=True),
+                    MEMORY_STORAGE_LIMIT, self._ttl_seconds,
+                )

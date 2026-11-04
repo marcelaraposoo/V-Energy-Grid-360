@@ -23,15 +23,26 @@ usa o proxy `/api` do Vite para `http://127.0.0.1:8000`; `VITE_API_URL` permite 
 Os tipos ficam em `src/api/types.ts` e são reexportados por `features/unidades/types.ts`,
 sem manter uma segunda definição. Veja o [mapeamento da Gold](../backend/docs/contrato-gold.md).
 
-- Consumo: últimas 12 competências disponíveis, referência anual opcional e comparação de
-  conta alta por dois meses selecionados, com marcação de troca de medidor.
-- Faturas: abas Recentes e Histórico completo; paginação de 10 registros no backend,
-  resumo de pendências de todo o histórico e modal ao clicar na competência.
+- Consumo: últimas 12 competências disponíveis, com referência anual opcional, e o card
+  **Insights da IA** (`InsightsUcCard.tsx`, rota `/api/ia/insights/uc/{uc}`), que substituiu o "A conta
+  veio alta?": explica de onde veio a variação da conta em relação ao mesmo mês do ano anterior (consumo ×
+  preço do kWh, com a bandeira; P5), diz se o consumo está no padrão dos 6 meses anteriores ou é sazonal, e
+  aponta troca de medidor e interrupções (`insights.ts` escolhe os meses).
+- Faturas: abas Recentes e Histórico completo, em lista com a bandeira de cada competência; paginação de 6 registros no backend,
+  resumo de pendências de todo o histórico e modal ao clicar na competência (`FaturaDialog.tsx`: valores,
+  consumo, preço por kWh, bandeira, vencimento e pagamento). O mesmo modal abre pelo "Detalhes" do card
+  "Valor total da fatura", no topo da tela, que substituiu o painel "Detalhamento da última fatura".
 - Medidor e GD: equipamento atual, histórico de trocas e modalidade de geração distribuída.
-- Interrupções: filtro de 6/12 meses ou todos, compartilhado com o contexto do alimentador.
+- Interrupções: filtro de 6/12 meses ou todos, compartilhado com o contexto do alimentador; histórico em lista
+  (início e fim, duração em horas e minutos, tipo e causa), 6 por página no frontend.
 - Atendimentos: histórico completo, filtros Todos/Abertos/Fechados com contagens e paginação
-  de 10 registros no frontend. O protocolo abre os detalhes; não há filtro de período na tela.
-- Os modais de fatura e atendimento fecham pelo botão, pela tecla Esc ou ao clicar fora.
+  de 6 registros no frontend, em lista (protocolo, assunto e subassunto, canal, situação). Clicar num chamado
+  abre os detalhes; não há filtro de período na tela.
+- Faturas, atendimentos e interrupções usam o mesmo formato de lista (`ListaRegistros.tsx`, classes `ucv-registro*`);
+  os valores da Gold aparecem com acentuação (`formatarRotulo`).
+- Os modais de fatura e atendimento seguem a mesma estrutura (classes `ucv-dialog-*`: título com ícone, bloco de destaque
+  e detalhes). O de atendimento mostra assunto e subassunto, situação, canal e uma linha do tempo da abertura ao
+  fechamento, com o tempo de resolução. Os dois fecham pelo botão, pela tecla Esc ou ao clicar fora.
 
 Com `DATA_SOURCE=mock` no backend, os dados são fictícios. Há exemplos de troca em
 `UC000001` (09/2025) e `UC000007` (03/2026). SQLite fictício nos testes não substitui
@@ -44,8 +55,10 @@ distribuidora, com indicadores consolidados e acompanhamento mensal. Ela já con
 não utiliza os mocks locais de apresentação. A fonte dos dados é definida no backend
 (`DATA_SOURCE=mock` ou `sqlite`). A homologação com a exportação oficial da Gold permanece pendente.
 
-O Dashboard permanece dedicado à visão geral, somente com filtros temporais. Os recortes por
-município, bairro e classe ficam na [Análise de Receita](#análise-de-receita).
+O Dashboard é a visão geral: filtra por período e **município** (também pela URL, `/?municipio=Recife`).
+Bairro e classe ficam na [Análise de Receita](#análise-de-receita): com eles, parte dos blocos ficaria
+indisponível (DEC/FEC só existe por município). Com município, todos os blocos usam a A3 (ou a B1 e a A8,
+na operação) do município escolhido.
 
 ### Padrão comum com a Análise de Receita
 
@@ -54,7 +67,8 @@ município, bairro e classe ficam na [Análise de Receita](#análise-de-receita)
 - **Formatação e textos** dos indicadores comuns vêm de `utils/indicadores.ts`, para as duas telas mostrarem os
   mesmos números do mesmo jeito.
 - **Data de corte** ("Dados até 30/06/2026") junto aos filtros (`components/ui/DataCorte.tsx`).
-- **"Investigar na Análise de Receita"** abre a outra tela com os mesmos períodos, pela URL.
+- **"Investigar na Análise de Receita"** abre a outra tela com os mesmos períodos e o município, pela URL.
+  O "Ver na Qualidade do Serviço" faz o mesmo para a tela de DEC/FEC.
 
 ### Períodos e comparação
 
@@ -71,13 +85,23 @@ Os limites disponíveis são jul/2022 a jun/2026, contando competências mensais
 
 ### Organização e indicadores
 
-A primeira linha mostra receita de energia, energia faturada e preço médio por kWh em três
-colunas iguais, com o mesmo card de KPI da Análise de Receita (`components/ui/KpiCard.tsx`): valor,
-valor da referência e variação. A segunda divide a largura entre faturamento em aberto e cadastro/GD empilhados
-à esquerda, e consumo por classe à direita. A terceira mantém os gráficos de evolução mensal.
-Em telas menores, as seções ficam em uma coluna.
+A ordem segue a leitura do diretor: resultado, como se chegou nele, o detalhe e a operação.
 
-UCs cadastradas e GD usam a última competência selecionada (A5), incluindo a posição final
+1. **KPIs principais:** receita de energia, energia faturada e preço médio por kWh, com o mesmo card de KPI
+   da Análise de Receita (`components/ui/KpiCard.tsx`): valor, valor da referência e variação.
+2. **Evolução mensal** da receita e da energia.
+3. **Detalhe comercial:** faturamento em aberto e cadastro/GD empilhados à esquerda (sob o gráfico de receita)
+   e consumo por classe à direita (sob o gráfico de energia). O botão "Município" troca as classes pela energia
+   por município (por bairro, com município escolhido): o card mostra os cinco maiores, para manter a altura das
+   classes, e "Mostrar todos" abre um modal com a lista completa (`ConsumoLocais.tsx`, `ConsumoLocaisDialog.tsx`).
+   Clicar num município filtra o Dashboard. Os locais só são buscados quando essa visão é aberta.
+4. **Operação e atendimento** (`OperacaoCards.tsx`): atendimentos, satisfação, DEC e FEC, com link para a
+   Qualidade do Serviço. Atendimentos, DEC e FEC usam a cor invertida (subir é desfavorável); a satisfação
+   compara em pontos da nota ("−0,2 ponto").
+
+Em telas menores, as seções ficam em uma coluna (a operação passa por duas colunas antes).
+
+UCs cadastradas e GD usam a última competência selecionada (A5; com município, a soma da A3), incluindo a posição final
 da referência quando há comparação. O consumo por classe soma as competências da A3, ordena
 as cinco classes pelo volume principal e mantém uma única barra por classe. Faltar um mês
 de uma classe deixa seu consolidado indisponível; a participação exige um total completo.
@@ -85,11 +109,12 @@ de uma classe deixa seu consolidado indisponível; a participação exige um tot
 Receita e consumo nos KPIs são totais dos meses selecionados; preço médio é a razão entre
 receita de energia e consumo, exibida com duas casas nas duas telas. Faturamento em aberto mostra
 o consolidado ponderado pelo faturamento total, incluindo tributos, e a comparação em pontos
-percentuais. A taxa da última competência não aparece: é o mês com mais faturas ainda não vencidas
-na data de corte, que a definição do contrato conta como em aberto (o "i" do card explica isso).
+percentuais (a cor segue o valor exibido: −0,03 p.p. aparece como 0,0 e fica neutro). A taxa da última
+competência não aparece: é o mês com mais faturas ainda não vencidas na data de corte, que a definição
+do contrato conta como em aberto (o "i" do card explica isso).
 UCs cadastradas e GD não são somadas entre meses; a participação é `UCs com GD / UCs cadastradas × 100`.
 
-Os quatro carregamentos usam `useApi`, com cancelamento de consultas anteriores e tratamento
+Os cinco carregamentos (mais o catálogo de municípios) usam `useApi`, com cancelamento de consultas anteriores e tratamento
 de erro, loading e dados indisponíveis. A consulta `indicador=executivo` compartilha a resposta
 dos KPIs principais com o card de faturamento em aberto; UCs faturadas continuam disponíveis
 na API, embora não apareçam no topo. Os gráficos existentes recebem a série Gold e mantêm

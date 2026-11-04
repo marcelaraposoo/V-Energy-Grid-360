@@ -207,6 +207,8 @@ As rotas abaixo são disponibilizadas sob o prefixo `/api`, salvo indicação em
 | GET | `/api/dashboard/serie` | Série mensal do Dashboard |
 | GET | `/api/dashboard/cadastro-gd` | UCs cadastradas e geração distribuída |
 | GET | `/api/dashboard/consumo-classes` | Consumo por classe, participação e comparação |
+| GET | `/api/dashboard/consumo-locais` | Energia por município (ou por bairro, com `municipio`), participação e comparação |
+| GET | `/api/dashboard/operacao` | Atendimentos, satisfação, DEC e FEC do período (distribuidora ou município) |
 | GET | `/api/receita/variacao?agrupar_por=municipio` | Análise de variação de receita com agrupamento |
 | GET | `/api/unidades?q=` | Pesquisa de unidades consumidoras |
 | GET | `/api/unidades/{uc}/visao-360` | Visão 360 da UC |
@@ -265,7 +267,7 @@ A validação de cada indicador depende da disponibilidade e da integridade das 
 
 ## Cadastro e geração distribuída
 
-`GET /api/dashboard/cadastro-gd` consulta exclusivamente a competência final de cada intervalo na A5, usando `qtd_ucs_cadastradas` e `qtd_ucs_com_gd`.
+`GET /api/dashboard/cadastro-gd` consulta exclusivamente a competência final de cada intervalo na A5, usando `qtd_ucs_cadastradas` e `qtd_ucs_com_gd`. Com `municipio`, soma essas colunas nos segmentos da A3 do município (a A5 não tem município).
 
 A consulta não soma meses nem substitui uma competência ausente.
 
@@ -277,13 +279,13 @@ Denominador zero ou valor indisponível resulta em percentual nulo.
 
 `CadastroGdResponse` contém `atual`, `referencia` opcional e `variacao_cadastradas_pct`, comparando as posições finais quando válidas.
 
-Essa rota é global e aceita somente filtros temporais.
+Além dos filtros temporais, aceita só `municipio` (município desconhecido = `422`).
 
 ## Consumo por classe
 
 `GET /api/dashboard/consumo-classes` soma `consumo_kwh` da A3 por classe e intervalo.
 
-Retorna RESIDENCIAL, COMERCIAL, INDUSTRIAL, PODER PUBLICO e RURAL em ordem decrescente de volume principal, com valores indisponíveis ao final. Não aplica filtros regionais ou de classe.
+Retorna RESIDENCIAL, COMERCIAL, INDUSTRIAL, PODER PUBLICO e RURAL em ordem decrescente de volume principal, com valores indisponíveis ao final. Aceita `municipio`; não aplica filtro de bairro nem de classe.
 
 - Participação: `consumo_classe / consumo_total * 100`.
 - Variação: `(consumo_principal - consumo_referencia) / consumo_referencia * 100`.
@@ -294,7 +296,20 @@ Retorna RESIDENCIAL, COMERCIAL, INDUSTRIAL, PODER PUBLICO e RURAL em ordem decre
 
 A resposta inclui os volumes de referência e listas de competências ausentes. Segmentos duplicados e classes desconhecidas são reportados para evitar agregações silenciosamente incorretas.
 
-`ConsumoClassesResponse` fornece uma única série principal para as barras. O volume de referência serve à variação e ao tooltip, sem exigir barras duplas.
+`ConsumoClassesResponse` fornece uma única série principal para as barras. O volume de referência serve à variação, sem exigir barras duplas.
+
+## Consumo por local
+
+`GET /api/dashboard/consumo-locais` soma `consumo_kwh` da A3 por município ou, com `municipio`, pelos bairros dele (`nivel` = `municipio` ou `bairro`). Segue as regras do consumo por classe: um mês sem o local invalida o acumulado dele (não vira zero) e, com algum local indisponível, o total e as participações ficam nulos. Ordena do maior para o menor volume. O total bate com o de `consumo-classes` no mesmo recorte.
+
+## Operação e atendimento
+
+`GET /api/dashboard/operacao` (mesmos períodos do Dashboard e `municipio` opcional) devolve, para o período e a referência:
+
+- **Atendimentos** (`fato_atendimento`, B1): chamados com `mes_referencia` no período. Mês sem chamado conta como zero (é uma contagem). A B1 bate com `kpis_mensal.qtd_atendimentos` nos 48 meses.
+- **Satisfação:** soma das notas ÷ chamados avaliados (não a média das médias mensais); nula sem avaliações. A variação é a diferença em pontos da nota.
+- **DEC e FEC** (`dec_fec_alimentador_mensal`, A8): mesma regra da Qualidade do Serviço (`resumo_periodo`): em cada mês, média ponderada pelas UCs; depois, soma dos meses. Com município, entram os alimentadores cujo município principal é o escolhido.
+- As variações saem dos valores exatos; só os valores exibidos são arredondados (2 casas).
 
 ## Série mensal do Dashboard
 

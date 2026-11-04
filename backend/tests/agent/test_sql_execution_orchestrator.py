@@ -291,3 +291,25 @@ def test_execution_feedback_is_not_built_for_other_errors():
         orchestrator.build_execution_retry_feedback(GOOD_SQL, outcome)
         is None
     )
+
+
+
+def test_post_guard_cache_hit_skips_execution_and_preserves_attempts(monkeypatch):
+    from app.agent.schemas import PostProcessingResult
+    feedbacks, executed = _install(monkeypatch, [(_ready(GOOD_SQL), None)], [])
+    cached = PostProcessingResult(answer="Resposta aprovada.", assumptions=["Snapshot fixo."])
+    async def lookup(sql):
+        assert sql == GOOD_SQL
+        return cached
+    flow = asyncio.run(orchestrator.generate_validate_and_execute("Quantas UCs?", "Schema.", cache_lookup=lookup))
+    assert flow.cached_response == cached and not flow.executed
+    assert executed == [] and len(feedbacks) == 1 and len(flow.provider_attempts) == 1
+
+
+def test_post_guard_cache_failure_falls_back_to_normal_execution(monkeypatch):
+    feedbacks, executed = _install(monkeypatch, [(_ready(GOOD_SQL), None)], [_success()])
+    async def lookup(sql):
+        raise ConnectionError("PRIVATE_CACHE_TOKEN")
+    flow = asyncio.run(orchestrator.generate_validate_and_execute("Quantas UCs?", "Schema.", cache_lookup=lookup))
+    assert flow.executed and flow.cached_response is None
+    assert executed == [GOOD_SQL] and len(feedbacks) == 1

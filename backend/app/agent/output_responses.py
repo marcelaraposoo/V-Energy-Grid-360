@@ -24,6 +24,7 @@ _INTERNAL_MESSAGE = (
 
 
 OUTPUT_GUARDRAIL_MESSAGES = {
+    OutputGuardrailReason.SEMANTIC_MISMATCH: "Não consegui confirmar a correspondência entre os dados e a resposta. Tente reformular a pergunta.",
     OutputGuardrailReason.UNSUPPORTED_NUMBER: (
         _NOT_CONFIRMED_MESSAGE
     ),

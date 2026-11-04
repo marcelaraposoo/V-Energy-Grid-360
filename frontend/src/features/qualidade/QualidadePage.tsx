@@ -20,6 +20,7 @@ import { quantidade } from './formatacao'
 import { KpisQualidade } from './KpisQualidade'
 import { RankingAlimentadores } from './RankingAlimentadores'
 import { alterarRecorteQualidade } from './recortes'
+import { periodosQualidadeDaUrl } from './url'
 import '../dashboard/dashboard.css'
 import './qualidade.css'
 
@@ -27,14 +28,18 @@ export function QualidadePage() {
   const [busca] = useSearchParams()
   const [temporal, dispatch] = useReducer(
     (estado: ReturnType<typeof estadoInicial>, acao: Parameters<typeof alterarPeriodos>[1]) => alterarPeriodos(estado, acao, periodoPadrao, limites),
-    undefined, () => estadoInicial(periodoPadrao),
+    undefined, () => {
+      // Vindo do Dashboard, abre nos mesmos períodos; "Limpar" volta ao padrão.
+      const inicial = periodosQualidadeDaUrl(busca)
+      return estadoInicial(inicial?.periodo ?? periodoPadrao, inicial?.referencia ?? null)
+    },
   )
   const { periodo, comparar, referencia: comparacao, aviso } = temporal
   const referencia = comparar ? comparacao : null
   const quantidadePeriodo = quantidadeMeses(periodo)
-  // Vindo da Visão 360 (?alimentador=), abre no alimentador da UC.
+  // Vindo da Visão 360 (?alimentador=), abre no alimentador da UC; vindo do Dashboard (?municipio=), no município.
   const [recortes, dispatchRecorte] = useReducer(alterarRecorteQualidade, {
-    atual: { municipio: null, alimentador: busca.get('alimentador')?.toUpperCase() || null }, anteriores: [],
+    atual: { municipio: busca.get('municipio') || null, alimentador: busca.get('alimentador')?.toUpperCase() || null }, anteriores: [],
   })
   const { municipio, alimentador } = recortes.atual
   const voltarRecorte = recortes.anteriores.length ? () => dispatchRecorte({ tipo: 'voltar' }) : undefined

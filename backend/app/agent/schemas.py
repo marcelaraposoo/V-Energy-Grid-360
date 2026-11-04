@@ -243,6 +243,7 @@ class SQLExecutionOutcome(BaseModel):
 class SQLExecutionFlowResult(BaseModel):
     """Resultado do fluxo completo 4.1 a 4.3."""
 
+    cached_response: "PostProcessingResult | None" = None
     generation_status: SQLGenerationStatus | None = None
     generation_reason: str | None = None
     sql: str | None = None
@@ -297,6 +298,7 @@ class OutputGuardrailReason(str, Enum):
     EMPTY_ANSWER = "empty_answer"
     ANSWER_TOO_LONG = "answer_too_long"
     UNSUPPORTED_NUMBER = "unsupported_number"
+    SEMANTIC_MISMATCH = "semantic_mismatch"
     SPELLED_OUT_NUMBER = "spelled_out_number"
     URL_IN_ANSWER = "url_in_answer"
     SQL_IN_ANSWER = "sql_in_answer"
@@ -469,3 +471,6 @@ class MemoryEntry(BaseModel):
     answer: str
     outcome: AgentOutcome
 
+
+
+SQLExecutionFlowResult.model_rebuild()

@@ -4,13 +4,14 @@ import { limitesDashboard, periodoInicialDashboard, referenciaInicialDashboard, 
 // Contrato da Gold: primeiro ano (2022-07 a 2023-06) × últimos 12 meses (2025-07 a 2026-06).
 export const periodosDiagnostico = { periodo: periodoInicialDashboard, referencia: referenciaInicialDashboard }
 
-/** Link para a Análise de Receita com os mesmos períodos (as regras de comparação são as mesmas do Dashboard). */
-export function linkReceita(periodo: Periodo, referencia: Periodo | null): string {
-  if (!referencia) return '/receita'
-  const busca = new URLSearchParams({
+/** Link para a Análise de Receita com os mesmos períodos e município (as regras de comparação são as mesmas do Dashboard). */
+export function linkReceita(periodo: Periodo, referencia: Periodo | null, municipio: string | null = null): string {
+  const busca = new URLSearchParams(referencia ? {
     atual_inicio: periodo.inicio, atual_fim: periodo.fim, base_inicio: referencia.inicio, base_fim: referencia.fim,
-  })
-  return `/receita?${busca}`
+  } : {})
+  if (municipio) busca.set('municipio', municipio)
+  const texto = busca.toString()
+  return texto ? `/receita?${texto}` : '/receita'
 }
 
 /** Períodos recebidos pela URL; nulo se faltarem ou forem inválidos (aí a tela abre no diagnóstico). */

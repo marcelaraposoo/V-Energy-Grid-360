@@ -2,8 +2,8 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 
-from app.routers.deps import dashboard_periodos_dep, filtros_dep, periodos_dep, repo_dep
-from app.schemas import CadastroGdResponse, ConsumoClassesResponse, KpisResponse, SeriePonto, VariacaoResponse
+from app.routers.deps import dashboard_periodos_dep, filtros_dep, municipio_dep, periodos_dep, repo_dep
+from app.schemas import CadastroGdResponse, ConsumoClassesResponse, ConsumoLocaisResponse, KpisResponse, OperacaoResponse, SeriePonto, VariacaoResponse
 from app.services import dashboard, dashboard_complementares, receita
 
 router = APIRouter(prefix="/api", tags=["dashboard e receita"])
@@ -16,15 +16,29 @@ def kpis(indicador: Literal["inadimplencia", "executivo"] | None = None, periodo
 
 
 @router.get("/dashboard/cadastro-gd", response_model=CadastroGdResponse)
-def cadastro_gd(periodos=Depends(dashboard_periodos_dep), repo=Depends(repo_dep)):
+def cadastro_gd(periodos=Depends(dashboard_periodos_dep), municipio=Depends(municipio_dep), repo=Depends(repo_dep)):
     base, atual = periodos
-    return dashboard_complementares.cadastro_gd(repo, base, atual)
+    return dashboard_complementares.cadastro_gd(repo, base, atual, municipio)
 
 
 @router.get("/dashboard/consumo-classes", response_model=ConsumoClassesResponse)
-def consumo_classes(periodos=Depends(dashboard_periodos_dep), repo=Depends(repo_dep)):
+def consumo_classes(periodos=Depends(dashboard_periodos_dep), municipio=Depends(municipio_dep), repo=Depends(repo_dep)):
     base, atual = periodos
-    return dashboard_complementares.consumo_classes(repo, base, atual)
+    return dashboard_complementares.consumo_classes(repo, base, atual, municipio)
+
+
+@router.get("/dashboard/consumo-locais", response_model=ConsumoLocaisResponse)
+def consumo_locais(periodos=Depends(dashboard_periodos_dep), municipio=Depends(municipio_dep), repo=Depends(repo_dep)):
+    """Energia por município (distribuidora) ou por bairro (com município escolhido)."""
+    base, atual = periodos
+    return dashboard_complementares.consumo_locais(repo, base, atual, municipio)
+
+
+@router.get("/dashboard/operacao", response_model=OperacaoResponse)
+def operacao(periodos=Depends(dashboard_periodos_dep), municipio=Depends(municipio_dep), repo=Depends(repo_dep)):
+    """Atendimentos e satisfação (B1) e DEC/FEC (A8) da distribuidora ou de um município."""
+    base, atual = periodos
+    return dashboard_complementares.operacao(repo, base, atual, municipio)
 
 
 @router.get("/dashboard/serie", response_model=list[SeriePonto])

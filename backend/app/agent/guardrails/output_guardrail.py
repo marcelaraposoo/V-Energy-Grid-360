@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from app.core.observability import observe
 
 from app.agent.guardrails.allowed_numbers import (
     AllowedNumbers,
@@ -76,6 +77,7 @@ RULES = (
 
 
 RETRY_MESSAGES = {
+    OutputGuardrailReason.SEMANTIC_MISMATCH: "Preserve a métrica, o período, a quantidade e o grão solicitados na consulta.",
     OutputGuardrailReason.EMPTY_ANSWER: (
         "A resposta anterior estava vazia ou sem conteúdo útil. "
         "Escreva uma resposta clara, em português, com base "
@@ -208,6 +210,7 @@ def build_output_retry_feedback(
     )
 
 
+@observe("C5")
 def validate_output(
     answer: str,
     assumptions: list[str],
@@ -246,6 +249,9 @@ def validate_output(
                 unsupported_values=unsupported,
             )
 
+        from app.agent.intent_validation import sql_intent_problem
+        if sql_intent_problem(question, sql):
+            return _block(answer, OutputGuardrailReason.SEMANTIC_MISMATCH)
         return _allow(answer)
 
     except Exception:

@@ -302,6 +302,15 @@ kbd {
   min-width: 0;
   overflow: hidden;
 }
+.panel-title-icone {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-title-icone > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
 .panel-header {
   padding: 20px 22px;
   display: flex;

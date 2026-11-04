@@ -52,15 +52,15 @@ def test_recentes_limita_12_competencias_e_exclui_so_abertas_antigas(repo):
     primeira = listar(repo, "UC000001", "recentes", None, "todas", 1)
     segunda = listar(repo, "UC000001", "recentes", None, "todas", 2)
     assert primeira.total == 11
-    assert [f.id_fatura for f in primeira.itens] == [f"F{i:02d}" for i in [29, 28, 27, 26, 25, 24, 22, 21, 20, 19]]
-    assert [f.id_fatura for f in segunda.itens] == ["F18"]
+    assert [f.id_fatura for f in primeira.itens] == [f"F{i:02d}" for i in [29, 28, 27, 26, 25, 24]]
+    assert [f.id_fatura for f in segunda.itens] == [f"F{i:02d}" for i in [22, 21, 20, 19, 18]]
     assert primeira.resumo.pendencias_recentes == 19
     assert primeira.resumo.pendencias_antigas == 3
     assert primeira.resumo == segunda.resumo
 
 
 def test_historico_em_aberto_preserva_pendencias_antigas_de_outros_anos(repo):
-    faturas = [f for pagina in [1, 2, 3]
+    faturas = [f for pagina in [1, 2, 3, 4]
                for f in listar(repo, "UC000001", "historico", None, "em_aberto", pagina).itens]
     antigas = [f for f in faturas if f.faixa_atraso == "MAIS DE 90 DIAS"]
     assert [f.id_fatura for f in antigas] == ["F23", "F15", "F07"]
@@ -68,9 +68,9 @@ def test_historico_em_aberto_preserva_pendencias_antigas_de_outros_anos(repo):
 
 
 def test_historico_paginado_sem_repeticoes_e_resumo_independente(repo):
-    paginas = [listar(repo, "uc000001", "historico", None, "todas", p) for p in [1, 2, 3, 4]]
-    assert [len(p.itens) for p in paginas] == [10, 10, 10, 0]
-    assert all(p.total == 30 and p.tamanho == 10 for p in paginas)
+    paginas = [listar(repo, "uc000001", "historico", None, "todas", p) for p in range(1, 7)]
+    assert [len(p.itens) for p in paginas] == [6, 6, 6, 6, 6, 0]
+    assert all(p.total == 30 and p.tamanho == 6 for p in paginas)
     assert [f.id_fatura for p in paginas for f in p.itens] == [f"F{i:02d}" for i in reversed(range(30))]
     assert all(p.resumo == paginas[0].resumo for p in paginas)
     assert paginas[0].anos_disponiveis == [2026, 2025, 2024]
@@ -128,8 +128,8 @@ def test_endpoint_pagina_e_detalhes_inclui_tributos(client):
     resposta = client.get("/api/unidades/UC000001/faturas")
     assert resposta.status_code == 200
     dados = resposta.json()
-    assert dados["total"] == 11 and dados["pagina"] == 1 and dados["tamanho"] == 10
-    assert len(dados["itens"]) == 10
+    assert dados["total"] == 11 and dados["pagina"] == 1 and dados["tamanho"] == 6
+    assert len(dados["itens"]) == 6
     assert {"valor_energia", "valor_total", "tributos", "bandeira", "faixa_atraso"} <= dados["itens"][0].keys()
     assert client.get("/api/unidades/UC999999/faturas").status_code == 404
 

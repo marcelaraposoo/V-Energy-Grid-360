@@ -168,6 +168,20 @@ class MockRepository:
             for a in self.d["fato_atendimento"] if a["id_uc"] == uc_id.upper()
         ]
 
+    def atendimentos_mensais(self, inicio, fim, municipio=None):
+        meses: dict[str, dict] = {}
+        for a in self.d["fato_atendimento"]:
+            if not (inicio <= a["mes_referencia"] <= fim) or (municipio is not None and a["municipio"] != municipio):
+                continue
+            mes = meses.setdefault(a["mes_referencia"], {
+                "mes_referencia": a["mes_referencia"], "qtd_atendimentos": 0, "qtd_avaliacoes": 0, "soma_notas": 0.0,
+            })
+            mes["qtd_atendimentos"] += 1
+            if a["nota_satisfacao"] is not None:
+                mes["qtd_avaliacoes"] += 1
+                mes["soma_notas"] += a["nota_satisfacao"]
+        return [meses[m] for m in sorted(meses)]
+
     # rede
     def ocorrencias(self, inicio, fim, alimentador_id=None, municipio=None, uc_id=None):
         return [

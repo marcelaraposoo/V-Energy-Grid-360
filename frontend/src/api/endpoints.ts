@@ -10,6 +10,8 @@ import type {
   CatalogoFiltros,
   ContinuidadeParams,
   ConsumoClassesResponse,
+  ConsumoLocaisResponse,
+  OperacaoResponse,
   DashboardParams,
   FilaParams,
   Health,
@@ -51,6 +53,10 @@ export function createApi(http: Http) {
         http.get<CadastroGdResponse>('/api/dashboard/cadastro-gd', { params: prepararParametrosDashboard(params), signal }),
       consumoClasses: (params: DashboardParams = {}, signal?: AbortSignal) =>
         http.get<ConsumoClassesResponse>('/api/dashboard/consumo-classes', { params: prepararParametrosDashboard(params), signal }),
+      consumoLocais: (params: DashboardParams = {}, signal?: AbortSignal) =>
+        http.get<ConsumoLocaisResponse>('/api/dashboard/consumo-locais', { params: prepararParametrosDashboard(params), signal }),
+      operacao: (params: DashboardParams = {}, signal?: AbortSignal) =>
+        http.get<OperacaoResponse>('/api/dashboard/operacao', { params: prepararParametrosDashboard(params), signal }),
     },
 
     receita: {
@@ -103,6 +109,9 @@ export function createApi(http: Http) {
         http.delete<void>(`/api/ia/sessoes/${id(sessaoId)}`, { signal }),
       insights: (tela: TelaInsight, signal?: AbortSignal) =>
         http.get<Insight[]>('/api/ia/insights', { params: { tela }, signal }),
+      /** Insights da Visão 360; sem competências, o backend compara o último mês com o anterior. */
+      insightsUc: (ucId: string, params: { competencia_atual?: string; competencia_referencia?: string } = {}, signal?: AbortSignal) =>
+        http.get<Insight[]>(`/api/ia/insights/uc/${id(ucId)}`, { params, signal }),
     },
   }
 }

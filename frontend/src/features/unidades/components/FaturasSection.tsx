@@ -7,8 +7,9 @@ import { SelectField } from '../../../components/ui/Controls'
 import { ErrorState, LoadingState } from '../../../components/ui/Feedback'
 import { consultarFaturas } from '../api'
 import type { AbaFaturas, FaturaUC, PaginaFaturasUC, SituacaoFaturas, Visao360 } from '../types'
-import { formatarCompetencia, formatarData, formatarMoeda, formatarNumero, situacoesFatura } from '../formatters'
-import { HistoryTable } from './HistoryTable'
+import { faixasAtraso, formatarCompetencia, formatarData, formatarMoeda, formatarNumero, situacoesFatura } from '../formatters'
+import { BandeiraTarifaria } from './BandeiraTarifaria'
+import { ListaRegistros } from './ListaRegistros'
 import { FaturaDialog } from './FaturaDialog'
 
 const abas: { id: AbaFaturas; label: string; descricao: string; vazio: string }[] = [
@@ -59,7 +60,7 @@ export function FaturasSection({ dados }: { dados: Visao360 }) {
 
   const ativa = abas.find(aba => aba.id === filtro.aba)!
   const resumo = resultado?.resumo ?? dados.resumo_faturas
-  const paginas = Math.max(1, Math.ceil((resultado?.total ?? 0) / 10))
+  const paginas = Math.max(1, Math.ceil((resultado?.total ?? 0) / (resultado?.tamanho ?? 6)))
   function trocarAba(aba: AbaFaturas) {
     setFiltro({ aba, ano: '', situacao: 'todas', pagina: 1 })
   }
@@ -103,7 +104,7 @@ export function FaturasSection({ dados }: { dados: Visao360 }) {
         ))}
       </div>
       <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${ativa.id}`} tabIndex={0}>
-        <p className="ucv-faturas-descricao">{ativa.descricao} Clique na competência para ver os detalhes.</p>
+        <p className="ucv-faturas-descricao">{ativa.descricao} Clique numa fatura para ver os detalhes.</p>
         {filtro.aba === 'historico' && (
           <div className="filters" aria-label="Filtros do histórico de faturas">
             <SelectField label="Ano" value={filtro.ano} placeholder="Todos os anos"
@@ -117,21 +118,27 @@ export function FaturasSection({ dados }: { dados: Visao360 }) {
         )}
         <div className="ucv-faturas-resultados" aria-busy={carregando}>
           {erro ? <ErrorState error={erro} onRetry={() => setTentativa(n => n + 1)} /> : !resultado ? <LoadingState label="Consultando faturas…" /> : resultado.itens.length ? (
-            <HistoryTable title="Faturas e pagamentos da UC" columns={['Competência', 'Total (R$)', 'Vencimento', 'Pagamento', 'Situação']} icon={FileText} description={ativa.vazio} empty={false}>
+            <ListaRegistros titulo="Faturas e pagamentos da UC" variante="faturas" colunas={['Competência', 'Bandeira', 'Consumo', 'Total', 'Situação', '']}>
               {resultado.itens.map(item => (
-                <tr key={item.id_fatura ?? item.competencia}>
-                  <th scope="row">
-                    <button type="button" className="ucv-fatura-link" disabled={carregando}
-                      aria-haspopup="dialog" aria-label={`Ver detalhes da fatura de ${formatarCompetencia(item.competencia)}`}
-                      onClick={() => setFatura(item)}>{formatarCompetencia(item.competencia)}</button>
-                  </th>
-                  <td>{formatarMoeda(item.valor_total)}</td>
-                  <td>{formatarData(item.vencimento)}</td>
-                  <td>{item.status === 'paga' ? formatarData(item.data_pagamento) : 'Em aberto'}</td>
-                  <td><span className={`badge ucv-fatura--${item.status}`}>{situacoesFatura[item.status]}</span></td>
-                </tr>
+                <li key={item.id_fatura ?? item.competencia}>
+                  <button type="button" className="ucv-registro ucv-registro--faturas" disabled={carregando} aria-haspopup="dialog"
+                    aria-label={`Ver detalhes da fatura de ${formatarCompetencia(item.competencia)}`} onClick={() => setFatura(item)}>
+                    <span className="ucv-registro-principal">
+                      <strong>{formatarCompetencia(item.competencia)}</strong>
+                      <small>Vence em {formatarData(item.vencimento)}</small>
+                    </span>
+                    <BandeiraTarifaria bandeira={item.bandeira} />
+                    <span className="ucv-registro-texto">{formatarNumero(item.consumo_kwh)} kWh</span>
+                    <strong className="ucv-registro-valor">{formatarMoeda(item.valor_total)}</strong>
+                    <span className="ucv-registro-situacao">
+                      <span className={`badge ucv-fatura--${item.status}`}>{situacoesFatura[item.status]}</span>
+                      <small>{item.status === 'paga' ? `Paga em ${formatarData(item.data_pagamento)}` : faixasAtraso[item.faixa_atraso]}</small>
+                    </span>
+                    <ChevronRight className="ucv-registro-seta" size={16} aria-hidden="true" />
+                  </button>
+                </li>
               ))}
-            </HistoryTable>
+            </ListaRegistros>
           ) : <EmptyState compact icon={FileText} title="Nenhuma fatura encontrada" description={resultado.total > 0 ? 'Não há faturas nesta página. Volte para a página anterior.' : ativa.vazio} />}
         </div>
         <div className="table-footer">

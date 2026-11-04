@@ -85,6 +85,46 @@ class ConsumoClassesResponse(BaseModel):
     classes: list[ConsumoClasse]
 
 
+class ConsumoLocal(BaseModel):
+    municipio: str
+    bairro: str | None
+    consumo_kwh: float | None
+    participacao_pct: float | None
+    consumo_referencia_kwh: float | None
+    variacao_pct: float | None
+    competencias_ausentes: list[Competencia]
+
+
+class ConsumoLocaisResponse(BaseModel):
+    periodo_atual: Periodo
+    periodo_base: Periodo | None
+    municipio: str | None
+    nivel: Literal["municipio", "bairro"] = Field(description="Município na distribuidora; bairro com município escolhido.")
+    consumo_total_kwh: float | None
+    locais: list[ConsumoLocal]
+
+
+class IndicadoresOperacao(BaseModel):
+    qtd_atendimentos: int
+    qtd_avaliacoes: int
+    nota_satisfacao_media: float | None = Field(description="Média das notas dadas (1 a 5); nula sem avaliações.")
+    dec_horas: float | None = Field(description="Soma dos DEC mensais, com os alimentadores ponderados pelas UCs em cada mês.")
+    fec_vezes: float | None
+    qtd_interrupcoes: int | None
+
+
+class OperacaoResponse(BaseModel):
+    periodo_atual: Periodo
+    periodo_base: Periodo | None
+    municipio: str | None
+    atual: IndicadoresOperacao
+    base: IndicadoresOperacao | None
+    variacao_atendimentos_pct: float | None
+    variacao_satisfacao: float | None = Field(description="Diferença da nota média, em pontos.")
+    variacao_dec_pct: float | None
+    variacao_fec_pct: float | None
+
+
 class VariacaoLinha(BaseModel):
     chave: str
     rotulo: str = Field(description="Nome de exibição: município, bairro ou descrição da classe.")

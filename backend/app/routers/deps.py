@@ -30,6 +30,13 @@ def filtros_dep(municipio: str | None = None, bairro: str | None = None, classe:
     return Filtros(municipio=municipio, bairro=bairro, classe=classe)
 
 
+def municipio_dep(municipio: str | None = None, repo=Depends(repo_dep)) -> str | None:
+    """Só município: para os blocos do Dashboard que não descem a bairro nem a classe."""
+    if municipio is not None and municipio not in repo.municipios_bairros():
+        raise HTTPException(422, f"Município desconhecido: {municipio}")
+    return municipio
+
+
 def periodos_dep(
     base_inicio: str | None = Query(None, pattern=COMP),
     base_fim: str | None = Query(None, pattern=COMP),

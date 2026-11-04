@@ -73,3 +73,19 @@ def test_message_uses_only_catalog_names_and_no_user_literal():
     assert "http" not in msg and "SELECT" not in msg
     generic = pair_check.clarification_message("missing", None, None)
     assert "Confira" in generic
+
+
+def test_extract_municipality():
+    sql = "SELECT 1 FROM x WHERE municipio = 'Caetés' AND mes_referencia >= '2025-07'"
+    assert pair_check.extract_municipality(sql) == "Caetés"
+    assert pair_check.extract_municipality("SELECT 1 FROM x") is None
+    assert pair_check.extract_municipality("isso não é sql )))") is None
+
+
+def test_municipality_exists(db):
+    assert pair_check.municipality_exists("Olinda", db) is True
+    assert pair_check.municipality_exists("Caetés", db) is False
+
+
+def test_municipality_check_without_database(tmp_path):
+    assert pair_check.municipality_exists("Olinda", str(tmp_path / "x.db")) is None

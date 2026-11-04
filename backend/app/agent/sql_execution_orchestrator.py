@@ -3,9 +3,12 @@ import re
 from app.core.observability import observe
 
 from app.agent.pair_check import (
+    MUNICIPALITY_MESSAGE,
     clarification_message,
+    extract_municipality,
     extract_pair,
     is_empty_or_zero,
+    municipality_exists,
     lookup_pair,
 )
 from app.agent.guardrails.sql_guardrail import (
@@ -208,6 +211,17 @@ async def generate_validate_and_execute(
         if outcome.result is not None and is_empty_or_zero(
             outcome.result.columns, outcome.result.rows
         ):
+            municipality = extract_municipality(generation.sql)
+            if municipality is not None and municipality_exists(
+                municipality, database_path
+            ) is False:
+                return SQLExecutionFlowResult(
+                    generation_status=SQLGenerationStatus.NEEDS_CLARIFICATION,
+                    generation_reason=MUNICIPALITY_MESSAGE,
+                    sql=generation.sql,
+                    regenerations=regenerations,
+                )
+
             pair = extract_pair(generation.sql)
             if pair is not None:
                 lookup = lookup_pair(*pair, database_path=database_path)

@@ -220,6 +220,8 @@ A arquitetura do backend e o mapeamento Gold → API estão em
 O agente é um módulo Python dentro do backend FastAPI (`backend/app/agent/`). Cada pergunta passa por camadas
 independentes, cada uma documentada em `backend/app/agent/docs/`:
 
+<img width="1600" height="1370" alt="Arquitetura" src="https://github.com/user-attachments/assets/5dd17dfb-63f0-4777-b487-1adf34032fb9" />
+
 | Camada | Função |
 |---|---|
 | [C1](backend/app/agent/docs/C1-guardrail-entrada.md) | Guardrail de entrada: barra tentativas de alterar as instruções do agente antes de qualquer chamada ao modelo |

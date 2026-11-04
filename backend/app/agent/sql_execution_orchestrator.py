@@ -2,7 +2,6 @@ from app.agent.providers.latency_policy import provider_phase
 import re
 from app.core.observability import observe
 
-from app.agent.location_hints import neighborhood_hint
 from app.agent.guardrails.sql_guardrail import (
     build_retry_feedback,
     validate_sql,
@@ -99,11 +98,6 @@ async def generate_validate_and_execute(
     provider_attempts: list[ProviderAttempt] = []
     regenerations = 0
     feedback: str | None = None
-    hint = neighborhood_hint(question)
-    if hint:
-        memory_context = (
-            f"{memory_context}\n{hint}" if memory_context else hint
-        )
 
     while True:
         generation, attempts, provider_error = await generate_sql(

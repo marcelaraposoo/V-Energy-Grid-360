@@ -22,20 +22,7 @@ Evite `campo <= '2026-06-30'`, que excluiria registros com horário nesse dia.
 
 ### Bairro
 
-### Bairro e município
-
-Antes de escrever o filtro de local, compare o nome citado com a lista de 14 municípios. Se não estiver nela, o filtro é `bairro`, e `municipio = '...'` com esse nome está errado.
-
-A região tem 14 municípios: Abreu e Lima, Araçoiaba, Cabo de Santo Agostinho, Camaragibe, Igarassu, Ilha de Itamaracá, Ipojuca, Itapissuma, Jaboatão dos Guararapes, Moreno, Olinda, Paulista, Recife e São Lourenço da Mata. Se o local citado pelo usuário não for um desses nomes, trate-o como **bairro** (`bairro`), nunca como município.
-
-O mesmo bairro pode existir em municípios diferentes. Não trate `bairro` como identificador global.
-
-- Se a pergunta citar município e bairro, filtre pelos dois.
-- Se citar só o bairro, filtre apenas por `bairro` (sem `municipio`) e inclua `municipio` e `bairro` no `SELECT` e no `GROUP BY`, para mostrar a qual município cada resultado pertence; não herde o município da conversa.
-- Nomes com variações (por exemplo "Caetés I", "Caetés II") usam `bairro LIKE 'Nome%'`.
-- Não afirme que um bairro existe em vários municípios sem consultar. Use `NEEDS_CLARIFICATION` apenas se a pergunta for ambígua por outro motivo.
-
-Em acompanhamentos curtos como "e no Prazeres?" ou "e em Caetés?", herde a métrica, o período e os demais filtros da pergunta anterior; apenas o município não deve ser herdado. Não peça esclarecimento de métrica ou período nesse caso.
+O mesmo bairro pode existir em municípios diferentes: use `municipio` junto com `bairro` quando o município estiver disponível. Não trate `bairro` como identificador global.
 
 ### Classe de consumo
 
@@ -53,8 +40,6 @@ Quando a pergunta utilizar os períodos definidos pelo diagnóstico:
 
 - `PRIMEIRO_ANO`: `2022-07` até `2023-06`
 - `ULTIMOS_12M`: `2025-07` até `2026-06`
-
-“último ano” significa `ULTIMOS_12M` (`2025-07` a `2026-06`), e a resposta deve citar o período.
 
 Não interprete esses nomes utilizando a data atual.
 

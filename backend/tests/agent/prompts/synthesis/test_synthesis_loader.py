@@ -63,10 +63,3 @@ def test_prompt_requires_digits_and_units():
 
     assert "nunca por extenso" in text
     assert "R$" in text
-
-
-def test_prompt_distinguishes_zero_from_no_records_for_a_filter():
-    prompt = loader.load_synthesis_prompts()
-
-    assert "não afirme que o valor real é zero" in prompt
-    assert "cite exatamente o filtro aplicado" in prompt

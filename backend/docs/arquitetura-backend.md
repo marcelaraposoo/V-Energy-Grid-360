@@ -47,12 +47,8 @@ O agente nunca passa pelo repositório do portal: ele tem a sua própria conexã
 
 ## 2. Mapa de pastas
 
-> **Onde mora o agente (decisão pendente com a frente de IA).** O `AGENTS.md` da `main` reserva a pasta `ai-agent/`
-> na raiz do repositório para a frente de IA, e o case pede que o agente seja um módulo Python integrado ao FastAPI.
-> Duas formas de cumprir os dois: **(A)** código em `ai-agent/` (como pacote Python com nome sem hífen, ex.: `agente/`),
-> instalado e importado pelo backend (`pip install -e ../ai-agent`), que segue a convenção do repositório;
-> **(B)** `backend/app/agent/`, mais simples, mas fora da convenção. A árvore abaixo mostra a opção B só como exemplo;
-> os caminhos `agent/...` deste documento são **relativos à pasta do agente** e valem para qualquer das duas.
+> **Onde mora o agente.** O case pede que o agente seja um módulo Python integrado ao FastAPI, e ele fica em
+> `backend/app/agent/`. Os caminhos `agent/...` deste documento são relativos a essa pasta.
 
 ```
 backend/
@@ -66,14 +62,14 @@ backend/
 │   ├── repositories/            [existe] acesso a dados do PORTAL
 │   │   ├── base.py                       contrato (Protocol)
 │   │   ├── mock_repo.py                  implementação mock
-│   │   └── sqlite_repo.py                TODO: lê a Gold quando estiver pronta
+│   │   └── sqlite_repo.py                implementação que lê a Gold (SQLite)
 │   ├── services/                [existe] regras de negócio
 │   │   ├── receita.py · dashboard.py · unidades.py · perdas.py · continuidade.py
-│   │   └── ia.py                         ponto de entrada do módulo de IA (hoje stub)
+│   │   └── ia.py                         ponto de entrada do módulo de IA
 │   ├── routers/                 [existe] endpoints /api/...
 │   │   ├── catalogos.py · dashboard.py · unidades.py · perdas.py · continuidade.py
 │   │   └── ia.py                         POST /ia/perguntar · GET /ia/insights
-│   └── agent/                   [proposto, opção B] tudo do agente de IA (na opção A, vira ai-agent/)
+│   └── agent/                   tudo do agente de IA
 │       ├── pipeline.py                   orquestra os 9 passos (seção 4)
 │       ├── guardrails/
 │       │   ├── entrada.py                barreira de entrada

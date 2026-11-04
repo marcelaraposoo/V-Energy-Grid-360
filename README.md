@@ -101,8 +101,9 @@ estar instalados. Detalhes e solução de problemas em [docs/dockerizacao.md](do
    - `GEMINI_API_KEY` (e, opcionalmente, `OPENROUTER_API_KEY`): necessárias para o Assistente de IA. Sem chave,
      o portal abre e consulta a Gold normalmente.
 
-   O `backend/.env` é opcional para o portal subir: sem ele, o backend usa os valores padrão do `compose.yaml`
-   e o Assistente fica sem provedor de IA. Para usar outro arquivo, defina `BACKEND_ENV_FILE`.
+   Sem o `backend/.env`, o portal também sobe, mas o Assistente fica sem provedor de IA, e a
+   `GOLD_DATA_VERSION` precisa ser informada na linha de comando (passo 3): sem ela, o backend não inicia. Para
+   usar outro arquivo, defina `BACKEND_ENV_FILE`.
 3. Suba a stack, passando o mesmo arquivo para o Compose (assim `GOLD_DATA_VERSION` e os demais valores também
    valem na configuração do `compose.yaml`):
 
@@ -110,7 +111,14 @@ estar instalados. Detalhes e solução de problemas em [docs/dockerizacao.md](do
    docker compose --env-file backend/.env up --detach --build --wait
    ```
 
-   Sem o `backend/.env` (portal sem Assistente), use `docker compose up --detach --build --wait`.
+   Sem o `backend/.env` (portal sem Assistente), informe a versão da Gold no próprio comando:
+
+   ```bash
+   GOLD_DATA_VERSION=gold-v1 docker compose up --detach --build --wait
+   ```
+
+   No Windows (PowerShell), rode antes `$env:GOLD_DATA_VERSION = 'gold-v1'` e depois
+   `docker compose up --detach --build --wait`.
 4. Abra **http://localhost:8080**. `docker compose ps` deve mostrar `backend` e `redis` como *healthy*.
 
 Para parar: `docker compose down`. As ordens de inspeção e a auditoria do agente ficam no volume `portal_data` e
@@ -129,8 +137,9 @@ cp .env.example .env          # o padrão usa dados mockados (DATA_SOURCE=mock)
 uvicorn app.main:app --reload --port 8000
 ```
 
-Para usar a Gold real, no `backend/.env` defina `DATA_SOURCE=sqlite` e `SQLITE_PATH=../data/gold/gold.db`
-(caminhos relativos partem da pasta `backend/`). A documentação interativa fica em http://localhost:8000/docs.
+Para usar a Gold real, no `backend/.env` defina `DATA_SOURCE=sqlite`. O `SQLITE_PATH` padrão (`data/gold.db`)
+aponta para `backend/data/gold.db`, o local do passo 6 do caminho 1. Se o arquivo estiver em `data/gold/gold.db`
+(o local do Docker), defina `SQLITE_PATH=../data/gold/gold.db` (caminhos relativos partem da pasta `backend/`). A documentação interativa fica em http://localhost:8000/docs.
 Mais detalhes no [README do backend](backend/README.md).
 
 **Frontend** (Node.js 24 ou superior):
@@ -242,8 +251,8 @@ docker compose exec backend python -c "import sqlite3; c=sqlite3.connect('file:/
 ```
 
 **Insights no portal.** Os números dos insights são calculados em Python a partir da Gold (por isso fiéis aos
-dados) e o texto pode ser reescrito pelo modelo, com validação contra os valores originais. Hoje eles aparecem na
-Fila de Inspeção.
+dados) e o texto pode ser reescrito pelo modelo, com validação contra os valores originais. Eles aparecem na
+Visão 360 da UC e na fila de inspeção.
 
 **Avaliação.** A pasta `backend/benchmarks/` compara os modelos candidatos na geração de SQL, com perguntas de
 status esperado e SQL de referência, sobre um banco sintético.
@@ -305,7 +314,8 @@ docker compose config --quiet
   regulatórios reais. `OSCILACAO` entra no cálculo.
 - **Evento de julho de 2025.** Pico de ocorrências e chamados, com 97% de causa climática e 72% em três
   alimentadores. Foi mantido como evento real, não como erro.
-- **Fila de perdas.** O score de prioridade é a probabilidade de irregularidade multiplicada pelos kWh/mês
+- **Fila de perdas.** Com a Gold, a fila segue a `prioridade` e o `score` (0 a 100) da regra `v1` da
+  `fila_inspecao`. No mock, a prioridade é a probabilidade de irregularidade multiplicada pelos kWh/mês
   recuperáveis. Uma UC com ordem ativa sai da fila.
 - **Persistência.** A Gold é somente leitura. Ordens de inspeção e auditoria do agente ficam em `portal.db`,
   separado, para a recarga da Gold não apagá-las.

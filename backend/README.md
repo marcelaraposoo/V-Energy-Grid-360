@@ -222,7 +222,7 @@ As rotas abaixo são disponibilizadas sob o prefixo `/api`, salvo indicação em
 | GET | `/api/continuidade/alimentadores` | Ranking de DEC/FEC por alimentador, com UCs afetadas e horas evitáveis |
 | GET | `/api/continuidade/alimentadores/{id}/serie` | Série mensal de DEC/FEC do alimentador |
 | GET | `/api/continuidade/resumo?municipio=&alimentador=` | Qualidade do Serviço: DEC/FEC do recorte, série mensal, causas e locais (município ou bairro), com os períodos do Dashboard |
-| POST | `/api/ia/perguntar` | Interface de perguntas do módulo de IA, atualmente identificada como stub |
+| POST | `/api/ia/perguntar` | Pergunta em português ao agente de IA (Text-to-SQL) |
 | GET | `/api/ia/insights?tela=` | Insights associados à tela |
 
 Os parâmetros e contratos específicos devem ser consultados na documentação interativa em `/docs`.
@@ -422,9 +422,9 @@ Os testes automatizados não substituem a validação manual dos fluxos da aplic
 - **Limitações de SQLite:** a disponibilidade dos endpoints depende das tabelas e colunas existentes. Algumas consultas, como a consulta global de faturas da análise de receita, permanecem limitadas no modo SQLite.
 - **Efeito-preço:** inclui reajuste, bandeira e mix de classes.
 - **Continuidade:** na Visão 360, DEC/FEC descrevem o alimentador; a quantidade e a duração do histórico descrevem a própria UC. A base mensal de UCs e o impacto em UC × horas acompanham os indicadores.
-- **Fila de perdas:** uma UC com ordem ativa sai da fila de suspeitas. O score de prioridade corresponde à probabilidade multiplicada pelos kWh/mês recuperáveis.
-- **IA:** a rota `/api/ia/perguntar` está identificada como stub; sua existência não significa que todos os fluxos de IA estejam homologados com a Gold SQLite.
-- **Homologação:** a execução local com a Gold atualizada foi validada. A reprodução do processo de exportação oficial e a validação integrada devem seguir os procedimentos e critérios da equipe de DADOS.
+- **Fila de perdas:** uma UC com ordem ativa sai da fila de suspeitas. Com a Gold, a ordem segue a `prioridade` e o `score` da `fila_inspecao`; no mock, o score de prioridade corresponde à probabilidade multiplicada pelos kWh/mês recuperáveis.
+- **IA:** a rota `/api/ia/perguntar` chama o agente em `app/agent/`, que consulta a Gold SQLite somente para leitura.
+- **Gold:** a execução local com a Gold atualizada foi validada. A geração da Gold segue o procedimento de DADOS (README principal).
 
 ## Documentação relacionada
 

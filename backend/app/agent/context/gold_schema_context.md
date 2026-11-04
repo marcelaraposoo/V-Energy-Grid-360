@@ -240,14 +240,50 @@ Utilize para perguntas sobre:
 - `efeito_volume = (V1 - V0) × P0`
 - `efeito_preco = (P1 - P0) × V1`
 
-A soma dos efeitos representa a variação da receita.
+A soma dos efeitos representa a variação da receita em cada linha.
 
-Os efeitos de cada linha NÃO são aditivos entre segmentos. Acima do grão
-município/bairro/classe (município, classe ou empresa), some primeiro `receita_0`,
-`receita_1`, `volume_kwh_0` e `volume_kwh_1`; recalcule `P0 = R0 / V0` e
-`P1 = R1 / V1`; então aplique as fórmulas aos totais, protegendo divisão por zero
-com `NULLIF`. Não use `SUM(efeito_preco)`/`SUM(efeito_volume)` para representar os efeitos do conjunto.
-Variações percentuais e preços médios também devem ser recalculados das bases.
+### Efeito volume e efeito preço acima da linha
+
+`efeito_preco` e `efeito_volume` valem só para a linha (município × bairro × classe).
+Eles NÃO são aditivos entre segmentos. Nunca use `SUM(efeito_preco)` nem
+`SUM(efeito_volume)`: a soma por segmento difere do efeito da empresa por causa do
+efeito composição (mix).
+
+Para empresa, município, classe ou qualquer agrupamento acima da linha, some
+`volume_kwh_0`, `volume_kwh_1`, `receita_0` e `receita_1`; recalcule `P0 = R0 / V0`
+e `P1 = R1 / V1`, protegendo a divisão por zero com `NULLIF`, e calcule:
+
+- `variacao_receita = R1 - R0`
+- `efeito_volume = (V1 - V0) × (R0 / V0)`, se `V0 > 0` e `V1 > 0`; senão, toda a variação
+- `efeito_preco = variacao_receita - efeito_volume`
+
+Quando `V0` ou `V1` for zero, conforme a regra do notebook, use
+`efeito_volume = R1 - R0` e `efeito_preco = 0`.
+
+Exemplo (empresa):
+
+```sql
+SELECT
+    SUM(receita_1) - SUM(receita_0) AS variacao_receita,
+    CASE
+        WHEN SUM(volume_kwh_0) > 0 AND SUM(volume_kwh_1) > 0
+        THEN (SUM(volume_kwh_1) - SUM(volume_kwh_0)) * SUM(receita_0)
+             / NULLIF(SUM(volume_kwh_0), 0)
+        ELSE SUM(receita_1) - SUM(receita_0)
+    END AS efeito_volume,
+    (SUM(receita_1) - SUM(receita_0)) -
+    CASE
+        WHEN SUM(volume_kwh_0) > 0 AND SUM(volume_kwh_1) > 0
+        THEN (SUM(volume_kwh_1) - SUM(volume_kwh_0)) * SUM(receita_0)
+             / NULLIF(SUM(volume_kwh_0), 0)
+        ELSE SUM(receita_1) - SUM(receita_0)
+    END AS efeito_preco
+FROM receita_decomposicao;
+```
+
+Use o efeito da própria linha somente quando a pergunta for sobre aquele segmento
+exato (município + bairro + classe). Variações percentuais e preços médios também
+devem ser recalculados das bases.
 
 ## Atenção
 

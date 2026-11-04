@@ -33,6 +33,21 @@ from app.core import telemetry_export
 from app.routers import ia
 
 
+def _without_volatile_timings(result, *, drop_provider_attempts=False):
+    """Remove medições variáveis ao comparar resultados com/sem telemetria."""
+    normalized_steps = tuple(
+        step.model_copy(update={"duration_ms": None})
+        for step in result.audit_steps
+    )
+    return replace(
+        result,
+        request_id="NORMALIZED_REQUEST_ID",
+        duration_ms=0.0,
+        audit_steps=normalized_steps,
+        provider_attempts=() if drop_provider_attempts else result.provider_attempts,
+    )
+
+
 @pytest.fixture(autouse=True)
 def block_real_model_requests(monkeypatch):
     from pydantic_ai import models
@@ -220,8 +235,14 @@ def test_pipeline_result_is_identical_with_and_without_telemetry(
     baseline = run()
     assert UUID(observed.request_id).version == UUID(baseline.request_id).version == 4
     assert observed.request_id != baseline.request_id
-    assert replace(observed, request_id=baseline.request_id, provider_attempts=()) == replace(
-        baseline, provider_attempts=()
+    assert _without_volatile_timings(observed, drop_provider_attempts=True) == (
+        _without_volatile_timings(baseline, drop_provider_attempts=True)
+    )
+    assert observed.duration_ms >= 0 and baseline.duration_ms >= 0
+    assert all(
+        step.duration_ms is None or step.duration_ms >= 0
+        for result in (observed, baseline)
+        for step in result.audit_steps
     )
     assert [(a.provider, a.model, a.success, a.error_type) for a in observed.provider_attempts] == [
         (a.provider, a.model, a.success, a.error_type) for a in baseline.provider_attempts
@@ -270,7 +291,8 @@ def test_cache_hit_skips_model_stages(telemetry, monkeypatch):
     monkeypatch.setattr(obs, "_logfire", None)
     baseline = asyncio.run(pipeline.answer_question("Quantas UCs?"))
     assert baseline.request_id != result.request_id
-    assert replace(result, request_id=baseline.request_id) == baseline
+    assert _without_volatile_timings(result) == _without_volatile_timings(baseline)
+    assert result.duration_ms >= 0 and baseline.duration_ms >= 0
 
 
 @pytest.mark.parametrize("stop", ["input", "generation"])
@@ -499,7 +521,7 @@ def test_post_sql_cache_hit_has_generation_trace_and_no_execution_or_synthesis(t
     calls = _synthetic_pipeline(monkeypatch, tmp_path, state_dependencies=deps)
     first = asyncio.run(pipeline.answer_question("Quantas UCs por município?", session_id="SESSION_PRIVATE"))
     assert not first.cache_hit
-    calls.clear()  # A segunda requisição começa pela geração, usando a mesma Gold sintética.
+    calls.clear()
     second = asyncio.run(pipeline.answer_question("Quantas UCs por município?", session_id="SESSION_PRIVATE"))
     assert second.cache_hit
     exported = [span for span in spans() if span.attributes.get("request_id") == second.request_id]
@@ -509,6 +531,8 @@ def test_post_sql_cache_hit_has_generation_trace_and_no_execution_or_synthesis(t
     lookup = next(span for span in exported if span.attributes.get("cache_phase") == "post_sql")
     assert lookup.attributes["cache_hit"] is True and lookup.attributes["cache_reason"] == "hit"
     record = audit.save.await_args.args[0]
-    assert record.cache_hit and record.sql is None
+    assert record.cache_hit and record.sql == second.sql
+    assert record.sql is not None
+    assert record.row_count is None and record.truncated is None
     assert len(second.provider_attempts) == 1
     assert "SESSION_PRIVATE" not in json.dumps([span.to_json() for span in exported])

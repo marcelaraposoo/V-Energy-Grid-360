@@ -11,7 +11,7 @@
   color: var(--text-muted);
   font-size: 12px;
 }
-.ucv-search-panel .unit-search {
+.ucv-search-panel .unit-search-container {
   width: min(100%, 420px);
   flex-shrink: 0;
 }
@@ -674,7 +674,7 @@
     align-items: stretch;
     gap: 16px;
   }
-  .ucv-search-panel .unit-search {
+  .ucv-search-panel .unit-search-container {
     width: 100%;
   }
   .ucv-consumo-grid {

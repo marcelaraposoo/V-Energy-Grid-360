@@ -49,6 +49,57 @@ o DNS interno do Docker para resolver novamente o backend quando ele é recriado
 Backend não depende do health/startup do Redis. A URL interna é
 `redis://redis:6379/0`; não há publicação da porta Redis para o host.
 
+### Espera do Assistente IA
+
+Somente `/api/ia/perguntar` define `proxy_read_timeout 300s`. Nas demais rotas,
+o timeout de leitura continua no padrão Nginx de 60 s. Esse limite mede inatividade
+entre leituras do upstream; como a IA só envia a resposta ao finalizar C7,
+a espera inicial inclui todo o pipeline. Não é um deadline global da aplicação.
+
+Os 20 s configurados nos providers valem por chamada ao modelo. Na política
+`confidential` atual, até três modelos são elegíveis por passagem. Geração SQL e
+síntese podem fazer duas passagens cada (uma regeneração por fluxo): o orçamento
+nominal de chamadas LLM chega a `3 × 20 × 4 = 240 s`, além de SQL, estado e overhead.
+Os 300 s dão margem a esse fluxo sem alterar modelos, guardrails ou suas políticas.
+Isso mitiga o 504 do proxy; não torna respostas lentas mais rápidas nem garante
+um limite global rígido. `proxy_connect_timeout` e `proxy_send_timeout` não mudaram.
+
+O access log dessa rota registra somente rota fixa, status, duração total e tempos/status
+do upstream. Não inclui pergunta, resposta, SQL, sessão, query string ou headers.
+Um 504 no Nginx não garante cancelamento do trabalho síncrono no backend: a C7 pode
+concluir auditoria/memória/cache depois que o navegador perdeu a conexão.
+
+No incidente de 03/11/2026, o proxy registrou 504 às 14:51:15 (São Paulo), enquanto
+a auditoria correlacionada por horário concluiu `answered` às 14:51:29,822.
+O request_id candidato é `f05623345893469fa4a70f6d2b398895`, distinto do caso anterior
+de 43,1 s (`2ec56582af2940ffb2c3ef3ecd4dfe7e`). O log antigo não tinha ID compartilhado
+nem durações: essa correlação temporal não substitui a confirmação do trace no Logfire.
+O backend pode registrar HTTP 200 mesmo quando o proxy entregou 504; busque pelo
+request_id/horário, não apenas pelo status HTTP do span do backend.
+
+Os logs registraram Gemini timeout às 14:50:35,493, Cohere timeout às 14:50:55,539,
+outro Gemini timeout às 14:51:18,628 e Cohere `invalid_output` às 14:51:27,534.
+O intervalo entre as duas primeiras falhas foi 20,046 s, coerente com o timeout
+individual. Não há duração de cada tentativa bem-sucedida nos logs antigos, nem
+confirmação de leitura do trace específico; o token disponível não permite consultar
+o projeto. A estimativa de 74,4 s até C7 vem de 60 s de espera mais 14,4 s após o 504,
+não de uma medição recuperada do span do pipeline.
+
+Para reduzir latência, medir p50/p95 por etapa e modelo, observar HIT/MISS do cache
+com a chave atual de sessão/contexto e reduzir schema/contexto e resultados enviados
+aos modelos apenas com equivalência validada. Mudanças na ordem dos modelos, seus
+timeouts, um deadline global e cancelamento ao desconectar exigem avaliação separada:
+podem perder respostas que hoje seriam recuperadas por fallback e precisam preservar C7.
+
+Validação após o ajuste: `nginx -t` passou; uma rede Docker isolada com a mesma imagem
+do proxy e upstream sintético atrasado em 65 s devolveu HTTP 200 em 65,048 s, sem
+marcadores de conteúdo sensível no access log. Esse ensaio não substitui os providers
+da aplicação. A nova chamada pela API, com providers/Gold reais e sessão nova, devolveu
+HTTP 200/`ok` em 27,374 s (proxy: 27,277 s); C7 registrou `answered`, MISS, uma linha e
+nenhuma regeneração, request_id `81dcfa869fe849b2b25bdd05acf56af2`.
+A variação de duração não foi atribuída a uma otimização do pipeline. A suíte do
+backend passou com 1.724 aprovados/19 ignorados, e os 75 testes do frontend passaram.
+
 ## 4. Bancos e caminhos
 
 | Característica | `gold.db` | `portal.db` |
@@ -111,6 +162,12 @@ Node e Python não precisam estar instalados no host para subir a composição:
 os builds e processos usam as imagens Docker. Não são necessárias credenciais
 de providers para abrir o portal e consultar as rotas Gold já suportadas.
 
+Para o Assistente IA, as chaves `GEMINI_API_KEY` e `OPENROUTER_API_KEY` precisam chegar
+ao ambiente do backend. Para observabilidade, configure `LOGFIRE_ENABLED=true`,
+`LOGFIRE_TOKEN` e, opcionalmente, `LOGFIRE_SERVICE_NAME`/`LOGFIRE_BASE_URL`.
+O Compose repassa somente essas variáveis explicitamente; ter `backend/.env` no host
+não basta. Ele não é incluído na imagem nem montado no container.
+
 Se recebeu um ZIP, extraia o `gold.db` original para `data/gold/gold.db` antes
 de subir a aplicação. Não crie um banco vazio nem copie o snapshot para o código
 ou para as imagens. Confira os pré-requisitos em PowerShell:
@@ -125,7 +182,7 @@ if (-not (Test-Path -LiteralPath data/gold/gold.db -PathType Leaf)) {
 }
 
 git check-ignore -v data/gold/gold.db
-docker compose config
+docker compose config --quiet
 ```
 
 `docker version` deve mostrar cliente e servidor; `OSType` deve ser `linux`.
@@ -141,6 +198,18 @@ Na raiz do repositório:
 $env:GOLD_DATA_VERSION = '2026-06-v1' # Exemplo: use a versão real do snapshot.
 docker compose up --detach --build --wait
 ```
+
+Para usar as credenciais e a versão Gold já configuradas em `backend/.env`, execute:
+
+```powershell
+docker compose --env-file backend/.env up --detach --build --wait
+```
+
+O backend também carrega `backend/.env` por `env_file` (substituível por
+`BACKEND_ENV_FILE`), preservando providers/Logfire em recriações. Use a opção CLI
+acima para alimentar a interpolação de `GOLD_DATA_VERSION` e demais parâmetros
+explícitos do Compose. Variáveis do terminal têm precedência na interpolação. Não exiba `docker compose config` sem
+`--quiet` com credenciais carregadas: a saída renderizada inclui seus valores.
 
 Abra:
 
@@ -312,11 +381,13 @@ Estas são pendências da aplicação, não falhas da Dockerização:
 - A fila sem filtro excedeu o timeout de 30 segundos na validação. O backend
   busca cada UC separadamente e usa `COLLATE NOCASE` com varredura da `dim_uc`.
   A fila filtrada com `prob_minima=1&tamanho=3` respondeu HTTP 200.
-- A rota de perguntas usa o pipeline do agente com cache C2, mas o Compose não
-  injeta credenciais de providers. A validação C2 foi controlada e não comprova
-  chamadas a LLMs autenticados.
+- A rota de perguntas usa o pipeline C1–C7. O Compose repassa as chaves de providers
+  quando fornecidas pelo ambiente ou por `--env-file backend/.env`. Health HTTP 200
+  não valida as credenciais: elas precisam ser verificadas com uma pergunta real.
+  A validação C2 controlada anterior não comprova chamadas a LLMs autenticados.
 - Cache C2, memória curta Redis e auditoria SQLite C7 estão integrados.
-  Logfire permanece fora desta etapa.
+  Logfire é opcional e usa as variáveis explícitas do Compose; a política e os limites
+  de validação estão em [observabilidade.md](../backend/docs/observabilidade.md).
 
 Limites do ambiente Docker atual: acesso local por HTTP em loopback, usuário
 padrão da imagem backend e dependências Python/tags base não totalmente fixadas.
@@ -325,7 +396,7 @@ TLS, exposição externa e endurecimento para produção exigem outra etapa.
 ## 14. Troubleshooting
 
 Comece por `docker compose ps`, `docker compose logs --tail 100 backend frontend`
-e `docker compose config`. Não use exclusão de volumes ou restauração de fábrica
+e `docker compose config --quiet`. Não use exclusão de volumes ou restauração de fábrica
 como primeira tentativa de diagnóstico.
 
 | Problema | Verificação e próximo passo |
@@ -334,7 +405,7 @@ como primeira tentativa de diagnóstico.
 | Docker Desktop/engine Linux não iniciado | Confira `docker version` e `docker info --format '{{.OSType}}'`. Se não houver servidor ou aparecer erro do pipe `dockerDesktopLinuxEngine`, inicie o Desktop, selecione containers Linux e aguarde o engine. Consulte os logs/diagnóstico do Desktop se a inicialização falhar; não apague volumes. |
 | Porta 8080 ocupada | No Windows, use `Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue` e `docker ps --format 'table {{.Names}}\t{{.Ports}}'` para identificar o processo/container. Libere a porta encerrando somente o recurso identificado e dispensável; o Compose publica `127.0.0.1:8080`. |
 | Backend `unhealthy` | Leia `docker compose logs --tail 100 backend` e `docker inspect v-energy-grid-360-backend-1 --format '{{json .State.Health}}'`. Confira a resposta HTTP e `DATA_SOURCE=sqlite`. Após corrigir a causa, execute `docker compose up --detach --build --wait`. |
-| Permissão ou mount incorreto | Confira `docker compose config` e `docker inspect v-energy-grid-360-backend-1 --format '{{json .Mounts}}'`. A Gold precisa existir e ser legível pelo Docker Desktop; confirme o acesso ao diretório no host. `/data/gold` deve ser read-only e `/data/portal` read-write. Não torne a Gold gravável para resolver erros no portal. |
+| Permissão ou mount incorreto | Confira `docker compose config --quiet` e `docker inspect v-energy-grid-360-backend-1 --format '{{json .Mounts}}'`. A Gold precisa existir e ser legível pelo Docker Desktop; confirme o acesso ao diretório no host. `/data/gold` deve ser read-only e `/data/portal` read-write. Não torne a Gold gravável para resolver erros no portal. |
 | Frontend abre, mas `/api` falha | Confira logs dos dois serviços e se o backend está saudável. Use `http://localhost:8080/api/health`; `backend:8000` é apenas interno. HTTP 502/504 requer verificar o upstream e duração das consultas; HTTP 501 das funcionalidades pendentes tem causa na aplicação. |
 | Ordens parecem ter desaparecido | Confira o nome do projeto e o volume montado em `/data/portal`. Procure o volume original com `docker volume inspect v-energy-grid-360_portal_data`. Não exclua nem recrie volumes antes de identificar qual está sendo usado. |
 

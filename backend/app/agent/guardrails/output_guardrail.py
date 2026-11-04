@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from app.core.observability import observe
 
 from app.agent.guardrails.allowed_numbers import (
     AllowedNumbers,
@@ -208,6 +209,7 @@ def build_output_retry_feedback(
     )
 
 
+@observe("C5")
 def validate_output(
     answer: str,
     assumptions: list[str],

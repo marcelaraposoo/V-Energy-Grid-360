@@ -102,6 +102,7 @@ def _install(monkeypatch, *, flow=None, synthesis=None):
 
 
 def _ask(question="Quantas UCs por classe?", **kwargs):
+    kwargs.setdefault("session_id", "test-session")
     return asyncio.run(pipeline.answer_question(question, **kwargs))
 
 
@@ -470,7 +471,7 @@ def test_cache_miss_runs_pipeline_and_sets_original_key(monkeypatch):
     assert args[0] == key
     assert args[1].answer == result.message
     assert args[1].visualization == result.visualization
-    assert args[2] == 300
+    assert args[2] == 86400
     key_builder.assert_called_once_with(
         normalized_question="Quantas UCs por classe?", session_id="s1",
         memory_context=None, data_version="gold-v1",
@@ -707,7 +708,7 @@ def test_all_terminal_paths_finalize_once_with_one_request_id(monkeypatch, case,
     if case == "unexpected":
         monkeypatch.setattr(pipeline, "generate_validate_and_execute", AsyncMock(side_effect=RuntimeError("segredo")))
     uuid = Mock(return_value=SimpleNamespace(hex="request-da-entrada"))
-    monkeypatch.setattr(pipeline, "uuid4", uuid)
+    monkeypatch.setattr("app.core.observability.uuid4", uuid)
 
     result = _ask(question, session_id="s1", state_dependencies=deps)
 
@@ -729,7 +730,7 @@ def test_all_terminal_paths_finalize_once_with_one_request_id(monkeypatch, case,
     assert "segredo" not in result.message
 
 
-def test_hit_is_audited_and_remembered_without_set_or_original_execution_metadata(monkeypatch):
+def test_hit_is_audited_without_memory_duplication_or_original_execution_metadata(monkeypatch):
     calls = _install(monkeypatch)
     deps = _c7_dependencies()
     deps.cache_store.get.return_value = PostProcessingResult(answer="Resposta previamente aprovada.")
@@ -850,13 +851,12 @@ def test_corrupted_memory_request_skips_cache_and_append_then_recovers(monkeypat
     async def delete(key):
         return int(data.pop(key, None) is not None)
 
-    async def execute():
-        key, payload = tx.rpush.call_args.args
+    async def execute(_script, _count, key, payload, _limit, _ttl):
         data.setdefault(key, []).append(payload)
 
     client.lrange.side_effect = read
     client.delete.side_effect = delete
-    tx.execute.side_effect = execute
+    client.eval.side_effect = execute
     monkeypatch.setattr("app.agent.state.redis_memory.create_redis_client", Mock(return_value=client))
     deps = replace(_c7_dependencies(), memory_store=RedisMemoryStore("redis://redis"))
 
@@ -876,8 +876,7 @@ def test_corrupted_memory_request_skips_cache_and_append_then_recovers(monkeypat
     assert second.request_id != first.request_id
     deps.cache_store.get.assert_awaited_once()
     deps.cache_store.set.assert_awaited_once()
-    tx.execute.assert_awaited_once()
-    tx.expire.assert_called_once()
+    client.eval.assert_awaited_once()
     entries = asyncio.run(deps.memory_store.get_context("s1"))
     assert len(entries) == 1 and entries[0].answer == second.message
     assert deps.audit_store.save.await_count == 2
@@ -892,3 +891,269 @@ def test_audit_keeps_real_execution_and_regeneration_metadata(monkeypatch):
     record = deps.audit_store.save.await_args.args[0]
     assert record.regenerations == 2
     assert record.row_count == 2 and record.truncated is False
+
+
+class ReplayCache:
+    def __init__(self):
+        self.values = {}
+        self.now = 0
+        self.writes = 0
+
+    async def get(self, key):
+        from app.agent.state.cache import deserialize_cache_value
+        value = self.values.get(key)
+        return deserialize_cache_value(value[0]) if value and value[1] > self.now else None
+
+    async def set(self, key, value, ttl_seconds):
+        from app.agent.state.cache import serialize_cache_value
+        self.values[key] = (serialize_cache_value(value), self.now + ttl_seconds)
+        self.writes += 1
+
+
+class ReplayMemory:
+    def __init__(self):
+        self.entries = {}
+
+    async def get_context(self, session_id):
+        return self.entries.get(session_id, [])[-20:]
+
+    async def append(self, session_id, entry):
+        self.entries.setdefault(session_id, []).append(entry)
+
+
+def _replay_dependencies():
+    return AgentStateDependencies(
+        audit_store=SimpleNamespace(save=AsyncMock()),
+        cache_store=ReplayCache(), memory_store=ReplayMemory(),
+        data_version="gold-v1",
+    )
+
+
+@pytest.mark.parametrize("question", [
+    "Quantas unidades há?", "Quais os 3 meses com mais gastos?", "E no mês anterior?",
+])
+def test_repetition_with_own_memory_transition_is_not_proof_of_equivalence(monkeypatch, question):
+    calls = _install(monkeypatch)
+    deps = _replay_dependencies()
+    first = _ask(question, session_id="s1", state_dependencies=deps)
+    assert not first.cache_hit
+    assert len(deps.memory_store.entries["s1"]) == 1
+    repeated = _ask(question, session_id="s1", state_dependencies=deps)
+    assert not repeated.cache_hit
+    assert calls == {"flow": 2, "synthesis": 2}
+    assert deps.cache_store.writes == 2
+    assert deps.audit_store.save.await_count == 2
+    assert len(deps.memory_store.entries["s1"]) == 2
+
+
+@pytest.mark.parametrize("question", [
+    "Quantas unidades há?", "Quais os 3 meses com mais gastos?", "E no mês anterior?",
+])
+def test_exact_effective_context_hits_generically_without_renewing_ttl(monkeypatch, question):
+    calls = _install(monkeypatch)
+    deps = replace(_replay_dependencies(), memory_store=None)
+    context = "Contexto original explícito."
+    first = _ask(question, session_id="s1", memory_context=context, state_dependencies=deps)
+    assert not first.cache_hit and first.visualization is not None
+    deps.cache_store.now = 195
+    for _ in range(2):
+        repeated = _ask(question, session_id="s1", memory_context=context, state_dependencies=deps)
+        assert repeated.cache_hit
+        assert repeated.message == first.message
+        assert repeated.assumptions == first.assumptions
+        assert repeated.visualization == first.visualization
+        assert repeated.request_id != first.request_id
+    assert calls == {"flow": 1, "synthesis": 1}
+    assert deps.cache_store.writes == 1
+    assert deps.audit_store.save.await_count == 3
+    assert deps.audit_store.save.await_args.args[0].cache_hit
+    deps.cache_store.now = 86401
+    assert not _ask(question, session_id="s1", memory_context=context, state_dependencies=deps).cache_hit
+
+
+@pytest.mark.parametrize("change", ["session", "version", "context", "answer", "expired"])
+def test_repeat_cache_does_not_cross_boundaries(monkeypatch, change):
+    from app.agent.schemas import MemoryEntry
+    _install(monkeypatch)
+    deps = _replay_dependencies()
+    question = "Quais os 3 meses com mais gastos?"
+    _ask(question, session_id="s1", state_dependencies=deps)
+    session = "s1"
+    if change == "session":
+        session = "s2"
+    elif change == "version":
+        deps = replace(deps, data_version="gold-v2")
+    elif change == "context":
+        deps.memory_store.entries["s1"].append(MemoryEntry(
+            question="Considere somente a classe comercial.", answer="Filtro alterado.",
+            outcome=AgentOutcome.ANSWERED,
+        ))
+    elif change == "answer":
+        deps.memory_store.entries["s1"][-1].answer = "Outra resposta."
+    else:
+        deps.cache_store.now = 86401
+    assert not _ask(question, session_id=session, state_dependencies=deps).cache_hit
+
+
+@pytest.mark.parametrize("question", [
+    "E no mês anterior?", "Quais os 3 meses com mais gastos nesse município?",
+    "Quais os 3 meses com mais gastos para ela?", "E os 3 meses com mais gastos?",
+])
+def test_contextual_repetitions_do_not_discard_memory(monkeypatch, question):
+    calls = _install(monkeypatch)
+    deps = _replay_dependencies()
+    _ask(question, session_id="s1", state_dependencies=deps)
+    assert not _ask(question, session_id="s1", state_dependencies=deps).cache_hit
+    assert calls["flow"] == 2
+
+
+def test_repetition_preserves_original_prior_context(monkeypatch):
+    from app.agent.schemas import MemoryEntry
+    _install(monkeypatch)
+    deps = _replay_dependencies()
+    deps.memory_store.entries["s1"] = [MemoryEntry(
+        question="Contexto anterior.", answer="Conversa anterior.", outcome=AgentOutcome.ANSWERED,
+    )]
+    question = "Quais os 3 meses com mais gastos?"
+    _ask(question, session_id="s1", state_dependencies=deps)
+    assert not _ask(question, session_id="s1", state_dependencies=deps).cache_hit
+
+
+def test_full_memory_of_duplicates_cannot_reconstruct_original_context(monkeypatch):
+    _install(monkeypatch)
+    deps = _replay_dependencies()
+    question = "Quais os 3 meses com mais gastos?"
+    _ask(question, session_id="s1", state_dependencies=deps)
+    entry = deps.memory_store.entries["s1"][0]
+    deps.memory_store.entries["s1"] = [entry] * 20
+    assert not _ask(question, session_id="s1", state_dependencies=deps).cache_hit
+
+
+@pytest.mark.parametrize("change", ["question", "session", "version", "context"])
+def test_generic_cache_identity_includes_every_input(monkeypatch, change):
+    calls = _install(monkeypatch)
+    deps = replace(_replay_dependencies(), memory_store=None)
+    question, session, context = "Quantas unidades há?", "s1", "Contexto inicial."
+    _ask(question, session_id=session, memory_context=context, state_dependencies=deps)
+    if change == "question":
+        question = "Qual a receita total?"
+    elif change == "session":
+        session = "s2"
+    elif change == "version":
+        deps = replace(deps, data_version="gold-v2")
+    else:
+        context = "Novo contexto."
+    assert not _ask(question, session_id=session, memory_context=context, state_dependencies=deps).cache_hit
+    assert calls["flow"] == 2
+
+
+def test_c1_normalization_is_reused_for_generic_cache_identity(monkeypatch):
+    _install(monkeypatch)
+    deps = replace(_replay_dependencies(), memory_store=None)
+    _ask("  Quantas   unidades há?  ", session_id="s1", state_dependencies=deps)
+    assert _ask("Quantas unidades há?", session_id="s1", state_dependencies=deps).cache_hit
+
+
+def test_same_session_concurrent_answers_do_not_create_recovery_proof(monkeypatch):
+    calls = _install(monkeypatch)
+    deps = _replay_dependencies()
+    async def run():
+        ready = asyncio.Event()
+        count = 0
+        original = deps.memory_store.get_context
+        async def snapshot(session):
+            nonlocal count
+            entries = list(await original(session))
+            count += 1
+            if count == 2:
+                ready.set()
+            await ready.wait()
+            return entries
+        deps.memory_store.get_context = snapshot
+        question = "Quais os 3 meses com mais gastos?"
+        first, second = await asyncio.gather(*[
+            pipeline.answer_question(question, session_id="s1", state_dependencies=deps)
+            for _ in range(2)
+        ])
+        deps.memory_store.get_context = original
+        third = await pipeline.answer_question(question, session_id="s1", state_dependencies=deps)
+        return first, second, third
+    results = asyncio.run(run())
+    # Os dois pedidos concorrentes podem compartilhar o mesmo snapshot vazio:
+    # um HIT normal nesse contexto idêntico é válido. Depois dos appends, não.
+    assert not results[2].cache_hit
+    assert calls["flow"] in {2, 3}
+    assert deps.audit_store.save.await_count == 3
+    assert len({result.request_id for result in results}) == 3
+    assert len(deps.memory_store.entries["s1"]) == sum(not r.cache_hit for r in results)
+
+
+
+
+@pytest.mark.parametrize("question", ["Quantas unidades há?", "Quais os 3 meses com mais gastos?", "E no mês anterior?"])
+def test_answer_can_be_reused_after_another_question_only_when_effective_context_matches(monkeypatch, question):
+    calls = _install(monkeypatch)
+    deps = replace(_replay_dependencies(), memory_store=None)
+    original = _ask(question, session_id="s", memory_context="Referente fixo.", state_dependencies=deps)
+    _ask("Qual o consumo?", session_id="s", memory_context="Referente fixo.", state_dependencies=deps)
+    repeated = _ask(question, session_id="s", memory_context="Referente fixo.", state_dependencies=deps)
+    assert repeated.cache_hit
+    assert repeated.message == original.message
+    assert repeated.assumptions == original.assumptions
+    assert repeated.visualization == original.visualization
+    assert calls["flow"] == 2
+    changed = _ask(question, session_id="s", memory_context="Outro referente.", state_dependencies=deps)
+    assert not changed.cache_hit
+
+
+def test_hit_restores_last_referent_without_duplicate_consecutive_turns(monkeypatch):
+    _install(monkeypatch)
+    deps = _replay_dependencies()
+    question = "Quantas unidades há?"
+    from app.agent.schemas import MemoryEntry
+    deps.memory_store.entries["s"] = [MemoryEntry(question="Pergunta B?", answer="Referente B.", outcome=AgentOutcome.ANSWERED)]
+    # Simula um resultado aprovado para o snapshot atual, sem mudar esse snapshot.
+    state = asyncio.run(pipeline.prepare_request_state(normalized_question=question, session_id="s", dependencies=deps))
+    value = PostProcessingResult(answer="Resposta aprovada.", assumptions=["Snapshot fixo."])
+    asyncio.run(deps.cache_store.set(state.cache_key, value, 86400))
+    result = _ask(question, session_id="s", state_dependencies=deps)
+    assert result.cache_hit and result.assumptions == ("Snapshot fixo.",)
+    assert len(deps.memory_store.entries["s"]) == 2
+    assert deps.audit_store.save.await_args.args[0].cache_hit is True
+    # Preparar a mesma resposta no contexto atual permite verificar deduplicação.
+    current = asyncio.run(pipeline.prepare_request_state(normalized_question=question, session_id="s", dependencies=deps))
+    asyncio.run(deps.cache_store.set(current.cache_key, value, 86400))
+    assert _ask(question, session_id="s", state_dependencies=deps).cache_hit
+    assert len(deps.memory_store.entries["s"]) == 2
+
+
+@pytest.mark.parametrize("session", [None, "", "   "])
+def test_no_valid_session_bypasses_cache(monkeypatch, session):
+    calls = _install(monkeypatch)
+    deps = _cache_dependencies()
+    result = _ask(session_id=session, state_dependencies=deps)
+    assert not result.cache_hit
+    deps.cache_store.get.assert_not_awaited()
+    deps.cache_store.set.assert_not_awaited()
+    assert calls["flow"] == 1
+
+
+
+def test_fresh_browser_session_does_not_load_old_cache_or_memory(monkeypatch):
+    calls = _install(monkeypatch)
+    deps = _replay_dependencies()
+    contexts = []
+    execute = pipeline.generate_validate_and_execute
+    async def capture(**kwargs):
+        contexts.append(kwargs["memory_context"])
+        return await execute(**kwargs)
+    monkeypatch.setattr(pipeline, "generate_validate_and_execute", capture)
+    question = "Quantas unidades há?"
+    _ask(question, session_id="before-reload", state_dependencies=deps)
+    old_entries = list(deps.memory_store.entries["before-reload"])
+    new = _ask(question, session_id="after-reload", state_dependencies=deps)
+    assert not new.cache_hit
+    assert contexts == [None, None]
+    assert deps.memory_store.entries["before-reload"] == old_entries
+    assert calls["flow"] == 2
+    assert len(deps.memory_store.entries["after-reload"]) == 1

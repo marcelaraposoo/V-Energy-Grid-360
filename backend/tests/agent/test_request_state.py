@@ -240,7 +240,7 @@ def test_key_uses_c1_question_and_exact_effective_context(monkeypatch):
     PostProcessingResult.model_construct(answer="")])
 def test_invalid_adapter_value_is_a_miss(value):
     state = _run(
-        normalized_question="Receita?", session_id=None,
+        normalized_question="Receita?", session_id="s1",
         dependencies=AgentStateDependencies(
             audit_store=FakeAuditStore(), cache_store=FakeCacheStore(value), data_version="gold-v1"
         ),
@@ -264,7 +264,7 @@ def test_cache_get_timeout_is_a_miss_and_cancels_the_operation():
 
     async def run():
         return await asyncio.wait_for(prepare_request_state(
-            normalized_question="Receita?", session_id=None,
+            normalized_question="Receita?", session_id="s1",
             dependencies=AgentStateDependencies(
                 audit_store=FakeAuditStore(), cache_store=cache,
                 data_version="gold-v1", cache_timeout_seconds=0.01,
@@ -278,9 +278,48 @@ def test_cache_get_timeout_is_a_miss_and_cancels_the_operation():
 
 def test_cache_disabled_does_not_require_version_or_produce_key():
     state = _run(
-        normalized_question="Receita?", session_id=None,
+        normalized_question="Receita?", session_id="s1",
         dependencies=AgentStateDependencies(audit_store=FakeAuditStore()),
     )
 
     assert state.cache_key is None
     assert state.cache_hit is False
+
+
+def test_concurrent_requests_keep_session_and_context_isolated():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from app.agent.state.memory_context import build_memory_context
+    entries = {
+        session: [MemoryEntry(question="Contexto anterior.", answer=f"Resposta {session}.", outcome=AgentOutcome.ANSWERED)]
+        for session in ("s1", "s2")
+    }
+    question = "E no mês anterior?"
+    expected = {
+        build_cache_key(normalized_question=question, session_id=session,
+                        memory_context=build_memory_context(history), data_version="gold-v1"):
+        PostProcessingResult(answer=f"Cache {session}.")
+        for session, history in entries.items()
+    }
+    async def get_context(session):
+        await asyncio.sleep(0)
+        return list(entries[session])
+    async def get_cache(key):
+        await asyncio.sleep(0)
+        return expected[key]
+    dependencies = AgentStateDependencies(
+        cache_store=SimpleNamespace(get=AsyncMock(side_effect=get_cache), set=AsyncMock()),
+        memory_store=SimpleNamespace(get_context=get_context), data_version="gold-v1",
+    )
+    async def run():
+        return await asyncio.gather(*[
+            prepare_request_state(normalized_question=question, session_id=session, dependencies=dependencies)
+            for session in ("s1", "s2")
+        ])
+    states = asyncio.run(run())
+    for session, state in zip(("s1", "s2"), states):
+        assert state.cache_hit
+        assert state.cached_response.answer == f"Cache {session}."
+        assert state.memory_context == build_memory_context(entries[session])
+    assert states[0].cache_key != states[1].cache_key
+    dependencies.cache_store.set.assert_not_awaited()

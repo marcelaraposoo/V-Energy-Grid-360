@@ -1,4 +1,5 @@
 import json
+from app.core.observability import observe
 import re
 from typing import Any
 
@@ -154,6 +155,7 @@ def build_synthesis_prompt(
     )
 
 
+@observe("C4.4")
 async def synthesize_answer(
     question: str,
     sql: str,

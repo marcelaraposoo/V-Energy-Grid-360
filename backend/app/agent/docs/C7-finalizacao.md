@@ -250,3 +250,11 @@ O arquivo não rastreado `c7-atual.txt` não foi alterado por esta tarefa.
 - E2E com providers autenticados e versão oficial do snapshot por ambiente.
 - Retenção/consulta administrativa da auditoria e memória durável não fazem
   parte dos contratos implementados nesta tarefa.
+
+
+## Cache automático e inatividade
+
+HIT continua auditado sem novo SET. O turno da entrega é lembrado quando muda
+o referente; duplicatas consecutivas iguais são evitadas atomicamente no Redis.
+Leituras válidas também renovam a expiração por inatividade, sem append. Ver
+[C2-cache.md](C2-cache.md) para TTLs, limites e a proposta de intenção resolvida.

@@ -1,4 +1,5 @@
 import logging
+from app.core.observability import observe
 import re
 import sqlite3
 from datetime import date, datetime
@@ -135,6 +136,7 @@ def _failure(
     )
 
 
+@observe("C4.3")
 def execute_sql(
     sql: str,
     *,

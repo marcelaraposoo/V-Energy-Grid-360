@@ -42,23 +42,21 @@ def test_append_atomically_limits_storage_and_renews_ttl(redis):
     store = RedisMemoryStore("redis://redis", ttl_seconds=86400)
     asyncio.run(store.append("s1", _entry()))
     asyncio.run(store.append("s1", _entry(2)))
-    client.pipeline.assert_called_with(transaction=True)
-    key, payload = tx.rpush.call_args.args
-    assert key == build_memory_key("s1")
-    assert set(json.loads(payload)) == {"question", "answer", "outcome"}
-    assert json.loads(payload)["answer"] == "Resposta 2"
-    tx.ltrim.assert_called_with(key, -20, -1)
-    tx.expire.assert_called_with(key, 86400)
-    assert tx.expire.call_count == 2
-    assert tx.execute.await_count == 2
+    args = client.eval.await_args.args
+    assert args[1:3] == (1, build_memory_key("s1"))
+    assert set(json.loads(args[3])) == {"question", "answer", "outcome"}
+    assert json.loads(args[3])["answer"] == "Resposta 2"
+    assert args[4:] == (20, 86400)
+    assert client.eval.await_count == 2
     assert client.__aexit__.await_count == 2
+
 
 
 @pytest.mark.parametrize("outcome", list(AgentOutcome))
 def test_only_eligible_outcomes_are_appended(redis, outcome):
     client, tx = redis
     asyncio.run(RedisMemoryStore("redis://redis").append("s1", _entry(outcome=outcome)))
-    assert tx.execute.await_count == int(outcome in {
+    assert client.eval.await_count == int(outcome in {
         AgentOutcome.ANSWERED, AgentOutcome.NO_DATA, AgentOutcome.NEEDS_CLARIFICATION,
     })
 
@@ -106,7 +104,7 @@ def test_corruption_cleanup_failure_is_safe_and_can_be_retried(redis, caplog):
 @pytest.mark.parametrize("failure", ["exception", "timeout"])
 def test_memory_errors_propagate_to_state_or_finalizer(redis, operation, failure):
     client, tx = redis
-    command = client.lrange if operation == "read" else tx.execute
+    command = client.lrange if operation == "read" else client.eval
     if failure == "exception":
         command.side_effect = ConnectionError("indisponivel")
     else:
@@ -117,3 +115,11 @@ def test_memory_errors_propagate_to_state_or_finalizer(redis, operation, failure
     with pytest.raises((ConnectionError, TimeoutError)):
         asyncio.run(store.get_context("s1") if operation == "read" else store.append("s1", _entry()))
     client.delete.assert_not_awaited()
+
+
+def test_read_refreshes_inactivity_without_appending(redis):
+    client, tx = redis
+    client.lrange.return_value = [_entry().model_dump_json()]
+    asyncio.run(RedisMemoryStore("redis://redis").get_context("s"))
+    client.expire.assert_awaited_once_with(build_memory_key("s"), 86400)
+    tx.rpush.assert_not_called()

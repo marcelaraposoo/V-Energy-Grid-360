@@ -118,8 +118,9 @@ def test_key_does_not_expose_question():
     assert "sessao-secreta-123" not in key
     assert "confidencial" not in key
     digest = key.removeprefix(f"{CACHE_KEY_PREFIX}:")
-    assert len(digest) == 64
-    assert all(char in "0123456789abcdef" for char in digest)
+    assert len(digest.split(":")) == 2
+    assert all(len(part) == 64 for part in digest.split(":"))
+    assert all(char in "0123456789abcdef" for char in digest.replace(":", ""))
 
 
 @pytest.mark.parametrize("field", ["normalized_question", "memory_context"])
@@ -144,3 +145,15 @@ def test_cache_key_preserves_effective_memory_whitespace():
 def test_cache_key_requires_snapshot_version(version):
     with pytest.raises(ValueError, match="data_version"):
         build_cache_key(normalized_question="Receita?", data_version=version)
+
+
+@pytest.mark.parametrize("other", ["Qual a receita?", "Qual o gasto?", "Quantas UCs em Recife?", "Quantas UCs em Olinda?"])
+def test_no_semantic_equivalence_is_inferred(other):
+    assert build_cache_key(normalized_question=other, session_id="s", data_version="v") != build_cache_key(normalized_question="Quantas unidades consumidoras?", session_id="s", data_version="v")
+
+
+def test_user_identity_changes_scope_even_for_same_session():
+    first = build_cache_key(normalized_question="Quantas UCs?", session_id="s", user_identity="user-a", data_version="v")
+    second = build_cache_key(normalized_question="Quantas UCs?", session_id="s", user_identity="user-b", data_version="v")
+    assert first.split(":")[-2] != second.split(":")[-2]
+    assert "user-a" not in first and "user-b" not in second

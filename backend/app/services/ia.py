@@ -18,7 +18,7 @@ def perguntar(pergunta: str, sessao_id: str | None = None) -> RespostaOut:
     resultado = asyncio.run(answer_question(pergunta, session_id=sessao_id))
 
     if resultado.status == PipelineStatus.ANSWERED:
-        logger.info("Pergunta respondida. sql=%s", resultado.sql)
+        logger.info("Pergunta respondida. request_id=%s", resultado.request_id)
         return RespostaOut(
             status="ok",
             resposta=resultado.message,
@@ -44,7 +44,7 @@ def limpar_sessao(sessao_id: str) -> None:
     return None
 
 
-def insights(repo, tela: str) -> list[Insight]:
+def _insights_base(repo, tela: str) -> list[Insight]:
     """Insights calculados direto dos dados (fiéis por construção). O LLM só reescreve o texto depois."""
     base, atual = dashboard.periodos_padrao(repo)
     if tela == "receita":
@@ -63,3 +63,10 @@ def insights(repo, tela: str) -> list[Insight]:
         return [Insight(tipo="alerta", dados=r[0].model_dump(),
                         texto=f"O alimentador {r[0].alimentador_id} ({r[0].municipio}) tem o pior DEC do período: {r[0].dec_horas} h.")]
     return []
+
+
+from app.agent.insights.rewriter import rewrite_insights
+
+
+def insights(repo, tela: str) -> list[Insight]:
+    return rewrite_insights(_insights_base(repo, tela))

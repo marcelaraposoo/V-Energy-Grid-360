@@ -1,4 +1,5 @@
 import logging
+from app.core.observability import observe
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
@@ -25,6 +26,7 @@ from app.agent.schemas import (
     ProviderName,
 )
 from app.core.config import settings
+from app.agent.providers.latency_policy import timeout_for_attempt
 
 
 logger = logging.getLogger(__name__)
@@ -100,6 +102,7 @@ def classify_gemini_error(
     return ProviderErrorType.UNKNOWN
 
 
+@observe("provider")
 async def run_gemini(
     prompt: str,
     *,
@@ -141,7 +144,7 @@ async def run_gemini(
             model_settings={
                 "max_retries": 0,
                 "request_timeout": (
-                    settings.provider_timeout_seconds
+                    timeout_for_attempt(settings.provider_timeout_seconds)
                 ),
             },
         )

@@ -249,6 +249,10 @@ class SQLExecutionFlowResult(BaseModel):
     sql: str | None = None
     guardrail_reason: SQLGuardrailReason | None = None
     outcome: SQLExecutionOutcome | None = None
+    # Preserva a evidência da consulta também quando o par-check pede
+    # esclarecimento após uma execução bem-sucedida com resultado vazio.
+    execution_result: QueryExecutionResult | None = None
+    execution_elapsed_ms: float | None = None
     provider_error: ProviderErrorType | None = None
     regenerations: int = 0
     provider_attempts: list[ProviderAttempt] = Field(default_factory=list)
@@ -444,6 +448,25 @@ class AgentOutcome(str, Enum):
     EXECUTION_ERROR = "execution_error"
     INTERNAL_ERROR = "internal_error"
 
+
+class AuditStepStatus(str, Enum):
+    COMPLETED = "completed"
+    BLOCKED = "blocked"
+    SKIPPED = "skipped"
+    ERROR = "error"
+    CACHE_HIT = "cache_hit"
+
+
+class AuditStep(BaseModel):
+    """Resumo seguro de uma etapa do pipeline, sem conteúdo bruto da requisição."""
+
+    code: str
+    name: str
+    status: AuditStepStatus
+    detail: str | None = None
+    duration_ms: float | None = None
+
+
 class AuditRecord(BaseModel):
     request_id: str
     session_id: str | None = None
@@ -463,6 +486,12 @@ class AuditRecord(BaseModel):
 
     provider_error: ProviderErrorType | None = None
     regenerations: int = 0
+
+    # Metadados adicionais para auditoria e diagnóstico do fluxo completo.
+    stage: str | None = None
+    duration_ms: float | None = None
+    provider_attempts: list[ProviderAttempt] = Field(default_factory=list)
+    steps: list[AuditStep] = Field(default_factory=list)
 
     final_answer: str | None = None
 

@@ -103,6 +103,21 @@ def test_audit_is_always_saved():
     assert len(audit_store.records) == 1
 
 
+def test_memory_finalization_still_runs_when_audit_store_is_unconfigured():
+    memory_store = FakeMemoryStore()
+
+    persisted = _run(
+        audit_store=None,
+        audit_record=_audit(),
+        memory_store=memory_store,
+        memory_entry=_memory_entry(),
+    )
+
+    assert persisted is None
+    assert len(memory_store.entries) == 1
+    assert memory_store.entries[0][0] == "sessao-1"
+
+
 def test_eligible_outcome_is_stored_in_memory():
     audit_store = FakeAuditStore()
     memory_store = FakeMemoryStore()

@@ -106,6 +106,112 @@ def _ask(question="Quantas UCs por classe?", **kwargs):
     return asyncio.run(pipeline.answer_question(question, **kwargs))
 
 
+def test_pipeline_returns_and_persists_a_full_audit_trace(monkeypatch):
+    class AuditStore:
+        def __init__(self):
+            self.records = []
+
+        async def save(self, record):
+            self.records.append(record)
+
+    _install(monkeypatch)
+    store = AuditStore()
+    dependencies = AgentStateDependencies(audit_store=store)
+
+    result = _ask(state_dependencies=dependencies)
+
+    assert result.audit_persisted is True
+    assert result.row_count == 2
+    assert result.truncated is False
+    assert result.duration_ms >= 0
+    assert result.regenerations == 0
+    assert [step.code for step in result.audit_steps] == [
+        "C1", "C2", "C3", "C4.1", "C4.2", "C4.3", "C4.4", "C5", "C6", "C7",
+    ]
+    statuses = {step.code: step.status.value for step in result.audit_steps}
+    assert statuses["C1"] == "completed"
+    assert statuses["C4.2"] == "completed"
+    assert statuses["C4.3"] == "completed"
+    assert statuses["C7"] == "completed"
+    assert len(store.records) == 1
+    assert store.records[0].stage == "done"
+    assert store.records[0].row_count == 2
+    assert [step.code for step in store.records[0].steps][-1] == "C7"
+
+
+def test_finalization_keeps_memory_when_audit_store_is_not_configured(monkeypatch):
+    class MemoryStore:
+        def __init__(self):
+            self.entries = []
+
+        async def get_context(self, session_id):
+            return []
+
+        async def append(self, session_id, entry):
+            self.entries.append((session_id, entry))
+
+    _install(monkeypatch)
+    memory = MemoryStore()
+    result = _ask(state_dependencies=AgentStateDependencies(memory_store=memory))
+
+    assert result.status == PipelineStatus.ANSWERED
+    assert result.audit_persisted is None
+    assert len(memory.entries) == 1
+    assert memory.entries[0][0] == "test-session"
+    assert memory.entries[0][1].answer == result.message
+    assert {step.code: step.status.value for step in result.audit_steps}["C2"] == "skipped"
+
+
+def test_pair_check_clarification_keeps_execution_in_audit(monkeypatch):
+    flow = SQLExecutionFlowResult(
+        generation_status=SQLGenerationStatus.NEEDS_CLARIFICATION,
+        generation_reason="Não encontrei esse bairro no município citado.",
+        sql=SQL,
+        execution_result=QueryExecutionResult(
+            columns=["n"], rows=[[0]], row_count=1,
+        ),
+        execution_elapsed_ms=12.5,
+    )
+    _install(monkeypatch, flow=flow)
+    class AuditStore:
+        def __init__(self):
+            self.records = []
+
+        async def save(self, record):
+            self.records.append(record)
+
+    store = AuditStore()
+
+    result = _ask(state_dependencies=AgentStateDependencies(audit_store=store))
+
+    assert result.outcome == AgentOutcome.NEEDS_CLARIFICATION
+    assert result.row_count == 1
+    steps = {step.code: step for step in result.audit_steps}
+    assert steps["C4.3"].status.value == "completed"
+    assert steps["C4.3"].duration_ms == 12.5
+    assert store.records[0].row_count == 1
+
+
+def test_blocked_input_is_audited_and_later_stages_are_skipped(monkeypatch):
+    class AuditStore:
+        def __init__(self):
+            self.records = []
+
+        async def save(self, record):
+            self.records.append(record)
+
+    store = AuditStore()
+    result = _ask("SELECT * FROM dim_uc", state_dependencies=AgentStateDependencies(audit_store=store))
+
+    assert result.outcome == AgentOutcome.INPUT_BLOCKED
+    statuses = {step.code: step.status.value for step in result.audit_steps}
+    assert statuses["C1"] == "blocked"
+    assert statuses["C2"] == "skipped"
+    assert statuses["C7"] == "completed"
+    assert result.audit_persisted is True
+    assert len(store.records) == 1
+
+
 def test_full_flow_returns_the_approved_answer(monkeypatch):
     calls = _install(monkeypatch)
 

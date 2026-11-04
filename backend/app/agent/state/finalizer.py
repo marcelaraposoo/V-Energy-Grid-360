@@ -39,7 +39,7 @@ async def finalize(
     cache_data_version: str | None = None,
     cache_response_complete: bool = False,
     memory_timeout_seconds: float = DEFAULT_MEMORY_TIMEOUT_SECONDS,
-) -> None:
+) -> bool | None:
     """
     Finaliza uma execução do agente.
 
@@ -57,15 +57,18 @@ async def finalize(
         truncated=audit_record.truncated, regenerations=audit_record.regenerations,
     )
 
-    try:
-        if audit_store is not None:
+    audit_persisted: bool | None = None
+    if audit_store is not None:
+        try:
             async with asyncio.timeout(2.0):
                 await audit_store.save(audit_record)
-    except Exception as error:
-        logger.warning(
-            "Falha ao persistir auditoria. error_type=%s",
-            type(error).__name__,
-        )
+            audit_persisted = True
+        except Exception as error:
+            audit_persisted = False
+            logger.warning(
+                "Falha ao persistir auditoria. error_type=%s",
+                type(error).__name__,
+            )
 
     if (
         memory_store is not None
@@ -109,7 +112,7 @@ async def finalize(
         from app.agent.state.sql_cache import sql_cache_plan, canonical_cache_sql, record_cache
         if audit_record.sql is not None and canonical_cache_sql(audit_record.sql) is None:
             record_cache("unsupported_plan", "post_sql")
-            return
+            return audit_persisted
         plan = sql_cache_plan(audit_record.question, audit_record.sql, audit_record.session_id, cache_data_version)
         approved_setter = getattr(cache_store, "set_approved", None)
         if plan is not None and callable(approved_setter):
@@ -119,7 +122,7 @@ async def finalize(
             try:
                 async with asyncio.timeout(cache_timeout_seconds):
                     await approved_setter(cache_key, cache_value, cache_ttl_seconds, plan=plan, independent=independent)
-                return
+                return audit_persisted
             except Exception as error:
                 logger.warning("Falha ao persistir cache por plano. error_type=%s", type(error).__name__)
         setter = getattr(cache_store, "set_independent", None)
@@ -128,7 +131,7 @@ async def finalize(
             try:
                 async with asyncio.timeout(cache_timeout_seconds):
                     await setter(cache_key, cache_value, cache_ttl_seconds, lookup_key=lookup, eligibility=proof)
-                return
+                return audit_persisted
             except Exception as error:
                 logger.warning("Falha ao persistir cache independente. error_type=%s", type(error).__name__)
         await write_cache(
@@ -138,3 +141,5 @@ async def finalize(
             ttl_seconds=cache_ttl_seconds,
             timeout_seconds=cache_timeout_seconds,
         )
+
+    return audit_persisted

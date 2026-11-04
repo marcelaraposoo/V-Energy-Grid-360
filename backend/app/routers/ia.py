@@ -16,7 +16,7 @@ Tela = Literal["dashboard", "receita", "unidades", "perdas", "continuidade"]
 
 @router.post("/perguntar", response_model=RespostaOut)
 def perguntar(p: PerguntaIn):
-    """STUB: o agente ainda não está conectado (responde status=nao_implementado)."""
+    """Executa o agente e devolve a resposta com o resumo de auditoria da requisição."""
     return ia.perguntar(p.pergunta, p.sessao_id)
 
 

@@ -298,6 +298,7 @@ class OutputGuardrailReason(str, Enum):
     EMPTY_ANSWER = "empty_answer"
     ANSWER_TOO_LONG = "answer_too_long"
     UNSUPPORTED_NUMBER = "unsupported_number"
+    SEMANTIC_MISMATCH = "semantic_mismatch"
     SPELLED_OUT_NUMBER = "spelled_out_number"
     URL_IN_ANSWER = "url_in_answer"
     SQL_IN_ANSWER = "sql_in_answer"

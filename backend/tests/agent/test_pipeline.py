@@ -930,7 +930,7 @@ def _replay_dependencies():
 
 
 @pytest.mark.parametrize("question", [
-    "Quantas unidades há?", "Quais os 3 meses com mais gastos?", "E no mês anterior?",
+    "Quantas unidades há?", "Quais os 3 meses com mais gastos?",
 ])
 def test_repetition_with_own_memory_transition_is_not_proof_of_equivalence(monkeypatch, question):
     calls = _install(monkeypatch)
@@ -947,7 +947,7 @@ def test_repetition_with_own_memory_transition_is_not_proof_of_equivalence(monke
 
 
 @pytest.mark.parametrize("question", [
-    "Quantas unidades há?", "Quais os 3 meses com mais gastos?", "E no mês anterior?",
+    "Quantas unidades há?", "Quais os 3 meses com mais gastos?",
 ])
 def test_exact_effective_context_hits_generically_without_renewing_ttl(monkeypatch, question):
     calls = _install(monkeypatch)
@@ -999,12 +999,18 @@ def test_repeat_cache_does_not_cross_boundaries(monkeypatch, change):
     "E no mês anterior?", "Quais os 3 meses com mais gastos nesse município?",
     "Quais os 3 meses com mais gastos para ela?", "E os 3 meses com mais gastos?",
 ])
-def test_contextual_repetitions_do_not_discard_memory(monkeypatch, question):
+def test_contextual_repetitions_require_complete_question_without_cache(monkeypatch, question):
+    from app.agent.context_requirement import COMPLETE_QUESTION_MESSAGE
     calls = _install(monkeypatch)
     deps = _replay_dependencies()
-    _ask(question, session_id="s1", state_dependencies=deps)
-    assert not _ask(question, session_id="s1", state_dependencies=deps).cache_hit
-    assert calls["flow"] == 2
+    for _ in range(2):
+        response = _ask(question, session_id="s1", state_dependencies=deps)
+        assert not response.cache_hit and response.message == COMPLETE_QUESTION_MESSAGE
+        assert response.outcome == AgentOutcome.NEEDS_CLARIFICATION
+    assert calls == {"flow": 0, "synthesis": 0}
+    assert deps.memory_store.entries == {}
+    assert deps.cache_store.writes == 0
+    assert deps.audit_store.save.await_count == 2
 
 
 def test_repetition_preserves_original_prior_context(monkeypatch):
@@ -1090,7 +1096,7 @@ def test_same_session_concurrent_answers_do_not_create_recovery_proof(monkeypatc
 
 
 
-@pytest.mark.parametrize("question", ["Quantas unidades há?", "Quais os 3 meses com mais gastos?", "E no mês anterior?"])
+@pytest.mark.parametrize("question", ["Quantas unidades há?", "Quais os 3 meses com mais gastos?"])
 def test_answer_can_be_reused_after_another_question_only_when_effective_context_matches(monkeypatch, question):
     calls = _install(monkeypatch)
     deps = replace(_replay_dependencies(), memory_store=None)

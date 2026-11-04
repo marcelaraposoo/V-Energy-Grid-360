@@ -77,6 +77,10 @@ async def generate_sql(
     Esta função NÃO executa SQL.
     """
 
+    from app.agent.context_requirement import requires_complete_question, COMPLETE_QUESTION_MESSAGE
+    if requires_complete_question(question):
+        return SQLGenerationResult(status=SQLGenerationStatus.NEEDS_CLARIFICATION, reason=COMPLETE_QUESTION_MESSAGE), [], None
+
     if not database_context.strip():
         result = SQLGenerationResult(
             status=SQLGenerationStatus.INSUFFICIENT_CONTEXT,
@@ -117,4 +121,9 @@ async def generate_sql(
             ProviderErrorType.INVALID_OUTPUT,
         )
 
+    if output.sql:
+        from app.agent.intent_validation import sql_intent_problem
+        problem = sql_intent_problem(question, output.sql)
+        if problem:
+            return SQLGenerationResult(status=SQLGenerationStatus.NEEDS_CLARIFICATION, reason=problem), attempts, None
     return output, attempts, None

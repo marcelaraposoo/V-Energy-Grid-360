@@ -246,6 +246,9 @@ async def answer_question(
             ), outcome)
 
         clean_question = entry.normalized_input or question
+        from app.agent.context_requirement import requires_complete_question, COMPLETE_QUESTION_MESSAGE
+        if requires_complete_question(clean_question):
+            return await finish(_no_answer(COMPLETE_QUESTION_MESSAGE, PipelineStage.SQL_GENERATION), AgentOutcome.NEEDS_CLARIFICATION)
         state = await prepare_request_state(
             normalized_question=clean_question,
             session_id=session_id,

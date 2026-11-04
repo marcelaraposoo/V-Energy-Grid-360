@@ -77,6 +77,7 @@ RULES = (
 
 
 RETRY_MESSAGES = {
+    OutputGuardrailReason.SEMANTIC_MISMATCH: "Preserve a métrica, o período, a quantidade e o grão solicitados na consulta.",
     OutputGuardrailReason.EMPTY_ANSWER: (
         "A resposta anterior estava vazia ou sem conteúdo útil. "
         "Escreva uma resposta clara, em português, com base "
@@ -248,6 +249,9 @@ def validate_output(
                 unsupported_values=unsupported,
             )
 
+        from app.agent.intent_validation import sql_intent_problem
+        if sql_intent_problem(question, sql):
+            return _block(answer, OutputGuardrailReason.SEMANTIC_MISMATCH)
         return _allow(answer)
 
     except Exception:

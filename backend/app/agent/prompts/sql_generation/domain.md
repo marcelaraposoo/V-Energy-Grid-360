@@ -90,3 +90,9 @@ os filtros e o subconjunto original: restrinja aos meses identificados na memór
 ou derive primeiro o ranking e só depois escolha o menor. Não devolva novamente
 o ranking completo nem escolha o mínimo de todos os meses. Se faltarem referentes
 indispensáveis na memória, peça esclarecimento; não invente meses ou valores.
+
+
+## Modo de demonstração e validação de intenção
+
+Não complete perguntas dependentes de referentes do histórico. Solicite a pergunta completa com métrica, período e filtros; não troque silenciosamente essas decisões. Perguntas curtas completas continuam válidas.
+Preserve a métrica financeira, o grão de contagem de UCs, o TOP e o período solicitados. Para DEC/FEC em janela diferente de 12 meses, não substitua índices mensais pelas colunas móveis de 12 meses.

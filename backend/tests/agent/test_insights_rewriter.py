@@ -6,6 +6,7 @@ from app.agent.insights import rewriter
 from app.agent.insights.rewriter import (
     is_faithful,
     numbers_are_supported,
+    preserves_meaning,
     sanitize,
 )
 from app.schemas import Insight
@@ -18,8 +19,11 @@ DADOS = {
 }
 
 
+ORIGINAL = "A energia caiu 3,7% em relação à referência."
+
+
 def _insight():
-    return Insight(tipo="alerta", dados=DADOS, texto="Texto das regras.")
+    return Insight(tipo="alerta", dados=DADOS, texto=ORIGINAL)
 
 
 @pytest.mark.parametrize(
@@ -102,7 +106,7 @@ def _patch(monkeypatch, output=None, error=None, delay=0.0):
 def test_disabled_by_default_keeps_text(monkeypatch):
     monkeypatch.delenv("INSIGHTS_LLM", raising=False)
     result = rewriter.rewrite_insights([_insight()])
-    assert result[0].texto == "Texto das regras."
+    assert result[0].texto == ORIGINAL
 
 
 def test_valid_rewrite_is_used(monkeypatch):
@@ -114,18 +118,18 @@ def test_valid_rewrite_is_used(monkeypatch):
 
 def test_invented_number_falls_back(monkeypatch):
     _patch(monkeypatch, output="A energia caiu 40%.")
-    assert rewriter.rewrite_insights([_insight()])[0].texto == "Texto das regras."
+    assert rewriter.rewrite_insights([_insight()])[0].texto == ORIGINAL
 
 
 def test_provider_error_falls_back(monkeypatch):
     _patch(monkeypatch, error="timeout")
-    assert rewriter.rewrite_insights([_insight()])[0].texto == "Texto das regras."
+    assert rewriter.rewrite_insights([_insight()])[0].texto == ORIGINAL
 
 
 def test_timeout_falls_back(monkeypatch):
     _patch(monkeypatch, output="A energia caiu 3,7%.", delay=1)
     monkeypatch.setattr(rewriter, "TIMEOUT_SECONDS", 0.05)
-    assert rewriter.rewrite_insights([_insight()])[0].texto == "Texto das regras."
+    assert rewriter.rewrite_insights([_insight()])[0].texto == ORIGINAL
 
 
 def test_type_and_data_are_preserved(monkeypatch):
@@ -142,3 +146,52 @@ def test_type_and_data_are_preserved(monkeypatch):
 def test_frases_legitimas_nao_sao_tratadas_como_vazamento(text):
     from app.agent.insights.rewriter import leaks_instructions
     assert not leaks_instructions(text)
+
+
+DECOMPOSICAO = Insight(
+    tipo="destaque",
+    dados={"energia_atual": 54.6, "energia_referencia": 50.53, "variacao_energia": 4.07, "efeito_consumo": -1.87,
+           "efeito_preco": 5.94, "mes_atual": "jun/2026", "ano_atual": 2026, "mes_referencia": "jun/2025", "ano_referencia": 2025},
+    texto=("O valor da energia na conta de jun/2026 ficou R$ 4,07 maior que em jun/2025: a alta veio do kWh mais caro "
+           "(R$ 5,94 a mais), compensada em parte pelo consumo menor (R$ 1,87 a menos)."),
+)
+
+
+def test_reescrita_que_troca_a_direcao_mantem_o_original(monkeypatch):
+    # Caso reproduzido na revisão: mesmos números, a alta virou queda.
+    invertida = DECOMPOSICAO.texto.replace("maior", "menor").replace("a alta", "a queda")
+    assert is_faithful(invertida, DECOMPOSICAO.dados)  # os números sozinhos não pegam a troca
+    _patch(monkeypatch, output=invertida)
+    assert rewriter.rewrite_insights([DECOMPOSICAO])[0].texto == DECOMPOSICAO.texto
+
+
+@pytest.mark.parametrize("text", [
+    # Direção trocada em um dos efeitos.
+    "A conta de jun/2026 ficou R$ 4,07 maior que em jun/2025: o kWh mais caro somou R$ 5,94 e o consumo maior somou R$ 1,87.",
+    # Unidade trocada: R$ virou %.
+    "A conta de jun/2026 ficou 4,07% maior que em jun/2025, puxada pelo kWh mais caro (R$ 5,94 a mais).",
+    # Número sem a unidade do original.
+    "A conta de jun/2026 ficou 4,07 maior que em jun/2025.",
+    # Indicador trocado: o efeito do preço atribuído ao consumo e vice-versa.
+    "O valor da energia na conta de jun/2026 ficou R$ 4,07 maior que em jun/2025: a alta veio do consumo maior "
+    "(R$ 5,94 a mais), compensada em parte pelo kWh mais barato (R$ 1,87 a menos).",
+    # Indicador trocado: a variação da conta atribuída ao consumo.
+    "O consumo de jun/2026 ficou R$ 4,07 maior que em jun/2025.",
+    # Negação inverte o sentido.
+    "O valor da energia na conta de jun/2026 não ficou R$ 4,07 maior que em jun/2025.",
+])
+def test_direcao_unidade_e_indicador_precisam_ser_preservados(text):
+    assert not preserves_meaning(text, DECOMPOSICAO.texto)
+
+
+def test_reescrita_equivalente_e_aceita(monkeypatch):
+    texto = ("Em jun/2026, a conta ficou R$ 4,07 maior que em jun/2025, puxada pelo kWh mais caro (R$ 5,94 a mais); "
+             "o consumo menor compensou parte disso (R$ 1,87 a menos).")
+    _patch(monkeypatch, output=texto)
+    assert rewriter.rewrite_insights([DECOMPOSICAO])[0].texto == texto
+
+
+def test_reescrita_nao_pode_criar_direcao():
+    original = "O consumo de jun/2026 está em linha com a média dos 6 meses anteriores (140 kWh)."
+    assert not preserves_meaning("Em jun/2026, o consumo ficou acima da média dos 6 meses anteriores (140 kWh).", original)
+    assert preserves_meaning("Em jun/2026, o consumo seguiu em linha com a média dos 6 meses anteriores (140 kWh).", original)

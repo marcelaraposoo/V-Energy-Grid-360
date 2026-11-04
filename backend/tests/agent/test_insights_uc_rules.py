@@ -37,8 +37,9 @@ def _textos(faturas, **visao):
 
 def test_decomposicao_separa_consumo_e_preco_e_cita_a_bandeira():
     insight = insights_uc(_visao(), _historico())[0]
-    assert insight.texto == ("A energia da conta caiu R$ 3,94 em relação a jun/2025: o consumo menor reduziu R$ 2,50 e "
-                             "o preço mais baixo do kWh reduziu R$ 1,44 (bandeira amarela em jun/2026, contra vermelha P1 em jun/2025).")
+    assert insight.texto == ("O valor da energia na conta de jun/2026 ficou R$ 3,94 menor que em jun/2025: a queda veio do "
+                             "consumo menor (R$ 2,50 a menos) e do kWh mais barato (R$ 1,44 a menos), "
+                             "com bandeira amarela em jun/2026, contra vermelha P1 em jun/2025.")
     assert insight.tipo == "informativo"
     # Os dois efeitos fecham a variação.
     assert insight.dados["efeito_consumo"] + insight.dados["efeito_preco"] == pytest.approx(insight.dados["variacao_energia"], abs=0.01)
@@ -46,14 +47,33 @@ def test_decomposicao_separa_consumo_e_preco_e_cita_a_bandeira():
 
 def test_conta_que_sobe_pelo_preco_e_destaque():
     insight = insights_uc(_visao(), _historico(consumo_atual=78, preco_atual=0.70))[0]
-    assert insight.texto.startswith("A energia da conta subiu R$ 4,07 em relação a jun/2025: o consumo menor reduziu R$ 1,87 e o preço mais alto do kWh somou R$ 5,94")
+    assert insight.texto.startswith("O valor da energia na conta de jun/2026 ficou R$ 4,07 maior que em jun/2025: a alta veio do "
+                                    "kWh mais caro (R$ 5,94 a mais), compensada em parte pelo consumo menor (R$ 1,87 a menos)")
     assert insight.tipo == "destaque"
 
 
-def test_consumo_sazonal_e_fora_do_padrao():
-    sazonal = _textos(_historico())[1]
-    assert sazonal == ("O consumo de jun/2026 ficou 45,0% abaixo da média dos 6 meses anteriores (140 kWh), "
-                       "mas o padrão é sazonal: em jun/2025, ficou 38,5% abaixo.")
+def test_efeito_de_centavos_nao_e_citado():
+    # Consumo explica R$ 28,70 da alta; o preço, R$ 0,15 (menos de 5% do maior efeito).
+    insight = insights_uc(_visao(), _historico(consumo_atual=127, preco_atual=0.625))[0]
+    assert insight.texto == ("O valor da energia na conta de jun/2026 ficou R$ 28,85 maior que em jun/2025: "
+                             "a alta veio quase toda do consumo maior.")
+    # Sem o efeito do preço no texto, a bandeira (que explica o preço) também sai; o valor continua nos dados.
+    assert insight.dados["efeito_preco"] == pytest.approx(0.15, abs=0.01)
+
+
+def test_variacao_de_um_efeito_so_nao_repete_o_valor():
+    faturas = _historico(consumo_atual=81, preco_atual=0.70)
+    faturas[6] = _fatura("2025-06", 81, 0.6238, "Amarela")
+    assert insights_uc(_visao(), faturas)[0].texto == (
+        "O valor da energia na conta de jun/2026 ficou R$ 6,17 maior que em jun/2025: a alta veio toda do kWh mais caro.")
+
+
+def test_consumo_semelhante_ao_ano_anterior_e_fora_do_padrao():
+    semelhante = _textos(_historico())[1]
+    assert semelhante == ("O consumo de jun/2026 ficou 45,0% abaixo da média dos 6 meses anteriores (140 kWh), "
+                          "comportamento semelhante ao observado no ano anterior (em jun/2025, ficou 38,5% abaixo).")
+    # A comparação com o ano anterior, sozinha, não comprova sazonalidade.
+    assert "sazonal" not in semelhante
     fora = insights_uc(_visao(), _historico(consumo_atual=200))[1]
     assert fora.texto == ("O consumo de jun/2026 ficou 42,9% acima da média dos 6 meses anteriores (140 kWh), "
                           "fora do padrão do ano anterior (em jun/2025, ficou 38,5% abaixo).")
@@ -66,7 +86,27 @@ def test_consumo_em_linha_e_sem_historico_suficiente():
     assert not any(t.startswith("O consumo de") for t in _textos(poucas))
 
 
-def test_sem_mesmo_mes_do_ano_anterior_nao_afirma_sazonalidade():
+def test_historico_parcial_informa_quantos_meses_entraram_na_media():
+    # Sem fatura em jan e mar/2026: a média usa 4 dos 6 meses (140, 160, 140, 100 → 135 kWh).
+    faturas = [f for f in _historico() if f["competencia"] not in ("2026-01", "2026-03")]
+    insight = insights_uc(_visao(ref="2026-05"), faturas)[1]
+    assert insight.texto == "O consumo de jun/2026 ficou 43,0% abaixo da média dos 4 meses com fatura entre os 6 anteriores (135 kWh)."
+    assert insight.dados["meses_na_media"] == 4 and insight.dados["janela_media_meses"] == 6
+    em_linha = [*faturas[:-1], _fatura("2026-06", 130, 0.6)]
+    assert _textos(em_linha, ref="2026-05")[1] == "O consumo de jun/2026 está em linha com a média dos 4 meses com fatura entre os 6 anteriores (135 kWh)."
+
+
+def test_historico_parcial_no_ano_anterior_tambem_e_informado():
+    # Sem fatura em jan, fev e mar/2025: a média de jun/2025 usa 3 dos 6 meses (130, 130, 100 → 120 kWh).
+    faturas = [f for f in _historico() if f["competencia"] not in ("2025-01", "2025-02", "2025-03")]
+    insight = insights_uc(_visao(), faturas)[1]
+    assert insight.texto == ("O consumo de jun/2026 ficou 45,0% abaixo da média dos 6 meses anteriores (140 kWh), "
+                             "comportamento semelhante ao observado no ano anterior (em jun/2025, ficou 32,5% abaixo "
+                             "da média dos 3 meses com fatura entre os 6 anteriores).")
+    assert insight.dados["meses_na_media_referencia"] == 3
+
+
+def test_sem_mesmo_mes_do_ano_anterior_nao_compara_com_o_ano_anterior():
     textos = _textos(_historico(), ref="2026-05")
     assert textos[1] == "O consumo de jun/2026 ficou 45,0% abaixo da média dos 6 meses anteriores (140 kWh)."
 

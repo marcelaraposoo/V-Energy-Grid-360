@@ -36,8 +36,6 @@ _READABLE = {
     "receita_total": "Receita total",
     "consumo_kwh": "Consumo",
     "dec_horas": "DEC",
-    "dec_12m_horas": "DEC acumulado em 12 meses",
-    "fec_12m": "FEC acumulado em 12 meses",
     "fec": "FEC",
     "qtd_ucs": "Quantidade de UCs",
     "variacao_receita": "Variação de receita",
@@ -169,30 +167,6 @@ def _build_title(
     return f"{metric} por {label.lower()}"
 
 
-def _project_chart_columns(result: QueryExecutionResult) -> QueryExecutionResult | None:
-    if len(result.columns) != 3 or any(len(row) != 3 for row in result.rows):
-        return None
-    measures = [i for i, name in enumerate(result.columns)
-        if not name.lower().startswith("id_") and all(_is_number(row[i]) for row in result.rows)]
-    if len(measures) != 1:
-        return None
-    measure = measures[0]
-    dimensions = [i for i in range(3) if i != measure]
-    known = {"alimentador", "municipio", "bairro", "classe", "mes_referencia"}
-    if any(result.columns[i].lower() not in known for i in dimensions):
-        return None
-    if any(not isinstance(row[i], str) or not _is_safe_visualization_text(row[i]) for row in result.rows for i in dimensions):
-        return None
-    labels = [" / ".join(row[i] for i in dimensions) for row in result.rows]
-    if len(set(labels)) != len(labels):
-        return None  # Não somar duplicatas nem inventar uma agregação.
-    return QueryExecutionResult(
-        columns=[" / ".join(result.columns[i] for i in dimensions), result.columns[measure]],
-        rows=[[label,row[measure]] for label,row in zip(labels,result.rows,strict=True)],
-        row_count=result.row_count,truncated=result.truncated,
-    )
-
-
 def _build_visualization(
     result: QueryExecutionResult,
 ) -> VisualizationSpec | None:
@@ -209,11 +183,7 @@ def _build_visualization(
         return None
 
     if len(result.columns) != 2:
-        # Mais dimensões não significam mais séries: selecione somente quando
-        # existe uma única medida e uma identidade categórica inequívoca.
-        result = _project_chart_columns(result)
-        if result is None:
-            return None
+        return None
 
     label_column, metric_column = result.columns
 

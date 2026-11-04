@@ -67,9 +67,6 @@ async def finalize_request(
         outcome=outcome,
     )
 
-    if memory_entry is not None and outcome == AgentOutcome.ANSWERED and cache_value is not None:
-        memory_entry = memory_entry.model_copy(update={"approved_visualization": cache_value.visualization, "data_version": cache_data_version})
-
     await finalize(
         audit_store=audit_store,
         audit_record=audit_record,

@@ -1,5 +1,5 @@
 {
-  "version": "gold-agent-v3",
+  "version": "gold-agent-v2",
   "dialect": "sqlite",
   "tables": {
     "dim_uc": {
@@ -265,22 +265,6 @@
         "classe": "TEXT",
         "municipio": "TEXT",
         "bairro": "TEXT"
-      }
-    },
-    "fato_segmento_mensal": {
-      "grain": "mês × município × bairro × classe",
-      "grain_key": [
-        "mes_referencia",
-        "municipio",
-        "bairro",
-        "classe"
-      ],
-      "columns": {
-        "mes_referencia": "TEXT",
-        "municipio": "TEXT",
-        "bairro": "TEXT",
-        "classe": "TEXT",
-        "consumo_kwh": "REAL"
       }
     }
   }

@@ -77,7 +77,7 @@ RULES = (
 
 
 RETRY_MESSAGES = {
-    OutputGuardrailReason.SEMANTIC_MISMATCH: "Preserve a métrica, unidade, localidade e associação entre período e valor presentes nas linhas recebidas.",
+    OutputGuardrailReason.SEMANTIC_MISMATCH: "Preserve a métrica, o período, a quantidade e o grão solicitados na consulta.",
     OutputGuardrailReason.EMPTY_ANSWER: (
         "A resposta anterior estava vazia ou sem conteúdo útil. "
         "Escreva uma resposta clara, em português, com base "
@@ -240,8 +240,7 @@ def validate_output(
             )
 
         allowed = build_allowed_numbers(question, sql, result)
-        from app.agent.guardrails.rolling_period import numeric_validation_text
-        unsupported = find_unsupported_numbers(numeric_validation_text(text, sql, result), allowed)
+        unsupported = find_unsupported_numbers(text, allowed)
 
         if unsupported:
             return _block(
@@ -250,9 +249,8 @@ def validate_output(
                 unsupported_values=unsupported,
             )
 
-        from app.agent.guardrails.semantic_output import incompatible_claim
         from app.agent.intent_validation import sql_intent_problem
-        if sql_intent_problem(question, sql) or incompatible_claim(text, result):
+        if sql_intent_problem(question, sql):
             return _block(answer, OutputGuardrailReason.SEMANTIC_MISMATCH)
         return _allow(answer)
 

@@ -1,9 +1,8 @@
 # Tabelas do contrato Gold que o agente pode consultar.
-# Agregado aditivo reconciliado com a fonte no grão mês/município/bairro/classe.
+# fato_segmento_mensal fica de fora de propósito (decisão do contrato).
 ALLOWED_TABLES = frozenset(
     {
         "dim_uc",
-        "fato_segmento_mensal",
         "fato_consumo_faturamento",
         "receita_decomposicao",
         "kpis_mensal",

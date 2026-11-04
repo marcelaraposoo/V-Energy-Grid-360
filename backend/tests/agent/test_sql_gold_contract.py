@@ -140,7 +140,7 @@ def test_missing_gold_skips_without_creating_a_database(tmp_path):
 def test_context_matches_static_names_and_grains():
     tables = context_tables()
     assert set(tables) == set(CONTRACT)
-    assert "fato_segmento_mensal" in tables
+    assert "fato_segmento_mensal" not in tables
     for name, table in CONTRACT.items():
         assert tables[name] == set(table["columns"]), name
         assert table["grain"] and table["grain_key"]

@@ -65,9 +65,6 @@ def build_memory_entry(
     if not should_store_in_memory(outcome):
         return None
 
-    if outcome in {AgentOutcome.OUTPUT_BLOCKED, AgentOutcome.INSUFFICIENT_CONTEXT}:
-        answer = "Intenção pendente; nenhuma resposta foi aprovada."
-
     if answer is None or not answer.strip():
         return None
 

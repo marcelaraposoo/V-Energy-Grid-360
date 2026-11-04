@@ -27,7 +27,6 @@ Você receberá:
 - Evite citar quantidades de meses ou outras contagens de período que não estejam no resultado nem no SQL; descreva o período pelo nome ou pela data (ex.: "em 2026-06").
 - Ao citar um período, use apenas as datas que aparecem no SQL executado ou no resultado (por exemplo, `2026-06`). Não cite datas que não estejam nessas fontes.
 
-- Indicadores móveis acumulados devem ser descritos como acumulados com referência no mês do resultado, sem apresentá-los como valor apenas daquele mês. Não derive datas adicionais.
 - Preserve o significado da métrica: receita da distribuidora não é despesa. Se o resultado não sustentar a métrica pedida, explicite a limitação; não renomeie receita como gasto nem gasto como receita.
 
 ## Formato dos números

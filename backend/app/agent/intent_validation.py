@@ -1,7 +1,11 @@
 """Contradições verificáveis entre pedido explícito e estrutura SQL; sem LLM."""
 import re
 from sqlglot import parse_one, exp
-from app.agent.conversation import normalize
+import unicodedata
+
+
+def normalize(text):
+    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(c) != "Mn")
 
 
 def sql_intent_problem(question, sql):
@@ -11,6 +15,9 @@ def sql_intent_problem(question, sql):
         return None  # C4.2 valida sintaxe e segurança.
     text = normalize(question)
     columns = {c.name.lower() for c in tree.find_all(exp.Column)}
+    period = re.search(r"ultimos (\d+) meses", text)
+    if period and int(period[1]) != 12 and columns & {"dec_12m_horas", "fec_12m"}:
+        return "A consulta proposta não corresponde à janela mensal solicitada. Reformule o período para uma nova tentativa."
     count = re.search(r"\btop\s+(\d+)\b|\b(?:os|as|quais|liste|de)\s+(\d+)\s+(?:alimentadores|municipios|bairros|meses)\b", text)
     if count:
         requested = int(count[1] or count[2])

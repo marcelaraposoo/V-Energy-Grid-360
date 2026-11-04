@@ -7,9 +7,10 @@ MEMORY_CONTEXT_MAX_CHARS = 4000
 
 
 def _format_entry(entry: MemoryEntry) -> str:
-    status = "" if entry.outcome.value == "answered" else f"Estado: {entry.outcome.value}\n"
-    answer = entry.answer[:600] + (" [resposta abreviada]" if len(entry.answer) > 600 else "")
-    return status + f"Usuário: {entry.question}\nAssistente: {answer}"
+    return (
+        f"Usuário: {entry.question}\n"
+        f"Assistente: {entry.answer}"
+    )
 
 
 def build_memory_context(

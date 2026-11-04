@@ -563,18 +563,3 @@ utilize `NEEDS_CLARIFICATION`, sem pedir esclarecimento sobre a definição já 
 8. Utilize tabelas de fato quando a pergunta exigir granularidade de UC, mês, ocorrência ou chamado.
 9. Se faltar uma informação objetiva que o usuário possa fornecer, utilize `NEEDS_CLARIFICATION`.
 10. Se o dado ou estrutura necessária não existir neste contrato, utilize `INSUFFICIENT_CONTEXT`.
-
-
-# 10. `fato_segmento_mensal`
-
-Grão: um mês × município × bairro × classe. Fonte agregada da fato_consumo_faturamento.
-Para somas de consumo com apenas essas dimensões e filtros, prefira esta tabela:
-foi reconciliada com a fonte detalhada. Não use para UC, medidor, GD, tipo de
-leitura, datas de evento ou quaisquer filtros que não constem abaixo.
-Não conte linhas como UCs. Períodos sem filtro abrangem todo o histórico disponível.
-
-- `mes_referencia` — texto — competência YYYY-MM
-- `municipio` — texto — município
-- `bairro` — texto — bairro dentro do município
-- `classe` — texto — classe de consumo
-- `consumo_kwh` — decimal — soma aditiva do consumo faturado, inclusive entre meses

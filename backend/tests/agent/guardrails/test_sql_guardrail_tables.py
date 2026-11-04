@@ -25,7 +25,7 @@ def test_allowed_tables_match_gold_agent_contract():
     )
 
     assert ALLOWED_TABLES == contract_tables
-    assert "fato_segmento_mensal" in contract_tables
+    assert "fato_segmento_mensal" not in contract_tables
 
 
 @pytest.mark.parametrize("table", sorted(ALLOWED_TABLES))
@@ -40,6 +40,7 @@ def test_every_allowed_table_passes(table):
     [
         "SELECT name FROM sqlite_master",
         "SELECT * FROM sqlite_stat1",
+        "SELECT * FROM fato_segmento_mensal",
         "SELECT * FROM tabela_inventada",
         "SELECT * FROM dim_uc JOIN outra_tabela ON 1 = 1",
         "SELECT * FROM dim_uc WHERE id_uc IN (SELECT id_uc FROM oculta)",

@@ -470,8 +470,6 @@ class MemoryEntry(BaseModel):
     question: str
     answer: str
     outcome: AgentOutcome
-    approved_visualization: VisualizationSpec | None = None
-    data_version: str | None = None
 
 
 

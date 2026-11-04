@@ -1,4 +1,3 @@
-import re
 from app.core.observability import observe
 from app.agent.prompts.sql_generation.loader import (
     load_sql_generation_prompts,
@@ -78,6 +77,10 @@ async def generate_sql(
     Esta função NÃO executa SQL.
     """
 
+    from app.agent.context_requirement import requires_complete_question, COMPLETE_QUESTION_MESSAGE
+    if requires_complete_question(question):
+        return SQLGenerationResult(status=SQLGenerationStatus.NEEDS_CLARIFICATION, reason=COMPLETE_QUESTION_MESSAGE), [], None
+
     if not database_context.strip():
         result = SQLGenerationResult(
             status=SQLGenerationStatus.INSUFFICIENT_CONTEXT,
@@ -90,16 +93,6 @@ async def generate_sql(
 
         return result, [], None
 
-    from app.agent.conversation import financial_clarification, resolve_followup, delta, operational_expenses
-    if operational_expenses(question):
-        return SQLGenerationResult(status=SQLGenerationStatus.INSUFFICIENT_CONTEXT, reason="Despesas operacionais não estão disponíveis na Gold."), [], None
-    clarification = financial_clarification(question, memory_context)
-    if clarification:
-        return SQLGenerationResult(status=SQLGenerationStatus.NEEDS_CLARIFICATION, reason=clarification), [], None
-    resolved = resolve_followup(question, memory_context)
-    if delta(question) and resolved == question:
-        return SQLGenerationResult(status=SQLGenerationStatus.NEEDS_CLARIFICATION, reason="Qual consulta anterior você deseja ajustar? Informe a métrica e o recorte que devem ser mantidos."), [], None
-    question = resolved
     instructions = load_sql_generation_prompts()
 
     prompt = build_sql_generation_prompt(
@@ -128,17 +121,6 @@ async def generate_sql(
             ProviderErrorType.INVALID_OUTPUT,
         )
 
-    # Uma janela móvel de 12 meses não representa outra quantidade de meses.
-    # Não executar uma interpretação comprovadamente incompatível.
-    from sqlglot import parse_one, exp
-    period = re.search(r"[uú]ltimos (\d+) meses", question, re.I)
-    if output.sql and period and int(period[1]) != 12:
-        try:
-            columns = list(parse_one(output.sql, read="sqlite").find_all(exp.Column))
-            if any(c.name.lower() in {"dec_12m_horas", "fec_12m"} for c in columns):
-                return SQLGenerationResult(status=SQLGenerationStatus.NEEDS_CLARIFICATION, reason="A consulta proposta não corresponde à janela mensal solicitada. Reformule o período para uma nova tentativa."), attempts, None
-        except Exception:
-            pass  # A C4.2 continua responsável por SQL inválido.
     if output.sql:
         from app.agent.intent_validation import sql_intent_problem
         problem = sql_intent_problem(question, output.sql)

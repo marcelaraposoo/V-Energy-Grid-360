@@ -2,6 +2,9 @@ import json
 import re
 from typing import Any
 
+from sqlglot import exp, parse_one
+from sqlglot.errors import ParseError
+
 from app.agent.prompts.synthesis.loader import (
     load_synthesis_prompts,
 )
@@ -22,6 +25,13 @@ NO_DATA_MESSAGE = (
     "aplicados. Tente ajustar o período, o município ou a "
     "classe de consumo."
 )
+
+_LABELS = {
+    "municipio": "município",
+    "bairro": "bairro",
+    "classe": "classe",
+    "mes_referencia": "mês",
+}
 
 
 _PROMPT_TAG_PATTERN = re.compile(
@@ -59,6 +69,37 @@ def _to_safe_json(value: Any) -> str:
     )
 
     return text.replace("<", "\\u003c")
+
+
+def _no_data_message(sql: str) -> str:
+    try:
+        where = parse_one(sql, read="sqlite").args.get("where")
+        parts = []
+
+        if where is not None:
+            for eq in where.find_all(exp.EQ):
+                col, val = eq.this, eq.expression
+
+                if (
+                    isinstance(col, exp.Column)
+                    and isinstance(val, exp.Literal)
+                    and val.is_string
+                ):
+                    label = _LABELS.get(col.name.lower())
+
+                    if label:
+                        parts.append(f"{label} {val.this}")
+
+        if parts:
+            return (
+                "Não encontrei registros para "
+                + ", ".join(parts)
+                + ". Confira se os filtros estão corretos."
+            )
+    except ParseError:
+        pass
+
+    return NO_DATA_MESSAGE
 
 
 def build_synthesis_prompt(
@@ -138,7 +179,7 @@ async def synthesize_answer(
     if result.row_count == 0 and not result.rows:
         no_data = SynthesisResult(
             status=SynthesisStatus.NO_DATA,
-            answer=NO_DATA_MESSAGE,
+            answer=_no_data_message(sql),
         )
 
         return no_data, [], None

@@ -25,6 +25,10 @@ def _result(rows=None, row_count=None, truncated=False):
     )
 
 
+def _empty_result():
+    return QueryExecutionResult(columns=["n"], rows=[], row_count=0)
+
+
 def _attempt():
     return ProviderAttempt(
         provider=ProviderName.GEMINI,
@@ -79,6 +83,92 @@ def test_empty_result_does_not_call_provider(monkeypatch):
     assert calls == []
     assert attempts == []
     assert error is None
+    assert synthesis.status == SynthesisStatus.NO_DATA
+    assert synthesis.answer == answer_synthesizer.NO_DATA_MESSAGE
+
+
+def test_empty_result_mentions_exact_applied_filters(monkeypatch):
+    calls = _patch_router(monkeypatch)
+    result = asyncio.run(
+        answer_synthesizer.synthesize_answer(
+            question="Qual a receita de Prazeres em Olinda?",
+            sql=(
+                "SELECT receita FROM receita_decomposicao "
+                "WHERE municipio = 'Olinda' AND bairro = 'Prazeres'"
+            ),
+            result=_result(rows=[], row_count=0),
+        )
+    )
+
+    synthesis, attempts, error = result
+
+    assert calls == []
+    assert attempts == []
+    assert error is None
+    assert synthesis.status == SynthesisStatus.NO_DATA
+    answer = synthesis.answer
+    assert "município Olinda" in answer
+    assert "bairro Prazeres" in answer
+    assert "SELECT" not in answer and "=" not in answer and "AND" not in answer
+
+
+def test_empty_result_uses_safe_fallback_for_unparseable_sql(monkeypatch):
+    _patch_router(monkeypatch)
+    synthesis, attempts, error = asyncio.run(
+        answer_synthesizer.synthesize_answer(
+            question="Qual a receita?",
+            sql="SELECT FROM WHERE",
+            result=_result(rows=[], row_count=0),
+        )
+    )
+
+    assert attempts == []
+    assert error is None
+    assert synthesis.status == SynthesisStatus.NO_DATA
+    assert synthesis.answer == answer_synthesizer.NO_DATA_MESSAGE
+
+
+def test_empty_result_uses_fallback_for_unrecognized_uc_filter(monkeypatch):
+    _patch_router(monkeypatch)
+    synthesis, _, error = asyncio.run(
+        answer_synthesizer.synthesize_answer(
+            question="Qual o consumo desta UC?",
+            sql="SELECT consumo_kwh FROM fato_consumo_faturamento WHERE id_uc = 'UC123'",
+            result=_result(rows=[], row_count=0),
+        )
+    )
+
+    assert error is None
+    assert synthesis.status == SynthesisStatus.NO_DATA
+    assert synthesis.answer == answer_synthesizer.NO_DATA_MESSAGE
+
+
+def test_empty_result_without_where_uses_generic_message():
+    synthesis, attempts, error = asyncio.run(
+        answer_synthesizer.synthesize_answer(
+            "Quantas UCs?",
+            "SELECT COUNT(*) AS n FROM dim_uc",
+            _empty_result(),
+        )
+    )
+
+    assert error is None
+    assert attempts == []
+    assert synthesis.status == SynthesisStatus.NO_DATA
+    assert synthesis.answer == answer_synthesizer.NO_DATA_MESSAGE
+
+
+def test_empty_result_with_invalid_sql_falls_back_without_raising():
+    synthesis, attempts, error = asyncio.run(
+        answer_synthesizer.synthesize_answer(
+            "Quantas UCs?",
+            "isso não é sql )))",
+            _empty_result(),
+        )
+    )
+
+    assert error is None
+    assert attempts == []
     assert synthesis.status == SynthesisStatus.NO_DATA
     assert synthesis.answer == answer_synthesizer.NO_DATA_MESSAGE
 

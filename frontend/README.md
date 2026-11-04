@@ -23,10 +23,15 @@ usa o proxy `/api` do Vite para `http://127.0.0.1:8000`; `VITE_API_URL` permite 
 Os tipos ficam em `src/api/types.ts` e são reexportados por `features/unidades/types.ts`,
 sem manter uma segunda definição. Veja o [mapeamento da Gold](../backend/docs/contrato-gold.md).
 
-- Consumo: últimas 12 competências disponíveis, referência anual opcional e comparação de
-  conta alta por dois meses selecionados, com marcação de troca de medidor.
-- Faturas: abas Recentes e Histórico completo; paginação de 10 registros no backend,
-  resumo de pendências de todo o histórico e modal ao clicar na competência.
+- Consumo: últimas 12 competências disponíveis, com referência anual opcional, e o card
+  **Insights da IA** (`InsightsUcCard.tsx`, rota `/api/ia/insights/uc/{uc}`), que substituiu o "A conta
+  veio alta?": explica de onde veio a variação da conta em relação ao mesmo mês do ano anterior (consumo ×
+  preço do kWh, com a bandeira; P5), diz se o consumo está no padrão dos 6 meses anteriores ou é sazonal, e
+  aponta troca de medidor e interrupções (`insights.ts` escolhe os meses).
+- Faturas: abas Recentes e Histórico completo, em lista com a bandeira de cada competência; paginação de 6 registros no backend,
+  resumo de pendências de todo o histórico e modal ao clicar na competência (`FaturaDialog.tsx`: valores,
+  consumo, preço por kWh, bandeira, vencimento e pagamento). O mesmo modal abre pelo "Detalhes" do card
+  "Valor total da fatura", no topo da tela, que substituiu o painel "Detalhamento da última fatura".
 - Medidor e GD: equipamento atual, histórico de trocas e modalidade de geração distribuída.
 - Interrupções: filtro de 6/12 meses ou todos, compartilhado com o contexto do alimentador.
 - Atendimentos: histórico completo, filtros Todos/Abertos/Fechados com contagens e paginação

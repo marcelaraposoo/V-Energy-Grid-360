@@ -303,7 +303,7 @@ export interface PaginaFaturasUC {
   itens: FaturaUC[]
   total: number
   pagina: number
-  tamanho: 10
+  tamanho: 6
   anos_disponiveis: number[]
   resumo: ResumoFaturasUC
 }

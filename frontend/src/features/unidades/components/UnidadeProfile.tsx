@@ -19,7 +19,8 @@ import {
   formatarMoeda,
   formatarNumero,
 } from '../formatters'
-import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
+import type { FaturaUC, PeriodoHistorico, Visao360 } from '../types'
+import { FaturaDialog } from './FaturaDialog'
 import { UnidadeFields } from './UnidadeFields'
 import { FaturasSection } from './FaturasSection'
 import { AtendimentosSection } from './AtendimentosSection'
@@ -62,12 +63,12 @@ const tabs = [
 export function UnidadeProfile({ id }: { id: string }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [dados, setDados] = useState<Visao360 | null>(null)
-  const [comparacao, setComparacao] = useState<SelecaoContaAlta | null>(null)
   const [periodoInterrupcoes, setPeriodoInterrupcoes] =
     useState<PeriodoHistorico>('12_meses')
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [tentativa, setTentativa] = useState(0)
+  const [detalheFatura, setDetalheFatura] = useState<FaturaUC | null>(null)
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const tabPrefix = useId()
   const activeTab = tabs[activeIndex]
@@ -76,11 +77,6 @@ export function UnidadeProfile({ id }: { id: string }) {
     setErro(null)
     setCarregando(true)
     setTentativa((atual) => atual + 1)
-  }
-  const alterarComparacao = (value: SelecaoContaAlta) => {
-    setErro(null)
-    setCarregando(true)
-    setComparacao(value)
   }
   const alterarPeriodoInterrupcoes = (value: PeriodoHistorico) => {
     setErro(null)
@@ -92,7 +88,6 @@ export function UnidadeProfile({ id }: { id: string }) {
     const controller = new AbortController()
     consultarVisao360(
       id,
-      comparacao,
       periodoInterrupcoes,
       controller.signal,
     )
@@ -125,7 +120,7 @@ export function UnidadeProfile({ id }: { id: string }) {
         if (!controller.signal.aborted) setCarregando(false)
       })
     return () => controller.abort()
-  }, [id, comparacao, periodoInterrupcoes, tentativa])
+  }, [id, periodoInterrupcoes, tentativa])
 
   if (!dados) {
     return (
@@ -158,10 +153,6 @@ export function UnidadeProfile({ id }: { id: string }) {
   const cadastro = dados.cadastro
   const ultimoConsumo = dados.consumo.at(-1)
   const ultimaFatura = dados.faturas[0]
-  const selecao = comparacao ?? {
-    competencia_atual: dados.diagnostico_conta_alta.competencia_atual,
-    competencia_referencia: dados.diagnostico_conta_alta.competencia_referencia,
-  }
 
   return (
     <div className="ucv-profile">
@@ -223,6 +214,9 @@ export function UnidadeProfile({ id }: { id: string }) {
             value: formatarMoeda(ultimaFatura?.valor_total),
             info: <InfoTipContent resumo="Valor da fatura mais recente, incluindo energia, bandeira tarifária e tributos."
               nota="Na Análise de Receita, o indicador de receita considera apenas a energia, sem tributos." />,
+            // O detalhamento (energia, tributos, preço por kWh, bandeira) abre num modal, para não ocupar a aba Consumo.
+            acao: ultimaFatura && <button type="button" className="link-button ucv-summary-acao"
+              onClick={() => setDetalheFatura(ultimaFatura)}>Detalhes</button>,
           },
           {
             label: 'Faturas em aberto',
@@ -232,7 +226,7 @@ export function UnidadeProfile({ id }: { id: string }) {
             info: <InfoTipContent resumo="Quantidade de faturas sem pagamento registrado até a data de corte da base."
               nota="Inclui pendências antigas e faturas que ainda não venceram. Consulte os detalhes na aba Faturas." />,
           },
-        ].map(({ label, detail, icon: Icon, value, info }) => (
+        ].map(({ label, detail, icon: Icon, value, info, acao }) => (
           <section className="panel ucv-summary" key={label}>
             <div>
               <Icon size={17} aria-hidden="true" />
@@ -240,10 +234,11 @@ export function UnidadeProfile({ id }: { id: string }) {
               <InfoTip titulo={label}>{info}</InfoTip>
             </div>
             <p>{value}</p>
-            <small>{detail}</small>
+            {acao ? <div className="ucv-summary-rodape"><small>{detail}</small>{acao}</div> : <small>{detail}</small>}
           </section>
         ))}
       </div>
+      <FaturaDialog fatura={detalheFatura} onFechar={() => setDetalheFatura(null)} />
       <div
         className="ucv-tabs"
         role="tablist"
@@ -289,8 +284,6 @@ export function UnidadeProfile({ id }: { id: string }) {
       >
         <Section
           dados={dados}
-          comparacao={selecao}
-          onComparacaoChange={alterarComparacao}
           periodoInterrupcoes={periodoInterrupcoes}
           onPeriodoInterrupcoesChange={alterarPeriodoInterrupcoes}
           carregando={carregando}

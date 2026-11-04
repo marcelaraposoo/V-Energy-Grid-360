@@ -2,7 +2,7 @@
 
 FAIXAS_RECENTES = ("EM DIA", "ATE 30 DIAS", "31 A 90 DIAS")
 FAIXA_ANTIGA = "MAIS DE 90 DIAS"
-TAMANHO_PAGINA = 10
+TAMANHO_PAGINA = 6
 
 
 def consumo_publico(faturas: list[dict]) -> list[dict]:

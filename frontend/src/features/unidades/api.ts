@@ -1,4 +1,4 @@
-import type { AbaFaturas, PaginaFaturasUC, PeriodoHistorico, SelecaoContaAlta, SituacaoFaturas, Visao360 } from './types'
+import type { AbaFaturas, PaginaFaturasUC, PeriodoHistorico, SituacaoFaturas, Visao360 } from './types'
 
 const apiUrl = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
@@ -22,17 +22,12 @@ export async function consultarFaturas(
 
 export async function consultarVisao360(
   id: string,
-  comparacao: SelecaoContaAlta | null,
   periodoInterrupcoes: PeriodoHistorico,
   signal: AbortSignal,
 ): Promise<Visao360> {
   const query = new URLSearchParams()
   query.set('periodo_interrupcoes', periodoInterrupcoes)
   query.set('periodo_atendimentos', 'todos')
-  if (comparacao?.competencia_atual)
-    query.set('competencia_atual', comparacao.competencia_atual)
-  if (comparacao?.competencia_referencia)
-    query.set('competencia_referencia', comparacao.competencia_referencia)
   const resposta = await fetch(
     `${apiUrl}/api/unidades/${encodeURIComponent(id)}/visao-360?${query}`,
     { signal },

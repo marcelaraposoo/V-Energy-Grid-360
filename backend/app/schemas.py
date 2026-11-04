@@ -257,7 +257,7 @@ class PaginaFaturasUC(BaseModel):
     itens: list[FaturaUC]
     total: int = Field(ge=0)
     pagina: int = Field(ge=1)
-    tamanho: Literal[10] = 10
+    tamanho: Literal[6] = 6
     anos_disponiveis: list[int]
     resumo: ResumoFaturasUC
 

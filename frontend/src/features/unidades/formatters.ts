@@ -1,4 +1,10 @@
 export const situacoesFatura = { paga: 'Paga', aberta: 'Em aberto', atrasada: 'Atrasada' }
+export const faixasAtraso = {
+  'EM DIA': 'Em dia',
+  'ATE 30 DIAS': 'Até 30 dias de atraso',
+  '31 A 90 DIAS': '31 a 90 dias de atraso',
+  'MAIS DE 90 DIAS': 'Mais de 90 dias de atraso',
+}
 
 const numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 })
 const moeda = new Intl.NumberFormat('pt-BR', {
@@ -59,4 +65,10 @@ export function formatarDataHora(valor: string | null): string {
   if (!valor) return 'Não disponível'
   const horario = valor.split(SEPARADOR_DATA_HORA)[1]?.slice(0, 5)
   return `${formatarData(valor)}${horario ? ` às ${horario}` : ''}`
+}
+
+const participacao = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 0 })
+/** Parte de um total (0 a 1) como percentual inteiro: 0,75 → "75%". */
+export function formatarParticipacao(valor: number): string {
+  return participacao.format(valor)
 }

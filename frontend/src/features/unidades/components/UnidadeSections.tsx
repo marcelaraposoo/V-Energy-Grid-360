@@ -1,4 +1,4 @@
-import { ArrowRight, FileText, Gauge, Sun, Unplug } from 'lucide-react'
+import { ArrowRight, Gauge, Sun, Unplug } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Panel } from '../../../components/ui/Panel'
 import { InfoTipContent } from '../../../components/ui/InfoTip'
@@ -7,34 +7,19 @@ import {
   formatarCompetencia,
   formatarData,
   formatarDataHora,
-  formatarMoeda,
-  formatarPrecoKwh,
   formatarNumero,
   formatarPercentual,
-  situacoesFatura,
 } from '../formatters'
-import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
+import type { PeriodoHistorico, Visao360 } from '../types'
 import { ConsumoChart } from './ConsumoChart'
-import { ContaAltaCard } from './ContaAltaCard'
+import { InsightsUcCard } from './InsightsUcCard'
 import { HistoryTable } from './HistoryTable'
 import { FiltroPeriodoHistorico } from './FiltroPeriodoHistorico'
 import { UnidadeFields } from './UnidadeFields'
 
 type SectionProps = { dados: Visao360 }
-type ConsumoSectionProps = SectionProps & {
-  comparacao: SelecaoContaAlta
-  onComparacaoChange: (value: SelecaoContaAlta) => void
-  carregando: boolean
-  erro: string | null
-  onRetry: () => void
-}
 
-export function ConsumoSection({
-  dados,
-  ...diagnosticoProps
-}: ConsumoSectionProps) {
-  const fatura = dados.faturas[0]
-
+export function ConsumoSection({ dados }: SectionProps) {
   return (
     <div className="ucv-consumo-grid">
       <div className="ucv-consumo-main">
@@ -47,70 +32,9 @@ export function ConsumoSection({
         >
           <ConsumoChart consumo={dados.consumo} />
         </Panel>
-        <Panel
-          title="Detalhamento da última fatura"
-          className="ucv-fatura-detalhe"
-          info={<InfoTipContent resumo="Composição da fatura da competência indicada." itens={[
-            { rotulo: 'Energia', texto: 'Inclui a bandeira tarifária; não inclui tributos.' },
-            { rotulo: 'Total da fatura', texto: 'Energia mais tributos.' },
-            { rotulo: 'Preço por kWh', texto: 'Valor da energia dividido pelo consumo faturado.' },
-          ]} />}
-          description={
-            fatura
-              ? `Competência ${formatarCompetencia(fatura.competencia)}`
-              : 'Sem fatura disponível'
-          }
-          actions={
-            fatura && (
-              <span className={`badge ucv-fatura--${fatura.status}`}>
-                {situacoesFatura[fatura.status]}
-              </span>
-            )
-          }
-        >
-          {fatura ? (
-            <>
-              <p className="ucv-fatura-total">
-                <span>Valor total da fatura</span>
-                <strong>{formatarMoeda(fatura.valor_total)}</strong>
-              </p>
-              <UnidadeFields
-                fields={[
-                  {
-                    label: 'Consumo faturado (kWh)',
-                    value: formatarNumero(fatura.consumo_kwh),
-                  },
-                  {
-                    label: 'Energia',
-                    value: formatarMoeda(fatura.valor_energia),
-                  },
-                  { label: 'Tributos', value: formatarMoeda(fatura.tributos) },
-                  {
-                    label: 'Preço médio por kWh',
-                    value: formatarPrecoKwh(fatura.preco_medio_kwh),
-                  },
-                  { label: 'Bandeira tarifária', value: fatura.bandeira },
-                  { label: 'Vencimento', value: formatarData(fatura.vencimento) },
-                ]}
-              />
-              <p className="ucv-fatura-note">
-                O valor da energia e o preço médio por kWh incluem o adicional
-                de bandeira e não incluem tributos.
-              </p>
-            </>
-          ) : (
-            <EmptyState
-              icon={FileText}
-              title="Sem fatura disponível"
-              description="Não há dados de faturamento para esta unidade."
-            />
-          )}
-        </Panel>
       </div>
-      <ContaAltaCard
-        diagnostico={dados.diagnostico_conta_alta}
-        {...diagnosticoProps}
-      />
+      {/* Substitui o "A conta veio alta?": a leitura do consumo × valor cobrado agora vem dos insights. */}
+      <InsightsUcCard ucId={dados.cadastro.uc_id} competencias={dados.diagnostico_conta_alta.competencias_disponiveis} />
     </div>
   )
 }

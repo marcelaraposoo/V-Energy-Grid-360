@@ -1,6 +1,6 @@
 # Diagnóstico da variação de receita · V-Energy Grid 360
 
-**Versão 2 · frente de Dados.** Responde à pergunta do Henrique Duarte (Diretor Comercial) com os dados limpos das Silvers e das Golds. Os números saem dos notebooks `analise_reconciliacao_diretor.ipynb`, `03_gold_receita_decomposicao.ipynb` (efeitos por nível, município e bairro) e `analise_quatro_bairros.ipynb` (seção 5.5); cada decisão de limpeza que os afeta está no `data_quality_log.md`. **A versão 2 acrescenta** o efeito composição (3.1), a leitura por município e bairro (5.4) e o achado dos quatro bairros, **testado contra as inspeções de campo** (5.5).
+**Versão 3 · frente de Dados.** Responde à pergunta do Henrique Duarte (Diretor Comercial) com os dados limpos das Silvers e das Golds. Os números saem dos notebooks `analise_reconciliacao_diretor.ipynb`, `03_gold_receita_decomposicao.ipynb` (efeitos por nível, município e bairro), `03_gold_fato_segmento_mensal.ipynb` ("no último ano"), `03_gold_fato_troca_medidor.ipynb` (troca de medidor) e `analise_quatro_bairros.ipynb` (seção 5.5); cada decisão de limpeza que os afeta está no `data_quality_log.md`. **A versão 2 acrescentou** o efeito composição (3.1), a leitura por município e bairro (5.4) e o achado dos quatro bairros, **testado contra as inspeções de campo** (5.5). **A versão 3 acrescenta** as respostas "no último ano" (5.4), o efeito da troca de medidor (5.6) e a recomendação 11, e corrige a leitura do crescimento das UCs sem GD (5.2) e o alcance da conclusão sobre as inspeções (5.5).
 
 > "Comparando os últimos 12 meses com o primeiro ano da nossa base, o volume de energia faturada caiu quase 4% e a receita subiu só 8%. Ninguém nesta mesa sabe explicar por quê."
 
@@ -8,14 +8,15 @@
 
 ---
 
-## 1. Resposta em seis pontos
+## 1. Resposta em sete pontos
 
 1. **Os dados reproduzem os números do diretor:** receita **+8,00%** e volume **−3,95%**.
 2. **A receita subiu porque o preço médio por kWh subiu 12,45%** (tarifa e bandeira tarifária), o que mais do que compensou o volume perdido: efeito-preço **+R$ 14,09 mi** e efeito-volume **−R$ 4,66 mi**, que somam a variação de **+R$ 9,43 mi**.
-3. **A queda de volume vem das unidades com painel solar** (geração distribuída). As 3.510 UCs com GD (7,8% das UCs) consumiram **61% menos** da rede (−11,2 milhões de kWh, ≈ **R$ 5,8 milhões** de receita de energia), enquanto **todas as demais cresceram 1,1%**.
+3. **A queda de volume vem das unidades com painel solar** (geração distribuída). As 3.510 UCs com GD (7,8% das UCs) consumiram **61% menos** da rede (−11,2 milhões de kWh, ≈ **R$ 5,8 milhões** de receita de energia), enquanto **as demais, em conjunto, cresceram 1,1%**, mesmo com a queda do grupo do ponto 6; sem esse grupo, o resto da base teria crescido cerca de 2,4% (estimativa).
 4. **A bandeira tarifária explica parte do preço:** no primeiro ano 100% das faturas eram Verde, e nos últimos 12 meses só 33%. Sem a bandeira, a receita teria subido cerca de 6%, e não 8% (estimativa).
 5. **Dois meses fora da tendência** (novembro de 2025 e fevereiro de 2026) escondem parte da queda: se seguissem os outros dez meses, o volume teria caído ~6%, e não ~4% (hipótese).
-6. **Fora da GD, há um grupo de cerca de 900 UCs sem painel nos mesmos quatro bairros** (Iputinga e Macaxeira, em Recife; Jardim Jordão e Prazeres, em Jaboatão): **601 residenciais e 300 comerciais** cujo consumo caiu, em mediana, cerca de 55% entre maio e junho de 2025. Somam **2,86 milhões de kWh por ano (≈ R$ 1,5 a 1,7 mi, de 1,2% a 1,3% da receita de energia)**. **A causa aparece nas inspeções de campo:** 898 dessas 901 UCs foram inspecionadas entre agosto e dezembro de 2025 e **831 (92,5%) tiveram irregularidade confirmada** (medidor adulterado, desvio, by-pass, ligação clandestina, lacre violado), contra ~8% nas UCs sem queda; nas residenciais, 98,8% têm medidor eletromecânico (23% na base). São **perdas não técnicas**, numa área delimitada e com início simultâneo. O consumo **não voltou depois das inspeções** (seção 5.5).
+6. **Fora da GD, há um grupo de cerca de 900 UCs sem painel nos mesmos quatro bairros** (Iputinga e Macaxeira, em Recife; Jardim Jordão e Prazeres, em Jaboatão): **601 residenciais e 300 comerciais** cujo consumo caiu, em mediana, cerca de 55% entre maio e junho de 2025. Somam **2,86 milhões de kWh por ano (≈ R$ 1,5 a 1,7 mi, de 1,2% a 1,3% da receita de energia)**. **A causa aparece nas inspeções de campo:** 898 dessas 901 UCs foram inspecionadas entre agosto e dezembro de 2025 e **831 (92,5%) tiveram irregularidade confirmada** (medidor adulterado, desvio, by-pass, ligação clandestina, lacre violado), contra ~8% nas UCs sem queda; nas residenciais, 98,8% têm medidor eletromecânico (23% na base). **O que indica perdas não técnicas**, numa área delimitada e com início simultâneo. Como quase todas foram inspecionadas logo depois da queda, a empresa provavelmente as escolheu **por causa** dela, e parte da taxa de acerto vem dessa seleção (5.5). O consumo **não voltou depois das inspeções**.
+7. **A troca de medidor não explica a queda.** As 6.299 trocas (setembro de 2025 a março de 2026) foram um programa de substituição por medidor `SMART`: descontada a estação do ano, o consumo das UCs que trocaram variou **+0,4 ponto percentual** em relação às que não trocaram. O programa **não chegou aos quatro bairros**: nas 601 UCs residenciais do ponto 6, 98,8% ainda têm medidor eletromecânico, e só 1% teve troca (5.6).
 
 ---
 
@@ -110,6 +111,7 @@ O glossário do case diz que a energia gerada pelo painel solar é **abatida do 
 
 - Por classe, as UCs com GD caem **−61,4% no residencial** e **−60,9% no comercial**. As demais ficam estáveis: residencial sem GD +3,0%, industrial +0,6%, rural +2,5%, poder público +2,4%, comercial sem GD −1,3%. As três classes que não têm GD (industrial, rural e poder público) são as que não caíram.
 - As UCs com GD **perdem mais do que a queda total** (−11,2 mi kWh contra −8,97 mi): o resto da base cresceu +2,2 mi kWh. **Sem os painéis, o volume teria subido ~1%.**
+- **Esse +1,1% já inclui a queda dos quatro bairros** (5.5): as ~900 UCs sem painel que caíram ~55% deixaram de consumir ≈ 2,86 milhões de kWh por ano. Sem esse grupo, as UCs sem GD teriam crescido **cerca de 2,4%** (210,98 + 2,86 ≈ 213,8 mi kWh, contra 208,75 mi; estimativa, porque a perda do grupo é medida contra o próprio consumo antes da queda).
 - **Em reais:** o efeito-volume de −R$ 4,66 mi se divide em **−R$ 5,81 mi nas UCs com GD** (a R$ 0,519/kWh, o preço do primeiro ano) e **+R$ 1,15 mi nas demais**. A R$ 0,584/kWh, o preço atual, a perda das UCs com GD seria de R$ 6,5 mi.
 - **Quem instala painel já consumia mais que a média.** No primeiro ano, antes de qualquer painel, as residências que depois instalaram consumiam ~282 kWh por mês, contra ~169 das demais; no comercial, ~1.678 contra ~814 (contas aproximadas). Isso amplifica o impacto na receita.
 
@@ -163,7 +165,26 @@ O consumo **cai ~69% logo no mês seguinte à conexão** e não volta. O padrão
 
 **Nos bairros do topo a partir do quinto, a GD explica a perda inteira**: o volume das UCs sem painel cresceu de 3,6% a 4,6%. **Nos quatro primeiros, não**: as UCs sem painel também caíram de 12% a 17%.
 
-**Ressalva:** o diretor perguntou "no último ano". Esta tabela compara com o **primeiro ano** da base; contra o ano anterior (2024-07 a 2025-06), o ranking pode mudar, e o recorte sai da `fato_segmento_mensal`.
+**"No último ano", como o Henrique perguntou** (`gold.fato_segmento_mensal`, `2025-07` a `2026-06` contra `2024-07` a `2025-06`). O ranking não muda: os quatro primeiros são os mesmos, e a distância para o resto fica ainda maior.
+
+| Bairro | Volume residencial do ano anterior | Último ano | Perda | Variação |
+|---|---|---|---|---|
+| **Iputinga (Recife)** | 2.093.952 kWh | 1.746.316 kWh | **−347.636 kWh** | **−16,6%** |
+| Jardim Jordão (Jaboatão) | 1.889.650 | 1.580.984 | −308.666 | −16,3% |
+| Macaxeira (Recife) | 1.006.164 | 828.593 | −177.571 | −17,6% |
+| Prazeres (Jaboatão) | 1.097.330 | 948.658 | −148.672 | −13,5% |
+| Saramandaia (Igarassu) | 816.340 | 805.863 | −10.477 | −1,3% |
+
+**Resposta:** o bairro que mais perdeu volume residencial no último ano foi **Iputinga, em Recife (−347.636 kWh, −16,6%)**. Do 5º lugar em diante, as perdas são pequenas (cerca de 10 mil kWh ou menos, até ~2%): boa parte das UCs com GD já estava conectada no ano anterior, então a queda que sobra é a dos quatro bairros.
+
+**"Quanto a receita comercial cresceu em Jaboatão?"** A premissa da pergunta não se confirma: **a receita comercial de Jaboatão caiu**.
+
+| Comparação | Volume | Receita | Efeito-volume | Efeito-preço |
+|---|---|---|---|---|
+| Último ano × ano anterior | −12,0% | **−5,1%** (−R$ 277 mil) | −R$ 647 mil | +R$ 371 mil |
+| Últimos 12 meses × primeiro ano | −17,6% | **−2,1%** (−R$ 110 mil) | −R$ 920 mil | +R$ 810 mil |
+
+O volume perdido é maior que o ganho de preço. Jaboatão concentra dois dos quatro bairros do grupo comercial com irregularidade (Jardim Jordão e Prazeres, 166 das 300 UCs; 5.5), o que ajuda a explicar a queda (associação, não medida separadamente).
 
 ### 5.5 Quatro bairros com queda fora da GD: irregularidades confirmadas em campo
 
@@ -189,6 +210,7 @@ Iputinga, Macaxeira, Jardim Jordão e Prazeres perderam **1,38 milhão de kWh, 3
 - **Os tipos são os de perdas não técnicas:** medidor adulterado (119), desvio direto (117), by-pass (116), ligação clandestina (105) e lacre violado (92). A taxa de acerto é de 88% a 95% em todos os meses, de agosto a dezembro.
 - **O sinal funciona:** em todas as UCs inspecionadas desta análise, a taxa de acerto é de **91,7%** entre as que caíram 40% ou mais (599 inspeções) e de **7,7%** entre as estáveis (401). Uma queda forte de consumo sem GD é um forte indício de irregularidade.
 - **O perfil do medidor aponta o mecanismo:** **98,8%** das 601 UCs têm medidor eletromecânico, contra 23,8% nas outras UCs dos quatro bairros e 22,5% nos demais bairros; a idade média é de 15,9 anos (contra 14,1 e 14,3) e só 1,0% têm medidor `SMART` (contra ~19%).
+- **Viés de seleção:** 599 das 601 UCs foram inspecionadas nos meses logo depois da queda. É provável que a equipe de perdas as tenha escolhido **justamente por causa da queda**, e os grupos de comparação foram inspecionados por critérios que não conhecemos. Por isso, os 91,7% medem o acerto **nas UCs que a empresa escolheu inspecionar**, e não a chance de qualquer UC com queda ter irregularidade. A conclusão de perdas não técnicas no grupo continua forte (as irregularidades foram confirmadas em campo), mas o sinal da queda ainda precisa ser testado em UCs escolhidas por outro critério.
 - **O que mudou na leitura do problema:** a taxa de acerto histórica de 62,7% **esconde duas populações**. Este grupo responde por **549 das 871 irregularidades confirmadas (63%)** e por 43% das inspeções.
 
 **O consumo não voltou depois da inspeção.** Se as inspeções tivessem regularizado a medição, o consumo das UCs deveria subir nos meses seguintes. Medido UC a UC, nas 549 com irregularidade confirmada, em meses relativos ao mês da inspeção e como razão ao consumo dos demais bairros residenciais no mesmo mês (para descontar a sazonalidade):
@@ -215,6 +237,26 @@ O consumo caiu até dois meses antes da inspeção e **ficou parado em 0,72 a 0,
 
 **Limites:** é associação medida nas UCs inspecionadas, e os grupos de comparação foram inspecionados por critérios que não conhecemos; o limiar de 40% é nosso; os valores em reais usam o preço médio e são estimativas.
 
+### 5.6 A troca de medidor não explica a queda
+
+`gold.fato_troca_medidor`: 6.299 trocas, uma por UC, de setembro de 2025 a março de 2026 (~900 por mês), todas dentro dos últimos 12 meses.
+
+- **Um programa de medidor inteligente:** **todos os medidores novos são `SMART`**. Os retirados eram eletromecânicos (5.661, 90%), eletrônicos (601) e `SMART` (37), com cerca de 16 anos de uso em média.
+- **O consumo medido não mudou.** Comparar os 6 meses antes da troca com os 6 depois engana: as trocas são de setembro a março, então o "antes" cai no inverno e o "depois" no verão, e o consumo sobe de qualquer jeito. Comparando com as UCs que **não** trocaram, nas mesmas janelas e sem GD:
+
+| Mês da troca | Trocas | Variação de quem trocou | Variação de quem não trocou | Efeito da troca |
+|---|---|---|---|---|
+| 2025-09 | 849 | +25,1% | +23,7% | +1,4 p.p. |
+| 2025-10 | 836 | +31,3% | +34,5% | −3,2 p.p. |
+| 2025-11 | 836 | +41,1% | +33,3% | +7,8 p.p. |
+| 2025-12 | 831 | +20,5% | +21,6% | −1,1 p.p. |
+| 2026-01 | 835 | +12,5% | +13,1% | −0,6 p.p. |
+| 2026-02 | 801 | −0,3% | 0,0% | −0,3 p.p. |
+| 2026-03 | 839 | −13,8% | −12,3% | −1,5 p.p. |
+
+  Na média ponderada, o efeito é de **+0,4 ponto percentual**: a troca **não mudou o volume medido**, e portanto não explica a queda de volume. A exceção é `2025-11` (+7,8 p.p.), o mês de consumo atípico em todas as classes (seção 6), sem explicação nos dados.
+- **O programa passou longe da área com mais irregularidade.** Nas 601 UCs residenciais com queda e irregularidade dos quatro bairros (5.5), **98,8% ainda têm medidor eletromecânico** e só **1,0%** teve troca recente, contra ~14% nas demais UCs. O programa trocou ~900 medidores por mês: as ~900 UCs do grupo caberiam em cerca de um mês dele.
+
 ---
 
 ## 6. Fatores que atrapalham a leitura
@@ -223,7 +265,7 @@ O consumo caiu até dois meses antes da inspeção e **ficou parado em 0,72 a 0,
 
 **Evento de rede em julho de 2025.** Nesse mês, as ocorrências de rede foram 5,3× o normal (17.844 contra ~3.370), 97% com causa climática e 72% em três alimentadores (`ALM-REC-008`, `ALM-SAO-004`, `ALM-JAB-004`). Os chamados do call center foram 2,8× o normal (18.061), o tempo até fechar subiu de 120 para 361 horas e a nota caiu de 4,10 para 3,11. O **consumo de julho é normal**, então o evento não explica a queda de volume. Ele explica a alta de 16% nos chamados entre os dois períodos: sem esse mês, a alta seria de ~0,8%.
 
-**Troca de medidor.** São 6.299 UC-meses (1,17% do P1), entre setembro de 2025 e março de 2026. O consumo desses meses é a `leitura_atual` (a Silver). A escolha pouco muda o consumo por UC (−4,58% com a leitura atual contra −4,62% com consumo nulo), mas é a única que reproduz o −4% no total.
+**Troca de medidor.** São 6.299 UC-meses (1,17% do P1), entre setembro de 2025 e março de 2026. O consumo desses meses é a `leitura_atual` (a Silver). A escolha pouco muda o consumo por UC (−4,58% com a leitura atual contra −4,62% com consumo nulo), mas é a única que reproduz o −4% no total. Fora o mês da troca, a troca não mudou o consumo medido (5.6).
 
 **Sazonalidade.** O consumo é forte no verão (janeiro e fevereiro, ~22 mi kWh) e fraco no inverno (julho e agosto, ~14 mi). Só se comparam meses iguais entre anos, ou períodos de 12 meses.
 
@@ -245,19 +287,21 @@ São **propostas para a diretoria avaliar**, com a ordem de grandeza que os dado
 | 8 | **Investigar por que o consumo das ~900 UCs** (601 residenciais e 300 comerciais) **não voltou** depois das inspeções (831 com irregularidade confirmada; no residencial, consumo parado em 0,72 a 0,73 do dos demais bairros por oito meses): conferir se o medidor foi trocado ou regularizado e se a energia foi cobrada, **reinspecionar** as que seguem com consumo baixo e **inspecionar as 3** que nunca foram. | Cerca de **2,86 milhões de kWh por ano (≈ R$ 1,5 a 1,7 mi, de 1,2% a 1,3% da receita de energia)** seguem sem ser faturados enquanto o consumo ficar no patamar baixo (estimativa); a energia recuperada informada nas inspeções do grupo residencial soma ≈ 555 mil kWh (≈ R$ 0,32 mi), e a do comercial não foi somada. |
 | 9 | **Usar a queda de consumo de 40% ou mais, sem GD, como sinal principal da fila de inspeção** (`fila_inspecao`). Nas inspeções históricas, **91,7% das UCs residenciais e 94,3% das comerciais** com essa queda tiveram irregularidade confirmada, contra **7,7% e 8,1%** das estáveis; e **rebaixar as UCs com GD**, em que 1 de 31 inspeções achou algo. Incluir também o perfil do medidor (eletromecânico e antigo) e a reincidência. | A taxa de acerto do sinal é ~12 vezes a das UCs estáveis; cada inspeção evitada em UC sem irregularidade é um dia de equipe. |
 | 10 | **Tratar o caso como um evento de uma área, e não como UCs isoladas**: quatro bairros, ~900 UCs, início em maio e junho de 2025 e queda de ≈ 55% nas duas classes. Levar à área de perdas e à de segurança do patrimônio, e verificar outras áreas com o mesmo desenho (a queda sem GD, de ≈ 55%, em UCs de medidor eletromecânico antigo). | Mesma ordem de grandeza da recomendação 8; o ganho de olhar outras áreas não foi medido (nenhuma outra apareceu na análise de bairros). |
+| 11 | **Levar o programa de troca por medidor `SMART` aos quatro bairros**, começando pelas ~900 UCs do grupo. O programa já trocou 6.299 medidores, mas não chegou à área com mais irregularidade: 98,8% das UCs residenciais do grupo ainda têm medidor eletromecânico, e só 1% teve troca. Depois, priorizar os eletromecânicos antigos nas outras áreas. | No ritmo atual do programa (~900 trocas por mês), cerca de **um mês de trocas**. Protege os ≈ R$ 1,5 a 1,7 mi por ano da recomendação 8, se a irregularidade depender do medidor antigo (hipótese, apoiada no perfil do medidor; o custo da troca não está nos dados). |
 
 ---
 
 ## 8. Limites e o que não sabemos
 
 - **A causa da queda é uma associação.** A GD concentra a queda e o consumo cai na conexão, mas nenhum campo diz que foi o painel. A geração abatida do consumo faturado é o que o case descreve, e o padrão combina.
-- **Município e bairro** foram analisados (5.4), **comparando com o primeiro ano**. A pergunta "no último ano" (contra 2024-07 a 2025-06) exige a `fato_segmento_mensal`.
-- **A causa da queda nos quatro bairros** foi **identificada nas inspeções** (5.5): irregularidades confirmadas em 91,7% das UCs inspecionadas. **Não sabemos** por que o consumo não voltou depois delas (os dados só mostram o faturado), nem por que a mudança foi simultânea. No comércio, o consumo depois da inspeção e o perfil do medidor ainda não foram medidos UC a UC.
+- **Município e bairro** foram analisados (5.4) contra o primeiro ano e "no último ano" (contra `2024-07` a `2025-06`, pela `fato_segmento_mensal`). O ranking dos bairros é o mesmo nas duas comparações.
+- **A causa da queda nos quatro bairros** foi **identificada nas inspeções** (5.5): irregularidades confirmadas em 91,7% das UCs inspecionadas. Como a empresa provavelmente escolheu essas UCs por causa da queda, a taxa vale para as UCs inspecionadas, e não para qualquer UC com queda (viés de seleção). **Não sabemos** por que o consumo não voltou depois delas (os dados só mostram o faturado), nem por que a mudança foi simultânea. No comércio, o consumo depois da inspeção e o perfil do medidor ainda não foram medidos UC a UC.
 - **O efeito composição** (3.1, ≈ R$ 337 mil) faz o efeito-volume por classe (≈ −R$ 5,0 mi) diferir do da empresa (−R$ 4,66 mi); a leitura por classe usa o preço de cada classe.
 - **Reajuste das outras classes** (comercial +18,8%, rural +26%) não é conhecido: o case cita só o residencial.
 - **A causa dos meses atípicos** (nov/2025 e fev/2026) e do evento de julho de 2025 não está nos dados.
+- **Troca de medidor:** o efeito foi medido contra as UCs que não trocaram, nas mesmas janelas; as trocas de 2026 têm de 3 a 5 meses depois da troca (a base termina em `2026-06`).
 - **O "+8%" do diretor aceita as duas bases** (com e sem as faturas órfãs: +7,90% e +8,00%). O +8,00% exato na base limpa sugere que ela é a referência do case, mas não prova.
-- As contas de ordem de grandeza (R$ 2 mil por UC, R$ 1,8 mi por ano, 6% sem bandeira, −6% sem os meses atípicos, e os R$ 0,55 a 0,62 mi do grupo de 601 UCs) são **estimativas** feitas a partir das tabelas deste documento, com as premissas indicadas.
+- As contas de ordem de grandeza (R$ 2 mil por UC, R$ 1,8 mi por ano, 6% sem bandeira, −6% sem os meses atípicos, +2,4% das UCs sem GD sem o grupo dos quatro bairros, e os R$ 0,55 a 0,62 mi do grupo de 601 UCs) são **estimativas** feitas a partir das tabelas deste documento, com as premissas indicadas.
 
 ---
 
@@ -276,6 +320,7 @@ São **propostas para a diretoria avaliar**, com a ordem de grandeza que os dado
 
 ## 10. Como reproduzir
 
-1. Rodar `01_ingestao_bronze` e as Silvers `02_silver_leituras` e `02_silver_faturas`.
-2. Rodar `analise_reconciliacao_diretor.ipynb` do início ao fim (as seções 5 e 8 usam as Silvers de UCs e de geração distribuída, se existirem; senão, a Bronze).
-3. Rodar as Golds `dim_uc`, `fato_consumo_faturamento` e `receita_decomposicao` (seções 3.1 e 5.4) e o notebook `analise_quatro_bairros.ipynb` (seção 5.5).
+1. Rodar o pipeline completo pelo Workflow `v_energy_pipeline` (passo a passo no README): Bronze, Silvers e as 10 Golds.
+2. Seções 2, 4, 5.1 a 5.3 e 6: `analise_reconciliacao_diretor.ipynb` (pasta `exploracao/`).
+3. Seções 3.1 e 5.4 (primeiro ano): `03_gold_receita_decomposicao.ipynb`, seções 8 e 10. Seção 5.4 ("no último ano" e Jaboatão): `03_gold_fato_segmento_mensal.ipynb`, seção 9.
+4. Seção 5.5: `analise_quatro_bairros.ipynb` (pasta `exploracao/`). Seção 5.6: `03_gold_fato_troca_medidor.ipynb`, seção 9.

@@ -72,3 +72,38 @@ const participacao = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumF
 export function formatarParticipacao(valor: number): string {
   return participacao.format(valor)
 }
+
+// Valores da Gold chegam em maiúsculas e sem acento; a tela mostra com acentuação.
+const rotulos: Record<string, string> = {
+  'FALTA DE ENERGIA': 'Falta de energia', FATURA: 'Fatura', 'DANO ELETRICO': 'Dano elétrico', 'LIGACAO NOVA': 'Ligação nova',
+  'GERACAO DISTRIBUIDA': 'Geração distribuída', RELIGACAO: 'Religação', VISTORIA: 'Vistoria',
+  'INTERRUPCAO PARCIAL': 'Interrupção parcial', 'INTERRUPCAO TOTAL': 'Interrupção total', OSCILACAO: 'Oscilação',
+  URGENCIA: 'Urgência', RESSARCIMENTO: 'Ressarcimento', 'APOS PAGAMENTO': 'Após pagamento', SOLICITACAO: 'Solicitação',
+  HOMOLOGACAO: 'Homologação', PRAZO: 'Prazo', CREDITOS: 'Créditos', CONTESTACAO: 'Contestação', 'SEGUNDA VIA': 'Segunda via',
+  'VALOR ALTO': 'Valor alto', PARCELAMENTO: 'Parcelamento', TELEFONE: 'Telefone', APP: 'App', WHATSAPP: 'WhatsApp',
+  SITE: 'Site', PRESENCIAL: 'Presencial', ABERTURA: 'Abertura', ANALISE: 'Análise', DESPACHO: 'Despacho',
+  'RETORNO AO CLIENTE': 'Retorno ao cliente', ENCERRAMENTO: 'Encerramento', 'DANO EM EQUIPAMENTO': 'Dano em equipamento',
+  SOBRECARGA: 'Sobrecarga', 'FIO PARTIDO': 'Fio partido', CLIMATICA: 'Climática', 'FALHA DE EQUIPAMENTO': 'Falha de equipamento',
+  'NAO IDENTIFICADA': 'Não identificada', TERCEIROS: 'Terceiros', VEGETACAO: 'Vegetação',
+}
+
+export function formatarRotulo(valor: string | null | undefined): string {
+  if (!valor) return 'Não informado'
+  return rotulos[valor] ?? valor.charAt(0).toUpperCase() + valor.slice(1).toLowerCase()
+}
+
+/** Minutos em texto curto: 45 min, 2 h, 2 h 10 min. */
+export function formatarDuracao(minutos: number): string {
+  const horas = Math.floor(minutos / 60)
+  const resto = Math.round(minutos % 60)
+  if (!horas) return `${resto} min`
+  return resto ? `${formatarNumero(horas)} h ${resto} min` : `${formatarNumero(horas)} h`
+}
+
+/** Tempo de resolução de um chamado: em horas até 48 h; depois, em dias com uma casa. */
+export function formatarTempoResolucao(horas: number | null): string {
+  if (horas === null) return 'Não disponível'
+  if (horas < 48) return `${formatarNumero(Math.round(horas * 10) / 10)} h`
+  const dias = Math.round((horas / 24) * 10) / 10
+  return `${formatarNumero(dias)} dias`
+}

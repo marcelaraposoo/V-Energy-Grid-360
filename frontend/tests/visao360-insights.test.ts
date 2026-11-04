@@ -85,3 +85,51 @@ test('modal da fatura: total em destaque, bandeira, composição e detalhes', as
     httpServer.close()
   }
 })
+
+test('formatadores de rótulos da Gold, duração e tempo de resolução', async () => {
+  const { formatarRotulo, formatarDuracao, formatarTempoResolucao } = await import('../src/features/unidades/formatters.ts')
+  assert.equal(formatarRotulo('LIGACAO NOVA'), 'Ligação nova')
+  assert.equal(formatarRotulo('WHATSAPP'), 'WhatsApp')
+  assert.equal(formatarRotulo('NOVO VALOR'), 'Novo valor')
+  assert.equal(formatarRotulo(null), 'Não informado')
+  assert.equal(formatarDuracao(45), '45 min')
+  assert.equal(formatarDuracao(132), '2 h 12 min')
+  assert.equal(formatarDuracao(4159), '69 h 19 min')
+  assert.equal(formatarDuracao(120), '2 h')
+  assert.equal(formatarTempoResolucao(5.5), '5,5 h')
+  assert.equal(formatarTempoResolucao(194), '8,1 dias')
+  assert.equal(formatarTempoResolucao(null), 'Não disponível')
+})
+
+test('modal do atendimento: assunto em destaque, linha do tempo e detalhes', async () => {
+  const httpServer = createHttpServer()
+  const server = await createServer({
+    configFile: false, plugins: [react()], optimizeDeps: { noDiscovery: true },
+    server: { middlewareMode: true, hmr: { server: httpServer }, watch: null },
+  })
+  try {
+    const { AtendimentoDialog } = await server.ssrLoadModule('/src/features/unidades/components/AtendimentoDialog.tsx')
+    const atendimento = {
+      protocolo: 'AT000290282', uc_id: 'UC108564', data: '2026-02-20T15:10:00', data_fechamento: '2026-02-28T17:10:00',
+      canal: 'PRESENCIAL', assunto: 'FATURA', subassunto: 'CONTESTACAO', aberto: false, tempo_resolucao_horas: 194,
+      qtd_tratativas: 3, ultima_acao: 'ENCERRAMENTO', nota_satisfacao: 4,
+    }
+    const html = renderToStaticMarkup(createElement(AtendimentoDialog, { atendimento, onFechar: () => {} }))
+    assert.match(html, /Atendimento AT000290282/)
+    assert.match(html, /<strong>Fatura<\/strong><small>Contestação<\/small>/)
+    assert.match(html, /Resolvido em 8,1 dias/)
+    assert.match(html, /28\/02\/2026 às 17:10/)
+    assert.match(html, /Encerramento/)
+    assert.match(html, /4,0 \/ 5/)
+    const aberto = renderToStaticMarkup(createElement(AtendimentoDialog, {
+      atendimento: { ...atendimento, aberto: true, data_fechamento: null, tempo_resolucao_horas: null, nota_satisfacao: null }, onFechar: () => {},
+    }))
+    assert.match(aberto, /Em andamento/)
+    assert.match(aberto, /Ainda não fechado/)
+    assert.match(aberto, /data-aberto="true"/)
+    assert.match(aberto, /Não avaliado/)
+  } finally {
+    await server.close()
+    httpServer.close()
+  }
+})

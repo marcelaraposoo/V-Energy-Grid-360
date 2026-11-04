@@ -35,8 +35,8 @@ export function FaturaDialog({ fatura, onFechar }: {
       {fatura && (
         <div className="ucv-fatura-dialog-content">
           <header>
-            <div className="ucv-fatura-dialog-titulo">
-              <span className="ucv-fatura-dialog-icone"><FileText size={20} aria-hidden="true" /></span>
+            <div className="ucv-dialog-titulo">
+              <span className="ucv-dialog-icone"><FileText size={20} aria-hidden="true" /></span>
               <div>
                 <h2 id={id}>Fatura de {formatarCompetencia(fatura.competencia)}</h2>
                 <p>{fatura.status === 'paga' ? `Paga em ${formatarData(fatura.data_pagamento)}` : faixasAtraso[fatura.faixa_atraso]}</p>
@@ -47,12 +47,12 @@ export function FaturaDialog({ fatura, onFechar }: {
             </button>
           </header>
 
-          <div className="ucv-fatura-dialog-destaque">
+          <div className="ucv-dialog-destaque">
             <div>
               <span>Valor total</span>
               <strong>{formatarMoeda(fatura.valor_total)}</strong>
             </div>
-            <div className="ucv-fatura-dialog-selos">
+            <div className="ucv-dialog-selos">
               <span className={`badge ucv-fatura--${fatura.status}`}>{situacoesFatura[fatura.status]}</span>
               <BandeiraTarifaria bandeira={fatura.bandeira} />
             </div>
@@ -84,7 +84,7 @@ export function FaturaDialog({ fatura, onFechar }: {
             { label: 'Vencimento', value: formatarData(fatura.vencimento) },
             { label: 'Pagamento', value: fatura.status === 'paga' ? formatarData(fatura.data_pagamento) : 'Em aberto' },
           ]} />
-          <p className="ucv-fatura-dialog-nota">
+          <p className="ucv-dialog-nota">
             O valor da energia e o preço médio por kWh incluem o adicional de bandeira e não incluem tributos.
           </p>
         </div>

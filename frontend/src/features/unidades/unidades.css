@@ -480,19 +480,6 @@
 .ucv-faturas-resultados[aria-busy='true'] {
   opacity: 0.6;
 }
-.ucv-atendimento-link {
-  padding: 4px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.ucv-atendimento-link:hover {
-  color: var(--accent);
-}
 .ucv-fatura-dialog-content,
 .ucv-atendimento-dialog-content {
   display: grid;
@@ -510,7 +497,7 @@
 .ucv-atendimento-dialog-content > .badge {
   justify-self: start;
 }
-.ucv-fatura-dialog-nota {
+.ucv-dialog-nota {
   margin: 0;
   color: var(--text-muted);
   font-size: 11px;
@@ -621,22 +608,20 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 30%, transparent);
 }
 
-/* Lista de faturas */
-.ucv-faturas-lista-scroll {
+/* Listas de registros (faturas, atendimentos, interrupções) */
+.ucv-registros-scroll {
   padding: 0 22px 8px;
   overflow-x: auto;
 }
-.ucv-faturas-lista {
+.ucv-registros {
   display: grid;
   gap: 8px;
-  min-width: 620px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.ucv-fatura-item {
+.ucv-registro {
   display: grid;
-  grid-template-columns: minmax(120px, 1.2fr) minmax(110px, 1fr) minmax(80px, 0.8fr) minmax(100px, 1fr) minmax(170px, 1.3fr) 16px;
   align-items: center;
   gap: 16px;
   width: 100%;
@@ -647,75 +632,91 @@
   background: var(--subtle-overlay);
   color: var(--text-primary);
   font: inherit;
+  font-size: 12px;
   text-align: left;
+}
+.ucv-registro--faturas {
+  grid-template-columns: minmax(120px, 1.2fr) minmax(110px, 1fr) minmax(80px, 0.8fr) minmax(100px, 1fr) minmax(170px, 1.3fr) 16px;
+}
+.ucv-registro--atendimentos {
+  grid-template-columns: minmax(130px, 1fr) minmax(170px, 1.5fr) minmax(90px, 0.7fr) minmax(180px, 1.3fr) 16px;
+}
+.ucv-registro--interrupcoes {
+  grid-template-columns: minmax(170px, 1.3fr) minmax(90px, 0.8fr) minmax(140px, 1fr) minmax(140px, 1fr);
+}
+button.ucv-registro {
   cursor: pointer;
   transition: border-color 150ms, background-color 150ms;
 }
-button.ucv-fatura-item:hover:not(:disabled) {
+button.ucv-registro:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   background: var(--accent-hover-bg, var(--hover-overlay));
 }
-.ucv-fatura-item:focus-visible {
+button.ucv-registro:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.ucv-fatura-item:disabled {
+button.ucv-registro:disabled {
   cursor: progress;
   opacity: 0.7;
 }
-.ucv-fatura-item--cabecalho {
+.ucv-registro--cabecalho {
   margin-bottom: 6px;
   padding-block: 0;
   border: 0;
   background: transparent;
   color: var(--text-muted);
   font-size: 11px;
-  cursor: default;
 }
-.ucv-fatura-item-competencia,
-.ucv-fatura-item-situacao {
+.ucv-registro-principal,
+.ucv-registro-situacao {
   display: grid;
   justify-items: start;
   gap: 4px;
+  min-width: 0;
 }
-.ucv-fatura-item-competencia strong {
+.ucv-registro-principal strong {
   font-size: 14px;
 }
-.ucv-fatura-item small {
+.ucv-registro small {
   color: var(--text-muted);
   font-size: 11px;
 }
-.ucv-fatura-item-consumo {
+.ucv-registro-texto {
   color: var(--text-secondary);
-  font-size: 12px;
 }
-.ucv-fatura-item-valor {
+.ucv-registro-valor {
   font-family: 'Manrope', sans-serif;
   font-size: 15px;
 }
-.ucv-fatura-item-seta {
+.ucv-registro-seta {
   color: var(--text-muted);
 }
-button.ucv-fatura-item:hover .ucv-fatura-item-seta {
+button.ucv-registro:hover .ucv-registro-seta {
   color: var(--accent);
 }
+.ucv-interrupcoes .ucv-registros-scroll,
+.ucv-atendimentos .ucv-registros-scroll {
+  padding-top: 4px;
+}
 
-/* Modal da fatura */
-.dialog.ucv-fatura-dialog {
+/* Modais de fatura e atendimento (estrutura comum em ucv-dialog-*) */
+.dialog.ucv-fatura-dialog,
+.dialog.ucv-atendimento-dialog {
   width: min(560px, calc(100vw - 32px));
   border-radius: 14px;
 }
-.ucv-fatura-dialog-titulo {
+.ucv-dialog-titulo {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.ucv-fatura-dialog-titulo p {
+.ucv-dialog-titulo p {
   margin-top: 2px;
   color: var(--text-muted);
   font-size: 12px;
 }
-.ucv-fatura-dialog-icone {
+.ucv-dialog-icone {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -726,7 +727,7 @@ button.ucv-fatura-item:hover .ucv-fatura-item-seta {
   background: var(--accent-selected-bg, color-mix(in srgb, var(--accent) 6%, transparent));
   color: var(--accent);
 }
-.ucv-fatura-dialog-destaque {
+.ucv-dialog-destaque {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -737,20 +738,28 @@ button.ucv-fatura-item:hover .ucv-fatura-item-seta {
   border-radius: 10px;
   background: var(--subtle-overlay);
 }
-.ucv-fatura-dialog-destaque > div:first-child {
+.ucv-dialog-destaque > div:first-child {
   display: grid;
   gap: 4px;
 }
-.ucv-fatura-dialog-destaque span {
+.ucv-dialog-destaque span {
   color: var(--text-secondary);
   font-size: 12px;
 }
-.ucv-fatura-dialog-destaque strong {
+.ucv-dialog-destaque strong {
   font-family: 'Manrope', sans-serif;
   font-size: 30px;
   letter-spacing: -0.5px;
 }
-.ucv-fatura-dialog-selos {
+.ucv-dialog-destaque small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.ucv-dialog-destaque--texto strong {
+  font-size: 22px;
+  letter-spacing: -0.2px;
+}
+.ucv-dialog-selos {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -810,12 +819,79 @@ button.ucv-fatura-item:hover .ucv-fatura-item-seta {
   font-size: 11px;
   font-weight: 400;
 }
-.ucv-fatura-dialog .ucv-fields {
+.ucv-fatura-dialog .ucv-fields,
+.ucv-atendimento-dialog .ucv-fields {
   padding-top: 16px;
   border-top: 1px solid var(--border-subtle);
 }
+.ucv-atendimento-canal {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+/* Linha do tempo do chamado: abertura → fechamento */
+.ucv-atendimento-linha {
+  display: grid;
+  grid-template-columns: auto minmax(60px, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+.ucv-atendimento-marco {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+.ucv-atendimento-marco--fim {
+  justify-items: end;
+  text-align: right;
+}
+.ucv-atendimento-marco i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.ucv-atendimento-linha[data-aberto='false'] .ucv-atendimento-marco--fim i {
+  background: var(--success);
+}
+.ucv-atendimento-linha[data-aberto='true'] .ucv-atendimento-marco--fim i {
+  border: 2px dashed var(--text-muted);
+  background: transparent;
+}
+.ucv-atendimento-marco span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.ucv-atendimento-marco strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.ucv-atendimento-trilho {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
+}
+.ucv-atendimento-trilho::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--border);
+}
+.ucv-atendimento-linha[data-aberto='true'] .ucv-atendimento-trilho::before {
+  border-top-style: dashed;
+}
+.ucv-atendimento-trilho span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
 @media (max-width: 479px) {
-  .ucv-fatura-dialog-destaque strong {
+  .ucv-dialog-destaque strong {
     font-size: 24px;
   }
 }

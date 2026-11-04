@@ -9,6 +9,7 @@ import { consultarFaturas } from '../api'
 import type { AbaFaturas, FaturaUC, PaginaFaturasUC, SituacaoFaturas, Visao360 } from '../types'
 import { faixasAtraso, formatarCompetencia, formatarData, formatarMoeda, formatarNumero, situacoesFatura } from '../formatters'
 import { BandeiraTarifaria } from './BandeiraTarifaria'
+import { ListaRegistros } from './ListaRegistros'
 import { FaturaDialog } from './FaturaDialog'
 
 const abas: { id: AbaFaturas; label: string; descricao: string; vazio: string }[] = [
@@ -117,32 +118,27 @@ export function FaturasSection({ dados }: { dados: Visao360 }) {
         )}
         <div className="ucv-faturas-resultados" aria-busy={carregando}>
           {erro ? <ErrorState error={erro} onRetry={() => setTentativa(n => n + 1)} /> : !resultado ? <LoadingState label="Consultando faturas…" /> : resultado.itens.length ? (
-            <div className="ucv-faturas-lista-scroll">
-              <div className="ucv-fatura-item ucv-fatura-item--cabecalho" aria-hidden="true">
-                <span>Competência</span><span>Bandeira</span><span>Consumo</span><span>Total</span><span>Situação</span><span />
-              </div>
-              <ul className="ucv-faturas-lista" aria-label="Faturas e pagamentos da UC">
-                {resultado.itens.map(item => (
-                  <li key={item.id_fatura ?? item.competencia}>
-                    <button type="button" className="ucv-fatura-item" disabled={carregando} aria-haspopup="dialog"
-                      aria-label={`Ver detalhes da fatura de ${formatarCompetencia(item.competencia)}`} onClick={() => setFatura(item)}>
-                      <span className="ucv-fatura-item-competencia">
-                        <strong>{formatarCompetencia(item.competencia)}</strong>
-                        <small>Vence em {formatarData(item.vencimento)}</small>
-                      </span>
-                      <BandeiraTarifaria bandeira={item.bandeira} />
-                      <span className="ucv-fatura-item-consumo">{formatarNumero(item.consumo_kwh)} kWh</span>
-                      <strong className="ucv-fatura-item-valor">{formatarMoeda(item.valor_total)}</strong>
-                      <span className="ucv-fatura-item-situacao">
-                        <span className={`badge ucv-fatura--${item.status}`}>{situacoesFatura[item.status]}</span>
-                        <small>{item.status === 'paga' ? `Paga em ${formatarData(item.data_pagamento)}` : faixasAtraso[item.faixa_atraso]}</small>
-                      </span>
-                      <ChevronRight className="ucv-fatura-item-seta" size={16} aria-hidden="true" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <ListaRegistros titulo="Faturas e pagamentos da UC" variante="faturas" colunas={['Competência', 'Bandeira', 'Consumo', 'Total', 'Situação', '']}>
+              {resultado.itens.map(item => (
+                <li key={item.id_fatura ?? item.competencia}>
+                  <button type="button" className="ucv-registro ucv-registro--faturas" disabled={carregando} aria-haspopup="dialog"
+                    aria-label={`Ver detalhes da fatura de ${formatarCompetencia(item.competencia)}`} onClick={() => setFatura(item)}>
+                    <span className="ucv-registro-principal">
+                      <strong>{formatarCompetencia(item.competencia)}</strong>
+                      <small>Vence em {formatarData(item.vencimento)}</small>
+                    </span>
+                    <BandeiraTarifaria bandeira={item.bandeira} />
+                    <span className="ucv-registro-texto">{formatarNumero(item.consumo_kwh)} kWh</span>
+                    <strong className="ucv-registro-valor">{formatarMoeda(item.valor_total)}</strong>
+                    <span className="ucv-registro-situacao">
+                      <span className={`badge ucv-fatura--${item.status}`}>{situacoesFatura[item.status]}</span>
+                      <small>{item.status === 'paga' ? `Paga em ${formatarData(item.data_pagamento)}` : faixasAtraso[item.faixa_atraso]}</small>
+                    </span>
+                    <ChevronRight className="ucv-registro-seta" size={16} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ListaRegistros>
           ) : <EmptyState compact icon={FileText} title="Nenhuma fatura encontrada" description={resultado.total > 0 ? 'Não há faturas nesta página. Volte para a página anterior.' : ativa.vazio} />}
         </div>
         <div className="table-footer">

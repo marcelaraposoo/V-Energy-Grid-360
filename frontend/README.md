@@ -33,10 +33,16 @@ sem manter uma segunda definição. Veja o [mapeamento da Gold](../backend/docs/
   consumo, preço por kWh, bandeira, vencimento e pagamento). O mesmo modal abre pelo "Detalhes" do card
   "Valor total da fatura", no topo da tela, que substituiu o painel "Detalhamento da última fatura".
 - Medidor e GD: equipamento atual, histórico de trocas e modalidade de geração distribuída.
-- Interrupções: filtro de 6/12 meses ou todos, compartilhado com o contexto do alimentador.
+- Interrupções: filtro de 6/12 meses ou todos, compartilhado com o contexto do alimentador; histórico em lista
+  (início e fim, duração em horas e minutos, tipo e causa), 6 por página no frontend.
 - Atendimentos: histórico completo, filtros Todos/Abertos/Fechados com contagens e paginação
-  de 10 registros no frontend. O protocolo abre os detalhes; não há filtro de período na tela.
-- Os modais de fatura e atendimento fecham pelo botão, pela tecla Esc ou ao clicar fora.
+  de 6 registros no frontend, em lista (protocolo, assunto e subassunto, canal, situação). Clicar num chamado
+  abre os detalhes; não há filtro de período na tela.
+- Faturas, atendimentos e interrupções usam o mesmo formato de lista (`ListaRegistros.tsx`, classes `ucv-registro*`);
+  os valores da Gold aparecem com acentuação (`formatarRotulo`).
+- Os modais de fatura e atendimento seguem a mesma estrutura (classes `ucv-dialog-*`: título com ícone, bloco de destaque
+  e detalhes). O de atendimento mostra assunto e subassunto, situação, canal e uma linha do tempo da abertura ao
+  fechamento, com o tempo de resolução. Os dois fecham pelo botão, pela tecla Esc ou ao clicar fora.
 
 Com `DATA_SOURCE=mock` no backend, os dados são fictícios. Há exemplos de troca em
 `UC000001` (09/2025) e `UC000007` (03/2026). SQLite fictício nos testes não substitui

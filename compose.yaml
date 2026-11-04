@@ -4,7 +4,8 @@ services:
   backend:
     # Credenciais locais são injetadas no runtime; não entram na imagem.
     env_file:
-      - ${BACKEND_ENV_FILE:-./backend/.env}
+      - path: ${BACKEND_ENV_FILE:-./backend/.env}
+        required: false
     build:
       context: ./backend
       dockerfile: Dockerfile

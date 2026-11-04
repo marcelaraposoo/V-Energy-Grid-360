@@ -45,15 +45,15 @@ sem manter uma segunda definição. Veja o [mapeamento da Gold](../backend/docs/
   fechamento, com o tempo de resolução. Os dois fecham pelo botão, pela tecla Esc ou ao clicar fora.
 
 Com `DATA_SOURCE=mock` no backend, os dados são fictícios. Há exemplos de troca em
-`UC000001` (09/2025) e `UC000007` (03/2026). SQLite fictício nos testes não substitui
-a homologação da exportação oficial.
+`UC000001` (09/2025) e `UC000007` (03/2026). Os testes usam um SQLite fictício; a Gold real
+é usada com `DATA_SOURCE=sqlite`.
 
 ## Dashboard Executivo — versão base
 
 A tela inicial (`/`) é a **versão base do Dashboard Executivo**: uma visão geral da
 distribuidora, com indicadores consolidados e acompanhamento mensal. Ela já consulta a API;
 não utiliza os mocks locais de apresentação. A fonte dos dados é definida no backend
-(`DATA_SOURCE=mock` ou `sqlite`). A homologação com a exportação oficial da Gold permanece pendente.
+(`DATA_SOURCE=mock` ou `sqlite`).
 
 O Dashboard é a visão geral: filtra por período e **município** (também pela URL, `/?municipio=Recife`).
 Bairro e classe ficam na [Análise de Receita](#análise-de-receita): com eles, parte dos blocos ficaria

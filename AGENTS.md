@@ -12,9 +12,8 @@ faturado caiu ~4%?**
 | Pasta | Conteúdo | Frente |
 |---|---|---|
 | `data-engineering/` | Notebooks Databricks (Bronze → Silver → Gold) e YAML do Workflow | Dados |
-| `backend/` | API FastAPI do portal | Dev |
+| `backend/` | API FastAPI do portal e o agente Text-to-SQL em `app/agent/` | Dev e IA |
 | `frontend/` | React + TypeScript (Vite) | Dev |
-| `ai-agent/` | Agente Text-to-SQL | IA |
 | `docs/` | Dicionário de dados, log de qualidade, contrato da Gold, diagnóstico da receita | Todos |
 
 Cada pasta pode ter o próprio `AGENTS.md` com regras específicas. Leia o da pasta em que for trabalhar.

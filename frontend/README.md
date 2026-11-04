@@ -44,8 +44,10 @@ distribuidora, com indicadores consolidados e acompanhamento mensal. Ela já con
 não utiliza os mocks locais de apresentação. A fonte dos dados é definida no backend
 (`DATA_SOURCE=mock` ou `sqlite`). A homologação com a exportação oficial da Gold permanece pendente.
 
-O Dashboard permanece dedicado à visão geral, somente com filtros temporais. Os recortes por
-município, bairro e classe ficam na [Análise de Receita](#análise-de-receita).
+O Dashboard é a visão geral: filtra por período e **município** (também pela URL, `/?municipio=Recife`).
+Bairro e classe ficam na [Análise de Receita](#análise-de-receita): com eles, parte dos blocos ficaria
+indisponível (DEC/FEC só existe por município). Com município, todos os blocos usam a A3 (ou a B1 e a A8,
+na operação) do município escolhido.
 
 ### Padrão comum com a Análise de Receita
 
@@ -54,7 +56,8 @@ município, bairro e classe ficam na [Análise de Receita](#análise-de-receita)
 - **Formatação e textos** dos indicadores comuns vêm de `utils/indicadores.ts`, para as duas telas mostrarem os
   mesmos números do mesmo jeito.
 - **Data de corte** ("Dados até 30/06/2026") junto aos filtros (`components/ui/DataCorte.tsx`).
-- **"Investigar na Análise de Receita"** abre a outra tela com os mesmos períodos, pela URL.
+- **"Investigar na Análise de Receita"** abre a outra tela com os mesmos períodos e o município, pela URL.
+  O "Ver na Qualidade do Serviço" faz o mesmo para a tela de DEC/FEC.
 
 ### Períodos e comparação
 
@@ -71,13 +74,23 @@ Os limites disponíveis são jul/2022 a jun/2026, contando competências mensais
 
 ### Organização e indicadores
 
-A primeira linha mostra receita de energia, energia faturada e preço médio por kWh em três
-colunas iguais, com o mesmo card de KPI da Análise de Receita (`components/ui/KpiCard.tsx`): valor,
-valor da referência e variação. A segunda divide a largura entre faturamento em aberto e cadastro/GD empilhados
-à esquerda, e consumo por classe à direita. A terceira mantém os gráficos de evolução mensal.
-Em telas menores, as seções ficam em uma coluna.
+A ordem segue a leitura do diretor: resultado, como se chegou nele, o detalhe e a operação.
 
-UCs cadastradas e GD usam a última competência selecionada (A5), incluindo a posição final
+1. **KPIs principais:** receita de energia, energia faturada e preço médio por kWh, com o mesmo card de KPI
+   da Análise de Receita (`components/ui/KpiCard.tsx`): valor, valor da referência e variação.
+2. **Evolução mensal** da receita e da energia.
+3. **Detalhe comercial:** faturamento em aberto e cadastro/GD empilhados à esquerda (sob o gráfico de receita)
+   e consumo por classe à direita (sob o gráfico de energia). O botão "Município" troca as classes pela energia
+   por município (por bairro, com município escolhido): o card mostra os cinco maiores, para manter a altura das
+   classes, e "Mostrar todos" abre um modal com a lista completa (`ConsumoLocais.tsx`, `ConsumoLocaisDialog.tsx`).
+   Clicar num município filtra o Dashboard. Os locais só são buscados quando essa visão é aberta.
+4. **Operação e atendimento** (`OperacaoCards.tsx`): atendimentos, satisfação, DEC e FEC, com link para a
+   Qualidade do Serviço. Atendimentos, DEC e FEC usam a cor invertida (subir é desfavorável); a satisfação
+   compara em pontos da nota ("−0,2 ponto").
+
+Em telas menores, as seções ficam em uma coluna (a operação passa por duas colunas antes).
+
+UCs cadastradas e GD usam a última competência selecionada (A5; com município, a soma da A3), incluindo a posição final
 da referência quando há comparação. O consumo por classe soma as competências da A3, ordena
 as cinco classes pelo volume principal e mantém uma única barra por classe. Faltar um mês
 de uma classe deixa seu consolidado indisponível; a participação exige um total completo.
@@ -85,11 +98,12 @@ de uma classe deixa seu consolidado indisponível; a participação exige um tot
 Receita e consumo nos KPIs são totais dos meses selecionados; preço médio é a razão entre
 receita de energia e consumo, exibida com duas casas nas duas telas. Faturamento em aberto mostra
 o consolidado ponderado pelo faturamento total, incluindo tributos, e a comparação em pontos
-percentuais. A taxa da última competência não aparece: é o mês com mais faturas ainda não vencidas
-na data de corte, que a definição do contrato conta como em aberto (o "i" do card explica isso).
+percentuais (a cor segue o valor exibido: −0,03 p.p. aparece como 0,0 e fica neutro). A taxa da última
+competência não aparece: é o mês com mais faturas ainda não vencidas na data de corte, que a definição
+do contrato conta como em aberto (o "i" do card explica isso).
 UCs cadastradas e GD não são somadas entre meses; a participação é `UCs com GD / UCs cadastradas × 100`.
 
-Os quatro carregamentos usam `useApi`, com cancelamento de consultas anteriores e tratamento
+Os cinco carregamentos (mais o catálogo de municípios) usam `useApi`, com cancelamento de consultas anteriores e tratamento
 de erro, loading e dados indisponíveis. A consulta `indicador=executivo` compartilha a resposta
 dos KPIs principais com o card de faturamento em aberto; UCs faturadas continuam disponíveis
 na API, embora não apareçam no topo. Os gráficos existentes recebem a série Gold e mantêm

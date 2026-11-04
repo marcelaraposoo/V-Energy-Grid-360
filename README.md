@@ -66,7 +66,7 @@ gerá-los.
 ### 1. Gerar a Gold (Databricks)
 
 1. **Repositório no Databricks:** em *Workspace*, crie um **Git folder** apontando para este repositório.
-2. **Ambiente:** rode `data-engineering/notebooks/00_organizacao_do_ambiente`. Ele cria o catálogo `v_energy`, os schemas `bronze`, `silver` e `gold` e o Volume `landing` (tudo `IF NOT EXISTS`).
+2. **Ambiente:** rode `data-engineering/notebooks/00_01 organização ambiente e bronze/00_organizacao_do_ambiente`. Ele cria o catálogo `v_energy`, os schemas `bronze`, `silver` e `gold` e o Volume `landing` (tudo `IF NOT EXISTS`).
 3. **Dados de origem:** em *Catalog → v_energy → bronze → landing → Upload to this volume*, envie os 7 arquivos da raiz do `.zip` do case e, numa pasta `leituras/` dentro do Volume, os 5 arquivos de leituras. Rode de novo o `00` para validar que estão todos lá. **Os dados são confidenciais e nunca vão para o GitHub.**
 4. **Workflow:** rode `data-engineering/workflow/criar_workflow.ipynb`. Ele cria (ou atualiza) o Job `v_energy_pipeline` com as 21 tarefas e as dependências. Com `USAR_GIT = True` (padrão), o Job lê os notebooks da branch `main` do GitHub.
 5. **Execução:** em *Jobs & Pipelines → v_energy_pipeline*, clique em **Run now** (cerca de 14 minutos).
@@ -253,8 +253,9 @@ leitura) e as funcionalidades de IA não alteram dados.
 por último, Gemini `gemini-3.1-flash-lite`. `PROVIDER_PAYLOAD_POLICY=confidential` (padrão) bloqueia o modelo
 gratuito que pode reter dados. Use `synthetic` somente com dados artificiais.
 
-**Auditoria.** Cada pergunta é gravada na tabela `agent_audit` do `portal.db`, com a pergunta, o desfecho, o SQL
-executado e a resposta final. Fora do Docker, o arquivo fica em `backend/data/portal.db`. Para consultar no Docker:
+**Auditoria.** No Assistente, cada resposta mostra o resumo da auditoria: resultado, etapa final, duração e o
+caminho pelas camadas C1 a C7 ([detalhes](backend/docs/auditoria-assistente-ia.md)). Cada pergunta também é gravada
+na tabela `agent_audit` do `portal.db`, com a pergunta, o desfecho, o SQL executado e a resposta final. Fora do Docker, o arquivo fica em `backend/data/portal.db`. Para consultar no Docker:
 
 ```bash
 docker compose exec backend python -c "import sqlite3; c=sqlite3.connect('file:/data/portal/portal.db?mode=ro', uri=True); [print(r) for r in c.execute('select timestamp, question, outcome, sql from agent_audit order by timestamp desc limit 5')]"

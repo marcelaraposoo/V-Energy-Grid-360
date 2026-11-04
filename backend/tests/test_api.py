@@ -231,7 +231,11 @@ def test_ia_perguntar_usa_o_agente(monkeypatch):
 
     assert r["status"] == "ok"
     assert r["resposta"] == "Resposta de teste."
-    assert r["sql_executado"] is None
+    assert r["sql_executado"] == "SELECT 1"
+    assert r["fontes"] == []
+    assert r["auditoria"]["etapa_final"] == "done"
+    assert r["auditoria"]["resultado"] == "answered"
+    assert r["auditoria"]["persistencia"] == "indisponivel"
 
 
 def test_ia_perguntar_sem_resposta_devolve_nao_sei(monkeypatch):
@@ -250,6 +254,7 @@ def test_ia_perguntar_sem_resposta_devolve_nao_sei(monkeypatch):
 
     assert r["status"] == "nao_sei"
     assert r["sql_executado"] is None
+    assert r["auditoria"]["resultado"] == "no_answer"
 
 
 def test_ia_stub_e_insights():
@@ -425,3 +430,19 @@ def test_ordem_duplicada_na_mesma_uc_retorna_409_e_resultado_invalido_retorna_42
     assert _acao(o["id"], "resultado", {"tipo": "fraude", "energia_recuperada_kwh": -5}).status_code == 422
     assert client.get(f"/api/perdas/ordens/{o['id']}").json()["status"] == "PENDENTE"
     _acao(o["id"], "cancelar")
+
+
+def test_fontes_da_auditoria_incluem_apenas_tabelas_permitidas():
+    from app.services.ia import _fontes_da_consulta
+
+    sql = """
+        WITH unidades AS (
+            SELECT uc_id FROM dim_uc
+        )
+        SELECT unidades.uc_id
+        FROM unidades
+        JOIN fato_consumo_faturamento f ON f.uc_id = unidades.uc_id
+        JOIN tabela_interna_nao_permitida x ON x.uc_id = unidades.uc_id
+    """
+
+    assert _fontes_da_consulta(sql) == ["dim_uc", "fato_consumo_faturamento"]

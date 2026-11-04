@@ -21,7 +21,7 @@ export function InsightsUcCard({ ucId, competencias }: { ucId: string; competenc
     <Panel title="Insights da IA" icone={Sparkles} description={descricao} className="ucv-insights"
       info={<InfoTipContent resumo="Leitura automática desta unidade: só aparecem os pontos que se aplicam a ela." itens={[
         { rotulo: 'Conta', texto: 'De onde veio a variação da energia em relação ao mesmo mês do ano anterior: do consumo ou do preço do kWh (e da bandeira).' },
-        { rotulo: 'Padrão', texto: 'Se o consumo do mês está em linha com a média dos 6 meses anteriores ou se a variação é sazonal (parecida com a do ano anterior).' },
+        { rotulo: 'Padrão', texto: 'Se o consumo do mês está em linha com a média dos 6 meses anteriores e se a variação é semelhante à do ano anterior.' },
         { rotulo: 'Rede', texto: 'Troca de medidor nos meses comparados e interrupções dos últimos 12 meses.' },
       ]} nota="Os valores vêm dos dados do portal; a IA só reescreve as frases e não pode citar número que não esteja neles." />}>
       {loading ? <LoadingState label="Gerando insights…" />

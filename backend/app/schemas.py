@@ -507,12 +507,46 @@ class PerguntaIn(BaseModel):
     sessao_id: str | None = None
 
 
+class EtapaAuditoriaIa(BaseModel):
+    codigo: str
+    nome: str
+    status: Literal["completed", "blocked", "skipped", "error", "cache_hit"]
+    detalhe: str | None = None
+    duracao_ms: float | None = None
+
+
+class TentativaProvedorIa(BaseModel):
+    fase: str | None = None
+    provedor: str
+    modelo: str
+    tentativa: int
+    iniciada_em: datetime
+    sucesso: bool
+    latencia_ms: float | None = None
+    tipo_erro: str | None = None
+
+
+class AuditoriaIa(BaseModel):
+    request_id: str
+    resultado: str
+    etapa_final: str
+    duracao_ms: float
+    cache_hit: bool
+    regeneracoes: int
+    linhas_retornadas: int | None = None
+    resultado_truncado: bool | None = None
+    persistencia: Literal["salva", "indisponivel", "falha"]
+    etapas: list[EtapaAuditoriaIa] = Field(default_factory=list)
+    tentativas_provedor: list[TentativaProvedorIa] = Field(default_factory=list)
+
+
 class RespostaOut(BaseModel):
     status: Literal["ok", "nao_sei", "nao_implementado"]
     resposta: str
     sql_executado: str | None = None
-    fontes: list[str] = []
+    fontes: list[str] = Field(default_factory=list)
     visualizacao: dict | None = None
+    auditoria: AuditoriaIa | None = None
 
 
 class Insight(BaseModel):

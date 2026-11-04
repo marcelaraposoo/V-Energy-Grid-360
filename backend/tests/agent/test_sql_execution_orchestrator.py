@@ -103,6 +103,8 @@ def test_successful_flow_executes_once(monkeypatch):
 
     assert flow.executed is True
     assert flow.sql == GOOD_SQL
+    assert flow.execution_result == flow.outcome.result
+    assert flow.execution_elapsed_ms == flow.outcome.elapsed_ms
     assert flow.regenerations == 0
     assert executed == [GOOD_SQL]
     assert feedbacks == [None]
@@ -122,6 +124,24 @@ def test_non_ready_generation_is_not_executed(monkeypatch):
     assert flow.executed is False
     assert flow.generation_status == SQLGenerationStatus.OUT_OF_SCOPE
     assert executed == []
+
+
+def test_pair_check_clarification_preserves_successful_execution_metadata(monkeypatch):
+    zero = SQLExecutionOutcome(
+        status=SQLExecutionStatus.SUCCESS,
+        result=QueryExecutionResult(columns=["n"], rows=[[0]], row_count=1),
+        elapsed_ms=12.5,
+    )
+    _install(monkeypatch, [(_ready(GOOD_SQL), None)], [zero])
+    monkeypatch.setattr(orchestrator, "extract_pair", lambda sql: ("Recife", "Centro"))
+    monkeypatch.setattr(orchestrator, "lookup_pair", lambda *args, **kwargs: ("missing", None))
+
+    flow = _run()
+
+    assert flow.generation_status == SQLGenerationStatus.NEEDS_CLARIFICATION
+    assert flow.outcome is None
+    assert flow.execution_result == zero.result
+    assert flow.execution_elapsed_ms == 12.5
 
 
 def test_provider_error_stops_the_flow(monkeypatch):

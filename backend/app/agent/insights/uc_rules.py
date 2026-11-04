@@ -1,14 +1,16 @@
 """Insights da Visão 360: interpretam os números da UC em vez de repeti-los.
 
 Cada regra só entra quando se aplica à UC: por que a conta mudou (consumo × preço), se o consumo está
-no padrão (sazonalidade), troca de medidor e interrupções. Os números saem da Gold; a IA, quando ligada,
+no padrão (média recente e o mesmo mês do ano anterior), troca de medidor e interrupções. Os números saem da Gold; a IA, quando ligada,
 só reescreve o texto.
 """
 from app.schemas import Insight, Visao360
 
 _MESES = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
 LIMITE_VARIACAO = 10    # abaixo disso (em %), o consumo está "em linha" com a média
-LIMITE_SAZONAL = 15     # diferença máxima (em pontos) entre as variações dos dois anos para ser "sazonal"
+LIMITE_SAZONAL = 15     # diferença máxima (em pontos) entre as variações dos dois anos para serem "semelhantes"
+JANELA_MEDIA = 6        # meses antes da competência que entram na média
+LIMITE_EFEITO = 0.05    # efeito menor que 5% do maior não é citado (R$ 0,01 de preço numa alta de R$ 28 é ruído)
 
 
 def _br(value: float, decimals: int = 0) -> str:
@@ -52,10 +54,18 @@ def _consumo(fatura: dict | None) -> float | None:
     return fatura.get("consumo_kwh") if fatura else None
 
 
-def _media_6_meses(por_mes: dict[str, dict], competencia: str) -> float | None:
-    """Média do consumo nos 6 meses antes da competência; com menos de 3 faturas, sem média."""
-    valores = [c for n in range(1, 7) if (c := _consumo(por_mes.get(_deslocar(competencia, -n)))) is not None]
-    return sum(valores) / len(valores) if len(valores) >= 3 else None
+def _media_6_meses(por_mes: dict[str, dict], competencia: str) -> tuple[float, int] | None:
+    """Média do consumo nos 6 meses antes da competência e quantas faturas entraram nela; com menos
+    de 3 faturas, sem média."""
+    valores = [c for n in range(1, JANELA_MEDIA + 1) if (c := _consumo(por_mes.get(_deslocar(competencia, -n)))) is not None]
+    return (sum(valores) / len(valores), len(valores)) if len(valores) >= 3 else None
+
+
+def _descricao_media(qtd_meses: int) -> str:
+    """Com histórico incompleto, o texto diz quantos meses entraram na média."""
+    if qtd_meses == JANELA_MEDIA:
+        return f"média dos {JANELA_MEDIA} meses anteriores"
+    return f"média dos {qtd_meses} meses com fatura entre os {JANELA_MEDIA} anteriores"
 
 
 def _nome_bandeira(bandeira: str) -> str:
@@ -77,19 +87,35 @@ def _decomposicao(atual: dict | None, ref: dict | None, mes_atual: str, mes_ref:
     if round(variacao, 2) == 0:
         return None
 
-    def parte(valor: float, sujeito_maior: str, sujeito_menor: str, igual: str) -> str:
-        if round(valor, 2) == 0:
-            return igual
-        return f"{sujeito_maior if valor > 0 else sujeito_menor} {'somou' if valor > 0 else 'reduziu'} R$ {_br(abs(valor), 2)}"
+    # Cada efeito com a causa e o valor: "do consumo menor (R$ 2,50 a menos)".
+    efeitos = [
+        (round(efeito_consumo, 2), "consumo maior" if efeito_consumo > 0 else "consumo menor"),
+        (round(efeito_preco, 2), "kWh mais caro" if efeito_preco > 0 else "kWh mais barato"),
+    ]
+    efeitos = sorted((e for e in efeitos if e[0] != 0), key=lambda e: -abs(e[0]))
+    citados = [e for e in efeitos if abs(e[0]) >= LIMITE_EFEITO * abs(efeitos[0][0])] if efeitos else []
+
+    def com_valor(efeito: tuple[float, str]) -> str:
+        return f"{efeito[1]} (R$ {_br(abs(efeito[0]), 2)} a {'mais' if efeito[0] > 0 else 'menos'})"
+
+    mudanca = "alta" if variacao > 0 else "queda"
+    if len(citados) == 1:
+        explicacao = f"a {mudanca} veio {'toda' if len(efeitos) == 1 else 'quase toda'} do {citados[0][1]}"
+    elif (citados[0][0] > 0) == (citados[1][0] > 0):
+        explicacao = f"a {mudanca} veio do {com_valor(citados[0])} e do {com_valor(citados[1])}"
+    else:
+        # Sinais opostos: quem puxou a variação vem primeiro; o outro compensou em parte.
+        principal, compensou = sorted(citados, key=lambda e: (e[0] > 0) != (variacao > 0))
+        explicacao = f"a {mudanca} veio do {com_valor(principal)}, compensada em parte pelo {com_valor(compensou)}"
 
     texto = (
-        f"A energia da conta {'subiu' if variacao > 0 else 'caiu'} R$ {_br(abs(variacao), 2)} em relação a {mes_ref}: "
-        f"{parte(efeito_consumo, 'o consumo maior', 'o consumo menor', 'o consumo não mudou')} e "
-        f"{parte(efeito_preco, 'o preço mais alto do kWh', 'o preço mais baixo do kWh', 'o preço do kWh não mudou')}"
+        f"O valor da energia na conta de {mes_atual} ficou R$ {_br(abs(variacao), 2)} "
+        f"{'maior' if variacao > 0 else 'menor'} que em {mes_ref}: {explicacao}"
     )
     bandeira, bandeira_ref = atual.get("bandeira"), ref.get("bandeira")
-    if bandeira and bandeira_ref and bandeira != bandeira_ref:
-        texto += f" (bandeira {_nome_bandeira(bandeira)} em {mes_atual}, contra {_nome_bandeira(bandeira_ref)} em {mes_ref})"
+    # A bandeira explica o preço: só entra quando o efeito do preço é citado.
+    if bandeira and bandeira_ref and bandeira != bandeira_ref and any(e[1].startswith("kWh") for e in citados):
+        texto += f", com bandeira {_nome_bandeira(bandeira)} em {mes_atual}, contra {_nome_bandeira(bandeira_ref)} em {mes_ref}"
 
     if variacao > 0 and efeito_preco > 0 and efeito_preco >= abs(efeito_consumo):
         tipo = "destaque"  # a alta veio do preço, não do consumo: a resposta típica ao "a conta veio alta"
@@ -112,28 +138,34 @@ def _decomposicao(atual: dict | None, ref: dict | None, mes_atual: str, mes_ref:
 
 def _sazonalidade(por_mes: dict[str, dict], atual: str, ref: str | None, mes_atual: str, mes_ref: str, meses: dict) -> Insight | None:
     """O consumo do mês está no padrão? Compara com a média dos 6 meses anteriores e, se a referência é o
-    mesmo mês do ano anterior, com a variação que ele teve: parecida = sazonal; diferente = fora do padrão."""
-    consumo, media = _consumo(por_mes.get(atual)), _media_6_meses(por_mes, atual)
+    mesmo mês do ano anterior, com a variação que ele teve: parecida = semelhante ao ano anterior (o que,
+    sozinho, não prova sazonalidade); diferente = fora do padrão."""
+    consumo, janela = _consumo(por_mes.get(atual)), _media_6_meses(por_mes, atual)
+    media, qtd_meses = janela or (None, 0)
     variacao = _variacao(consumo, media)
     if variacao is None:
         return None
-    dados = {"consumo_atual_kwh": consumo, "consumo_medio_6m_kwh": round(media, 2), "variacao_6m_pct": round(variacao, 2), **meses}
+    dados = {"consumo_atual_kwh": consumo, "consumo_medio_6m_kwh": round(media, 2), "variacao_6m_pct": round(variacao, 2),
+             "meses_na_media": qtd_meses, "janela_media_meses": JANELA_MEDIA, **meses}
     if abs(variacao) < LIMITE_VARIACAO:
         return Insight(tipo="informativo", dados=dados,
-                       texto=f"O consumo de {mes_atual} está em linha com a média dos 6 meses anteriores ({_br(media)} kWh).")
+                       texto=f"O consumo de {mes_atual} está em linha com a {_descricao_media(qtd_meses)} ({_br(media)} kWh).")
 
-    texto = f"O consumo de {mes_atual} ficou {_pct(variacao)} {'acima' if variacao > 0 else 'abaixo'} da média dos 6 meses anteriores ({_br(media)} kWh)"
-    variacao_ref = None
-    if ref and ref == _deslocar(atual, -12):
-        variacao_ref = _variacao(_consumo(por_mes.get(ref)), _media_6_meses(por_mes, ref))
+    texto = (f"O consumo de {mes_atual} ficou {_pct(variacao)} {'acima' if variacao > 0 else 'abaixo'} "
+             f"da {_descricao_media(qtd_meses)} ({_br(media)} kWh)")
+    variacao_ref, janela_ref = None, None
+    if ref and ref == _deslocar(atual, -12) and (janela_ref := _media_6_meses(por_mes, ref)):
+        variacao_ref = _variacao(_consumo(por_mes.get(ref)), janela_ref[0])
     if variacao_ref is None:
         return Insight(tipo="alerta" if variacao >= 20 else "informativo", dados=dados, texto=texto + ".")
 
-    dados |= {"variacao_6m_referencia_pct": round(variacao_ref, 2)}
-    lado_ref = "acima" if variacao_ref > 0 else "abaixo"
+    qtd_ref = janela_ref[1]
+    dados |= {"variacao_6m_referencia_pct": round(variacao_ref, 2), "meses_na_media_referencia": qtd_ref}
+    # A média do ano anterior também pode ter histórico incompleto: aí o texto diz quantos meses entraram.
+    lado_ref = f"{'acima' if variacao_ref > 0 else 'abaixo'}{'' if qtd_ref == JANELA_MEDIA else ' da ' + _descricao_media(qtd_ref)}"
     if (variacao > 0) == (variacao_ref > 0) and abs(variacao - variacao_ref) <= LIMITE_SAZONAL:
         return Insight(tipo="informativo", dados=dados,
-                       texto=f"{texto}, mas o padrão é sazonal: em {mes_ref}, ficou {_pct(variacao_ref)} {lado_ref}.")
+                       texto=f"{texto}, comportamento semelhante ao observado no ano anterior (em {mes_ref}, ficou {_pct(variacao_ref)} {lado_ref}).")
     return Insight(tipo="alerta" if variacao > 0 else "destaque", dados=dados,
                    texto=f"{texto}, fora do padrão do ano anterior (em {mes_ref}, ficou {_pct(variacao_ref)} {lado_ref}).")
 

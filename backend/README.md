@@ -22,6 +22,7 @@ A execução local com a Gold atualizada foi validada. A reprodução do process
 - [Outros blocos da Visão 360](#outros-blocos-da-visão-360)
 - [Testes e validação](#testes-e-validação)
 - [Premissas e limitações](#premissas-e-limitações)
+- [Documentação relacionada](#documentação-relacionada)
 
 ## Requisitos
 
@@ -423,10 +424,11 @@ Os testes automatizados não substituem a validação manual dos fluxos da aplic
 - **Efeito-preço:** inclui reajuste, bandeira e mix de classes.
 - **Continuidade:** na Visão 360, DEC/FEC descrevem o alimentador; a quantidade e a duração do histórico descrevem a própria UC. A base mensal de UCs e o impacto em UC × horas acompanham os indicadores.
 - **Fila de perdas:** uma UC com ordem ativa sai da fila de suspeitas. Com a Gold, a ordem segue a `prioridade` e o `score` da `fila_inspecao`; no mock, o score de prioridade corresponde à probabilidade multiplicada pelos kWh/mês recuperáveis.
-- **IA:** a rota `/api/ia/perguntar` chama o agente em `app/agent/`, que consulta a Gold SQLite somente para leitura.
+- **IA:** `POST /api/ia/perguntar` está integrado ao pipeline do agente (`app/agent/`), que consulta a Gold SQLite somente para leitura, e devolve a resposta aprovada. A auditoria por requisição é descrita em [`docs/auditoria-assistente-ia.md`](docs/auditoria-assistente-ia.md). O endpoint `DELETE /api/ia/sessoes/{sessao_id}` ainda não realiza a limpeza da memória conversacional.
 - **Gold:** a execução local com a Gold atualizada foi validada. A geração da Gold segue o procedimento de DADOS (README principal).
 
 ## Documentação relacionada
 
 - [`docs/contrato-gold.md`](docs/contrato-gold.md): mapeamento das tabelas, campos, consultas e limitações da Gold.
+- [`docs/auditoria-assistente-ia.md`](docs/auditoria-assistente-ia.md): rastro do pipeline C1–C7, persistência C7, contrato HTTP, interface e limites de segurança da auditoria.
 - README principal do repositório: visão geral do produto, arquitetura, módulos e instruções para executar a aplicação completa.

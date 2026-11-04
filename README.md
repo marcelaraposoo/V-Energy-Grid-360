@@ -235,6 +235,14 @@ independentes, cada uma documentada em `backend/app/agent/docs/`:
 | [C6](backend/app/agent/docs/C6-pos-processamento.md) | Pós-processamento e visualização |
 | [C7](backend/app/agent/docs/C7-finalizacao.md) | Memória da conversa, cache e auditoria |
 
+**Como usar.** No portal, abra **Assistente IA** (`/assistente`) e pergunte em português (pela API:
+`POST /api/ia/perguntar` com `{"pergunta": "..."}`). O agente precisa de:
+
+- `GEMINI_API_KEY` no `backend/.env` (`OPENROUTER_API_KEY` é opcional, para o fallback). Sem chave, o resto do
+  portal funciona, mas o Assistente fica sem provedor de IA.
+- O `gold.db` no `SQLITE_PATH`: o agente sempre consulta a Gold, mesmo com `DATA_SOURCE=mock`. No Docker isso já
+  está configurado; no desenvolvimento local, coloque o arquivo em `backend/data/gold.db` (caminho padrão).
+
 **Honestidade.** Quando não há dado para responder, o agente diz que não sabe em vez de inventar. Perguntas fora
 do escopo (por exemplo, esportes) e tentativas de manipulação ("ignore as instruções anteriores…") são recusadas.
 
@@ -246,11 +254,13 @@ por último, Gemini `gemini-3.1-flash-lite`. `PROVIDER_PAYLOAD_POLICY=confidenti
 gratuito que pode reter dados. Use `synthetic` somente com dados artificiais.
 
 **Auditoria.** Cada pergunta é gravada na tabela `agent_audit` do `portal.db`, com a pergunta, o desfecho, o SQL
-executado e a resposta final. Para consultar no Docker:
+executado e a resposta final. Fora do Docker, o arquivo fica em `backend/data/portal.db`. Para consultar no Docker:
 
 ```bash
 docker compose exec backend python -c "import sqlite3; c=sqlite3.connect('file:/data/portal/portal.db?mode=ro', uri=True); [print(r) for r in c.execute('select timestamp, question, outcome, sql from agent_audit order by timestamp desc limit 5')]"
 ```
+
+Com `LOGFIRE_ENABLED=true` e `LOGFIRE_TOKEN` no `backend/.env`, cada etapa do agente também é rastreada no Logfire.
 
 **Insights no portal.** Os números dos insights são calculados em Python a partir da Gold (por isso fiéis aos
 dados) e o texto pode ser reescrito pelo modelo, com validação contra os valores originais. Eles aparecem na

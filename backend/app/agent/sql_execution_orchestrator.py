@@ -2,6 +2,12 @@ from app.agent.providers.latency_policy import provider_phase
 import re
 from app.core.observability import observe
 
+from app.agent.pair_check import (
+    clarification_message,
+    extract_pair,
+    is_empty_or_zero,
+    lookup_pair,
+)
 from app.agent.guardrails.sql_guardrail import (
     build_retry_feedback,
     validate_sql,
@@ -198,6 +204,22 @@ async def generate_validate_and_execute(
                 feedback = retry_feedback
                 regenerations += 1
                 continue
+
+        if outcome.result is not None and is_empty_or_zero(
+            outcome.result.columns, outcome.result.rows
+        ):
+            pair = extract_pair(generation.sql)
+            if pair is not None:
+                lookup = lookup_pair(*pair, database_path=database_path)
+                if lookup is not None and lookup[0] != "exists":
+                    return SQLExecutionFlowResult(
+                        generation_status=SQLGenerationStatus.NEEDS_CLARIFICATION,
+                        generation_reason=clarification_message(
+                            lookup[0], None, lookup[1]
+                        ),
+                        sql=generation.sql,
+                        regenerations=regenerations,
+                    )
 
         return SQLExecutionFlowResult(
             generation_status=generation.status,

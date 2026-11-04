@@ -342,10 +342,6 @@ docker compose config --quiet
 - **Fila de inspeção:** os sinais seguem o contrato da Gold, mas os pesos e os limiares da regra `v1` são decisão do time, validada só retrospectivamente nas 1.389 inspeções da base.
 - **Checagens com números desta extração:** várias checagens usam contagens fixas (45.000 UCs, 180.000 ocorrências). Com dados novos, elas precisariam virar regras relativas (não diminuir, fechar com a Silver).
 
-## Fora do escopo desta entrega
-
-- Login com perfis de acesso por cargo (diferencial do case)
-
 ## Como contribuir
 
 - Uma branch por tarefa (`dados/...`, `dev/...`, `ia/...`) e PR para `main` com 1 revisão.

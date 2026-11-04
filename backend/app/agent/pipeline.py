@@ -252,8 +252,37 @@ async def answer_question(
             dependencies=dependencies,
             memory_context=memory_context,
         )
+        from app.agent.conversation import financial_clarification, resolve_followup, delta, operational_expenses
+        from app.agent.geography import geographic_clarification
+        change = delta(clean_question)
+        if change and change[0] == "visualization":
+            previous = None
+            if session_id and dependencies.memory_store is not None:
+                import asyncio
+                try:
+                    async with asyncio.timeout(dependencies.memory_timeout_seconds):
+                        turns = await dependencies.memory_store.get_context(session_id)
+                    previous = turns[-1] if turns else None
+                except Exception:
+                    pass
+            if (previous is not None and previous.outcome == AgentOutcome.ANSWERED
+                and previous.approved_visualization is not None
+                and previous.data_version is not None and previous.data_version == dependencies.data_version):
+                return await finish(PipelineResult(status=PipelineStatus.ANSWERED,
+                    message="Aqui está o gráfico da última resposta aprovada.",
+                    visualization=previous.approved_visualization, stage=PipelineStage.DONE), AgentOutcome.ANSWERED)
+            return await finish(_no_answer("Não tenho uma visualização aprovada disponível para essa referência. Faça novamente a consulta desejada.", PipelineStage.SQL_GENERATION), AgentOutcome.NEEDS_CLARIFICATION)
+        if operational_expenses(clean_question):
+            return await finish(_no_answer("A Gold disponível não contém despesas operacionais. Não posso responder essa métrica com dados de faturamento.", PipelineStage.SQL_GENERATION), AgentOutcome.INSUFFICIENT_CONTEXT)
+        resolved_question = resolve_followup(clean_question, state.memory_context)
+        clarification = financial_clarification(clean_question, state.memory_context)
+        if clarification is None:
+            clarification = geographic_clarification(resolved_question, database_path)
+        if clarification:
+            return await finish(_no_answer(clarification, PipelineStage.SQL_GENERATION), AgentOutcome.NEEDS_CLARIFICATION)
         if state.cached_response is not None:
             cached = state.cached_response
+            processed = cached
             return await finish(PipelineResult(
                 status=PipelineStatus.ANSWERED,
                 message=cached.answer,
@@ -305,6 +334,7 @@ async def answer_question(
 
         if flow.cached_response is not None:
             cached = flow.cached_response
+            processed = cached
             return await finish(PipelineResult(
                 status=PipelineStatus.ANSWERED, message=cached.answer,
                 stage=PipelineStage.DONE, assumptions=tuple(cached.assumptions),
@@ -332,7 +362,7 @@ async def answer_question(
         query_result = flow.outcome.result
         stage = PipelineStage.SYNTHESIS
         synthesis_flow = await synthesize_and_validate(
-            question=clean_question, sql=flow.sql, result=query_result,
+            question=resolve_followup(clean_question, state.memory_context), sql=flow.sql, result=query_result,
         )
         regenerations += synthesis_flow.regenerations
         provider_attempts += tuple(

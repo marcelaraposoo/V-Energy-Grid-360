@@ -720,7 +720,7 @@ def test_all_terminal_paths_finalize_once_with_one_request_id(monkeypatch, case,
     assert record.final_answer == result.message
     assert record.timestamp.utcoffset().total_seconds() == 0
     assert deps.memory_store.append.await_count == int(expected in {
-        AgentOutcome.ANSWERED, AgentOutcome.NO_DATA, AgentOutcome.NEEDS_CLARIFICATION,
+        AgentOutcome.ANSWERED, AgentOutcome.NO_DATA, AgentOutcome.NEEDS_CLARIFICATION, AgentOutcome.OUTPUT_BLOCKED, AgentOutcome.INSUFFICIENT_CONTEXT,
     })
     assert deps.cache_store.set.await_count == int(expected == AgentOutcome.ANSWERED)
     if case in {"provider_error", "synthesis_provider_error"}:
@@ -930,7 +930,7 @@ def _replay_dependencies():
 
 
 @pytest.mark.parametrize("question", [
-    "Quantas unidades há?", "Quais os 3 meses com mais gastos?", "E no mês anterior?",
+    "Quantas unidades há?", "Quais os 3 meses com maiores valores faturados?", "E no mês anterior?",
 ])
 def test_repetition_with_own_memory_transition_is_not_proof_of_equivalence(monkeypatch, question):
     calls = _install(monkeypatch)
@@ -947,7 +947,7 @@ def test_repetition_with_own_memory_transition_is_not_proof_of_equivalence(monke
 
 
 @pytest.mark.parametrize("question", [
-    "Quantas unidades há?", "Quais os 3 meses com mais gastos?", "E no mês anterior?",
+    "Quantas unidades há?", "Quais os 3 meses com maiores valores faturados?", "E no mês anterior?",
 ])
 def test_exact_effective_context_hits_generically_without_renewing_ttl(monkeypatch, question):
     calls = _install(monkeypatch)
@@ -976,7 +976,7 @@ def test_repeat_cache_does_not_cross_boundaries(monkeypatch, change):
     from app.agent.schemas import MemoryEntry
     _install(monkeypatch)
     deps = _replay_dependencies()
-    question = "Quais os 3 meses com mais gastos?"
+    question = "Quais os 3 meses com maiores valores faturados?"
     _ask(question, session_id="s1", state_dependencies=deps)
     session = "s1"
     if change == "session":
@@ -996,8 +996,8 @@ def test_repeat_cache_does_not_cross_boundaries(monkeypatch, change):
 
 
 @pytest.mark.parametrize("question", [
-    "E no mês anterior?", "Quais os 3 meses com mais gastos nesse município?",
-    "Quais os 3 meses com mais gastos para ela?", "E os 3 meses com mais gastos?",
+    "E no mês anterior?", "Quais os 3 meses com maiores valores faturados nesse município?",
+    "Quais os 3 meses com maiores valores faturados para ela?", "E os 3 meses com maiores valores faturados?",
 ])
 def test_contextual_repetitions_do_not_discard_memory(monkeypatch, question):
     calls = _install(monkeypatch)
@@ -1014,7 +1014,7 @@ def test_repetition_preserves_original_prior_context(monkeypatch):
     deps.memory_store.entries["s1"] = [MemoryEntry(
         question="Contexto anterior.", answer="Conversa anterior.", outcome=AgentOutcome.ANSWERED,
     )]
-    question = "Quais os 3 meses com mais gastos?"
+    question = "Quais os 3 meses com maiores valores faturados?"
     _ask(question, session_id="s1", state_dependencies=deps)
     assert not _ask(question, session_id="s1", state_dependencies=deps).cache_hit
 
@@ -1022,7 +1022,7 @@ def test_repetition_preserves_original_prior_context(monkeypatch):
 def test_full_memory_of_duplicates_cannot_reconstruct_original_context(monkeypatch):
     _install(monkeypatch)
     deps = _replay_dependencies()
-    question = "Quais os 3 meses com mais gastos?"
+    question = "Quais os 3 meses com maiores valores faturados?"
     _ask(question, session_id="s1", state_dependencies=deps)
     entry = deps.memory_store.entries["s1"][0]
     deps.memory_store.entries["s1"] = [entry] * 20
@@ -1070,7 +1070,7 @@ def test_same_session_concurrent_answers_do_not_create_recovery_proof(monkeypatc
             await ready.wait()
             return entries
         deps.memory_store.get_context = snapshot
-        question = "Quais os 3 meses com mais gastos?"
+        question = "Quais os 3 meses com maiores valores faturados?"
         first, second = await asyncio.gather(*[
             pipeline.answer_question(question, session_id="s1", state_dependencies=deps)
             for _ in range(2)
@@ -1090,7 +1090,7 @@ def test_same_session_concurrent_answers_do_not_create_recovery_proof(monkeypatc
 
 
 
-@pytest.mark.parametrize("question", ["Quantas unidades há?", "Quais os 3 meses com mais gastos?", "E no mês anterior?"])
+@pytest.mark.parametrize("question", ["Quantas unidades há?", "Quais os 3 meses com maiores valores faturados?", "E no mês anterior?"])
 def test_answer_can_be_reused_after_another_question_only_when_effective_context_matches(monkeypatch, question):
     calls = _install(monkeypatch)
     deps = replace(_replay_dependencies(), memory_store=None)

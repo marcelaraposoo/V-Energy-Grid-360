@@ -6,6 +6,8 @@ from app.agent.schemas import AgentOutcome, MemoryEntry
 MEMORY_ELIGIBLE_OUTCOMES = {
     AgentOutcome.ANSWERED,
     AgentOutcome.NO_DATA,
+    AgentOutcome.OUTPUT_BLOCKED,
+    AgentOutcome.INSUFFICIENT_CONTEXT,
     AgentOutcome.NEEDS_CLARIFICATION,
 }
 

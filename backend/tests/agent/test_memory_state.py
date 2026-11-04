@@ -28,7 +28,7 @@ def test_input_blocked_is_not_stored_in_memory():
     )
 
 
-def test_output_blocked_is_not_stored_in_memory():
-    assert not should_store_in_memory(
+def test_output_blocked_preserves_only_pending_intent():
+    assert should_store_in_memory(
         AgentOutcome.OUTPUT_BLOCKED
     )

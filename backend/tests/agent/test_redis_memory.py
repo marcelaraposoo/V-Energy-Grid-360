@@ -57,7 +57,7 @@ def test_only_eligible_outcomes_are_appended(redis, outcome):
     client, tx = redis
     asyncio.run(RedisMemoryStore("redis://redis").append("s1", _entry(outcome=outcome)))
     assert client.eval.await_count == int(outcome in {
-        AgentOutcome.ANSWERED, AgentOutcome.NO_DATA, AgentOutcome.NEEDS_CLARIFICATION,
+        AgentOutcome.ANSWERED, AgentOutcome.NO_DATA, AgentOutcome.NEEDS_CLARIFICATION, AgentOutcome.OUTPUT_BLOCKED, AgentOutcome.INSUFFICIENT_CONTEXT,
     })
 
 

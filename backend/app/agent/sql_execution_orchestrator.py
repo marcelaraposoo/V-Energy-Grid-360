@@ -141,6 +141,8 @@ async def generate_validate_and_execute(
                 provider_attempts=provider_attempts,
             )
 
+        from app.agent.aggregate_query import optimize_consumption
+        generation = generation.model_copy(update={"sql": optimize_consumption(generation.sql)})
         # ----- 4.2: guardrail do SQL -----
         guardrail = validate_sql(generation.sql)
 

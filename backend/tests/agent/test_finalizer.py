@@ -321,7 +321,7 @@ def test_set_timeout_does_not_break_finalization():
     assert cache.values == []
 
 
-def test_default_ttl_is_300_seconds():
+def test_default_ttl_is_24_hours():
     cache = FakeCacheStore()
     value = _cache_value()
     _run(
@@ -330,4 +330,19 @@ def test_default_ttl_is_300_seconds():
         cache_data_version="gold-v1", cache_response_complete=True,
     )
 
-    assert cache.values == [("cache-key", value, 300)]
+    assert cache.values == [("cache-key", value, 86400)]
+
+
+@pytest.mark.parametrize("sql", ["SELECT CURRENT_DATE", "SELECT RANDOM()", "SELECT DATE('now')"])
+def test_runtime_clock_and_random_results_are_not_cached_but_are_audited(sql):
+    cache = FakeCacheStore()
+    audit = FakeAuditStore()
+    memory = FakeMemoryStore()
+    _run(
+        audit_store=audit, audit_record=_audit().model_copy(update={"sql": sql}),
+        memory_store=memory, memory_entry=_memory_entry(),
+        cache_store=cache, cache_key="cache-key", cache_value=_cache_value(),
+        cache_data_version="gold-v1", cache_response_complete=True,
+    )
+    assert cache.values == []
+    assert len(audit.records) == len(memory.entries) == 1

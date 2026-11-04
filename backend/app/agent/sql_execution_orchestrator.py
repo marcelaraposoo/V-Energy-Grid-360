@@ -1,4 +1,6 @@
+from app.agent.providers.latency_policy import provider_phase
 import re
+from app.core.observability import observe
 
 from app.agent.guardrails.sql_guardrail import (
     build_retry_feedback,
@@ -75,12 +77,15 @@ def build_execution_retry_feedback(
     )
 
 
+@observe("sql_flow")
+@provider_phase("sql")
 async def generate_validate_and_execute(
     question: str,
     database_context: str,
     memory_context: str | None = None,
     *,
     database_path: str | None = None,
+    cache_lookup=None,
 ) -> SQLExecutionFlowResult:
     """
     Orquestra as etapas 4.1, 4.2 e 4.3.
@@ -160,6 +165,20 @@ async def generate_validate_and_execute(
             feedback = retry_feedback
             regenerations += 1
             continue
+
+        if cache_lookup is not None:
+            try:
+                cached = await cache_lookup(generation.sql)
+            except Exception:
+                from app.agent.state.sql_cache import record_cache
+                record_cache("redis_error", "post_sql")
+                cached = None
+            if cached is not None:
+                return SQLExecutionFlowResult(
+                    generation_status=generation.status, sql=generation.sql,
+                    cached_response=cached, regenerations=regenerations,
+                    provider_attempts=provider_attempts,
+                )
 
         # ----- 4.3: execução -----
         kwargs = (

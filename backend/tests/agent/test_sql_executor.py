@@ -344,3 +344,42 @@ def test_normal_tables_are_still_readable_after_the_internal_block(db_path):
     outcome = _execute("SELECT COUNT(*) FROM municipios", db_path)
 
     assert outcome.status == SQLExecutionStatus.SUCCESS
+
+def test_default_sql_deadline_interrupts_scan_without_poisoning_next_query(db_path, monkeypatch, caplog):
+    # Relógio controlado: estoura 10 s no primeiro callback da VM, sem esperar.
+    ticks = iter([0., 0.])
+    monkeypatch.setattr(sql_executor, "perf_counter", lambda: next(ticks, 11.))
+    outcome = _execute(
+        "SELECT SUM(a.n * b.n * c.n) FROM numeros a CROSS JOIN numeros b CROSS JOIN numeros c",
+        db_path,
+    )
+    assert sql_executor.DEFAULT_TIMEOUT_SECONDS == 10.
+    assert outcome.status == SQLExecutionStatus.FAILED
+    assert outcome.error_type == SQLExecutionErrorType.TIMEOUT
+    assert outcome.result is None
+    assert "SELECT" not in caplog.text
+    monkeypatch.undo()
+    following = _execute("SELECT SUM(n) AS total FROM numeros", db_path)
+    assert following.status == SQLExecutionStatus.SUCCESS
+    assert following.result.rows == [[1275]]
+
+
+def test_monthly_aggregate_preserves_detail_totals_in_synthetic_fixture(tmp_path):
+    path = tmp_path / "synthetic.db"
+    with sqlite3.connect(path) as db:
+        db.executescript("""
+            CREATE TABLE fato_consumo_faturamento (mes_referencia TEXT, valor_total REAL);
+            INSERT INTO fato_consumo_faturamento VALUES ('2026-01', 2), ('2026-01', 3), ('2026-02', 4);
+            CREATE TABLE kpis_mensal AS SELECT mes_referencia, SUM(valor_total) AS receita_total
+            FROM fato_consumo_faturamento GROUP BY mes_referencia;
+        """)
+    detail = _execute(
+        "SELECT mes_referencia, SUM(valor_total) FROM fato_consumo_faturamento GROUP BY mes_referencia ORDER BY 2 DESC LIMIT 3",
+        str(path),
+    )
+    aggregate = _execute(
+        "SELECT mes_referencia, SUM(receita_total) FROM kpis_mensal GROUP BY mes_referencia ORDER BY 2 DESC LIMIT 3",
+        str(path),
+    )
+    assert detail.status == aggregate.status == SQLExecutionStatus.SUCCESS
+    assert detail.result.rows == aggregate.result.rows

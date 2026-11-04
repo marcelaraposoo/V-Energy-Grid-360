@@ -17,6 +17,15 @@ _MONTH_YEAR_PATTERN = re.compile(
     r"\b(0?[1-9]|1[0-2])/((?:19|20)\d{2})\b"
 )
 
+_MONTH_NAMES = (
+    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+)
+_NAMED_DATE_PATTERN = re.compile(
+    r"\b(?:(0?[1-9]|[12]\d|3[01]) de )?(" + "|".join(_MONTH_NAMES)
+    + r") de ((?:19|20)\d{2})\b", re.IGNORECASE,
+)
+
 # Numeração de listas no início da linha ("1. ", "2) ").
 _LIST_MARKER_PATTERN = re.compile(
     r"(?m)^[ \t]*\d{1,2}[.)][ \t]+"
@@ -84,12 +93,22 @@ def _from_month_year(match) -> ExtractedDate:
     )
 
 
+def _from_named_date(match) -> ExtractedDate:
+    day, month, year = match.groups()
+    return ExtractedDate(
+        raw=match.group(), year=int(year),
+        month=_MONTH_NAMES.index(month.lower()) + 1,
+        day=int(day) if day else None,
+    )
+
+
 # A ordem importa: uma data completa é consumida antes que o
 # "mês/ano" dentro dela possa ser lido de novo.
 _DATE_RULES = (
     (_ISO_DATE_PATTERN, _from_iso),
     (_FULL_DATE_PATTERN, _from_full_date),
     (_MONTH_YEAR_PATTERN, _from_month_year),
+    (_NAMED_DATE_PATTERN, _from_named_date),
 )
 
 

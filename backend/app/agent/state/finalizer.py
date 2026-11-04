@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from app.core.observability import observe, set_metadata
 
 from app.agent.schemas import (
     AuditRecord,
@@ -23,6 +24,7 @@ from app.agent.state.memory import (
 logger = logging.getLogger(__name__)
 
 
+@observe("C7")
 async def finalize(
     *,
     audit_store: AuditStore | None,
@@ -49,6 +51,12 @@ async def finalize(
     - falhas de persistência não impedem a resposta ao usuário.
     """
 
+    set_metadata(
+        request_id=audit_record.request_id, outcome=audit_record.outcome.value,
+        cache_hit=audit_record.cache_hit, row_count=audit_record.row_count,
+        truncated=audit_record.truncated, regenerations=audit_record.regenerations,
+    )
+
     try:
         if audit_store is not None:
             async with asyncio.timeout(2.0):
@@ -67,7 +75,16 @@ async def finalize(
     ):
         try:
             async with asyncio.timeout(memory_timeout_seconds):
-                await memory_store.append(audit_record.session_id, memory_entry)
+                append_turn = True
+                if audit_record.cache_hit:
+                    entries = await memory_store.get_context(audit_record.session_id)
+                    if entries:
+                        last = entries[-1]
+                        append_turn = (last.question, last.answer, last.outcome) != (
+                            memory_entry.question, memory_entry.answer, memory_entry.outcome,
+                        )
+                if append_turn:
+                    await memory_store.append(audit_record.session_id, memory_entry)
         except Exception as error:
             logger.warning(
                 "Falha ao persistir memória. error_type=%s",
@@ -86,6 +103,34 @@ async def finalize(
             response_complete=cache_response_complete,
         )
     ):
+        # Só a finalização elegível publica o certificado, após C4.2/C4.3/C5/C6.
+        from app.agent.state.cache_eligibility import prove_independence, independent_lookup_key
+        proof = prove_independence(audit_record.question, audit_record.sql)
+        from app.agent.state.sql_cache import sql_cache_plan, canonical_cache_sql, record_cache
+        if audit_record.sql is not None and canonical_cache_sql(audit_record.sql) is None:
+            record_cache("unsupported_plan", "post_sql")
+            return
+        plan = sql_cache_plan(audit_record.question, audit_record.sql, audit_record.session_id, cache_data_version)
+        approved_setter = getattr(cache_store, "set_approved", None)
+        if plan is not None and callable(approved_setter):
+            independent = None
+            if proof is not None:
+                independent = (independent_lookup_key(audit_record.question, audit_record.session_id, cache_data_version), proof)
+            try:
+                async with asyncio.timeout(cache_timeout_seconds):
+                    await approved_setter(cache_key, cache_value, cache_ttl_seconds, plan=plan, independent=independent)
+                return
+            except Exception as error:
+                logger.warning("Falha ao persistir cache por plano. error_type=%s", type(error).__name__)
+        setter = getattr(cache_store, "set_independent", None)
+        if proof is not None and audit_record.session_id and callable(setter):
+            lookup = independent_lookup_key(audit_record.question, audit_record.session_id, cache_data_version)
+            try:
+                async with asyncio.timeout(cache_timeout_seconds):
+                    await setter(cache_key, cache_value, cache_ttl_seconds, lookup_key=lookup, eligibility=proof)
+                return
+            except Exception as error:
+                logger.warning("Falha ao persistir cache independente. error_type=%s", type(error).__name__)
         await write_cache(
             cache_store,
             cache_key,

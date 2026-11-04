@@ -23,6 +23,7 @@ Evite `campo <= '2026-06-30'`, que excluiria registros com horário nesse dia.
 ### Bairro
 
 O mesmo bairro pode existir em municípios diferentes: use `municipio` junto com `bairro` quando o município estiver disponível. Não trate `bairro` como identificador global.
+Se o par `municipio` + `bairro` citado não existir em `dim_uc`, não afirme que o valor é zero: informe que não encontrou esse bairro nesse município e peça esclarecimento.
 
 ### Classe de consumo
 

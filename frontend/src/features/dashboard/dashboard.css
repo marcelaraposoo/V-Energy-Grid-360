@@ -5,9 +5,14 @@
 .dashboard-page .page-header {
   margin-bottom: 4px;
 }
+.dashboard-investigar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .dashboard-filters {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(2, minmax(0, 1.2fr)) minmax(0, 1fr) auto;
   align-items: end;
   gap: 14px 12px;
   padding: 20px;
@@ -160,6 +165,24 @@
   font-weight: 700;
   letter-spacing: -0.6px;
   overflow-wrap: anywhere;
+}
+.dashboard-operacao {
+  display: grid;
+  gap: 12px;
+}
+.dashboard-operacao-rodape {
+  display: flex;
+  justify-content: flex-end;
+}
+.dashboard-operacao-rodape .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dashboard-operacao-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
 .dashboard-charts {
   display: grid;
@@ -449,21 +472,104 @@
   line-height: 1.6;
   color: var(--text-muted);
 }
+.dashboard-classes-panel .segmented {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.dashboard-class-row--estatica,
+.dashboard-class-row--estatica:hover {
+  cursor: default;
+  background: transparent;
+}
+.dashboard-locais-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.dashboard-locais-rodape .link-button {
+  font-size: 11px;
+}
+
+/* Lista completa dos locais (modal) */
+.dialog.dashboard-locais-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: min(720px, calc(100dvh - 48px));
+  overflow: hidden;
+  border-radius: 14px;
+}
+.dashboard-locais-dialog-conteudo {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  max-height: min(718px, calc(100dvh - 50px));
+  padding: 22px;
+}
+.dashboard-locais-dialog-conteudo > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dashboard-locais-dialog-conteudo header p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.dashboard-locais-dialog-titulo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.dashboard-locais-dialog-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--accent-selected-bg, color-mix(in srgb, var(--accent) 5%, transparent));
+  color: var(--accent);
+}
+.dashboard-locais-dialog-lista {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 6px 2px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+.dashboard-locais-dialog-lista .dashboard-class-row {
+  padding: 6px 4px;
+}
+.dashboard-locais-dialog-referencia {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.dashboard-locais-dialog-rodape {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+}
 .dashboard-classes-panel > .feedback,
 .dashboard-classes-panel > .empty-state {
   flex: 1;
 }
-.dashboard-classes-tooltip {
-  width: min(360px, calc(100% - 24px));
-  max-width: calc(100% - 24px);
-}
-.dashboard-classes-tooltip > strong {
-  display: block;
-  margin-bottom: 6px;
-}
-.dashboard-classes-tooltip p {
-  flex-wrap: wrap;
-  gap: 4px 12px;
+@media (max-width: 1199px) {
+  .dashboard-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dashboard-operacao-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 1023px) {
   .dashboard-charts,
@@ -473,6 +579,7 @@
   }
 }
 @media (max-width: 767px) {
+  .dashboard-operacao-cards,
   .dashboard-filters {
     grid-template-columns: minmax(0, 1fr);
     padding: 18px;

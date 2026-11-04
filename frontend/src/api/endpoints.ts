@@ -10,6 +10,8 @@ import type {
   CatalogoFiltros,
   ContinuidadeParams,
   ConsumoClassesResponse,
+  ConsumoLocaisResponse,
+  OperacaoResponse,
   DashboardParams,
   FilaParams,
   Health,
@@ -51,6 +53,10 @@ export function createApi(http: Http) {
         http.get<CadastroGdResponse>('/api/dashboard/cadastro-gd', { params: prepararParametrosDashboard(params), signal }),
       consumoClasses: (params: DashboardParams = {}, signal?: AbortSignal) =>
         http.get<ConsumoClassesResponse>('/api/dashboard/consumo-classes', { params: prepararParametrosDashboard(params), signal }),
+      consumoLocais: (params: DashboardParams = {}, signal?: AbortSignal) =>
+        http.get<ConsumoLocaisResponse>('/api/dashboard/consumo-locais', { params: prepararParametrosDashboard(params), signal }),
+      operacao: (params: DashboardParams = {}, signal?: AbortSignal) =>
+        http.get<OperacaoResponse>('/api/dashboard/operacao', { params: prepararParametrosDashboard(params), signal }),
     },
 
     receita: {

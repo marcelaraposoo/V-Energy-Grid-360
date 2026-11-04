@@ -98,6 +98,49 @@ export type ConsumoClassesResponse = {
   classes: ConsumoClasse[]
 }
 
+export type ConsumoLocal = {
+  municipio: string
+  /** Só no nível bairro (com município escolhido). */
+  bairro: string | null
+  consumo_kwh: number | null
+  participacao_pct: number | null
+  consumo_referencia_kwh: number | null
+  variacao_pct: number | null
+  competencias_ausentes: Competencia[]
+}
+
+export type ConsumoLocaisResponse = {
+  periodo_atual: Periodo
+  periodo_base: Periodo | null
+  municipio: string | null
+  nivel: 'municipio' | 'bairro'
+  consumo_total_kwh: number | null
+  locais: ConsumoLocal[]
+}
+
+export type IndicadoresOperacao = {
+  qtd_atendimentos: number
+  qtd_avaliacoes: number
+  /** Média das notas dadas (1 a 5); nula sem avaliações. */
+  nota_satisfacao_media: number | null
+  dec_horas: number | null
+  fec_vezes: number | null
+  qtd_interrupcoes: number | null
+}
+
+export type OperacaoResponse = {
+  periodo_atual: Periodo
+  periodo_base: Periodo | null
+  municipio: string | null
+  atual: IndicadoresOperacao
+  base: IndicadoresOperacao | null
+  variacao_atendimentos_pct: number | null
+  /** Diferença da nota média, em pontos. */
+  variacao_satisfacao: number | null
+  variacao_dec_pct: number | null
+  variacao_fec_pct: number | null
+}
+
 export type AgruparPor = 'municipio' | 'bairro' | 'classe'
 
 /** Análise de Receita (`GET /api/receita/variacao`). Espelha backend/app/schemas.py.

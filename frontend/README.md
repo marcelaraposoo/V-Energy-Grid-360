@@ -26,7 +26,7 @@ sem manter uma segunda definição. Veja o [mapeamento da Gold](../backend/docs/
 - Consumo: últimas 12 competências disponíveis, com referência anual opcional, e o card
   **Insights da IA** (`InsightsUcCard.tsx`, rota `/api/ia/insights/uc/{uc}`), que substituiu o "A conta
   veio alta?": explica de onde veio a variação da conta em relação ao mesmo mês do ano anterior (consumo ×
-  preço do kWh, com a bandeira; P5), diz se o consumo está no padrão dos 6 meses anteriores ou é sazonal, e
+  preço do kWh, com a bandeira; P5), diz se o consumo está no padrão dos 6 meses anteriores e se a variação é semelhante à do ano anterior, e
   aponta troca de medidor e interrupções (`insights.ts` escolhe os meses).
 - Faturas: abas Recentes e Histórico completo, em lista com a bandeira de cada competência; paginação de 6 registros no backend,
   resumo de pendências de todo o histórico e modal ao clicar na competência (`FaturaDialog.tsx`: valores,

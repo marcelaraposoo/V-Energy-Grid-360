@@ -55,7 +55,7 @@ flowchart LR
 | `frontend/` | Portal em React + TypeScript (Vite) |
 | `docs/` | Dicionário de dados, log de qualidade, diagnóstico da receita, guia de Docker e imagens |
 | `compose.yaml` | Stack completa: backend, frontend (nginx) e Redis |
-| `.github/workflows/ci.yml` | CI: guarda de segredos, testes do backend e do frontend, build das imagens Docker |
+| `.github/workflows/ci.yml` | CI: guarda de arquivos e segredos, testes do backend, lint e build do frontend |
 
 ## Como executar
 
@@ -91,17 +91,23 @@ Pré-requisitos: Docker Desktop (engine Linux) com Compose v2 e a porta 8080 liv
 estar instalados. Detalhes e solução de problemas em [docs/dockerizacao.md](docs/dockerizacao.md).
 
 1. Coloque a Gold em `data/gold/gold.db` (caminho 1, ou o arquivo recebido da frente de Dados).
-2. Na raiz, copie `.env.example` para `.env` e preencha:
+2. Copie `backend/.env.example` para `backend/.env` e preencha (o Docker lê as configurações desse arquivo; ele
+   não é versionado):
    - `GOLD_DATA_VERSION`: identifica o snapshot da Gold (obrigatória, usada pelo cache). Troque o valor sempre
      que carregar um `gold.db` novo.
    - `GEMINI_API_KEY` (e, opcionalmente, `OPENROUTER_API_KEY`): necessárias para o Assistente de IA. Sem chave,
      o portal abre e consulta a Gold normalmente.
-3. Suba a stack:
+
+   O `backend/.env` é opcional para o portal subir: sem ele, o backend usa os valores padrão do `compose.yaml`
+   e o Assistente fica sem provedor de IA. Para usar outro arquivo, defina `BACKEND_ENV_FILE`.
+3. Suba a stack, passando o mesmo arquivo para o Compose (assim `GOLD_DATA_VERSION` e os demais valores também
+   valem na configuração do `compose.yaml`):
 
    ```bash
-   docker compose up --detach --build --wait
+   docker compose --env-file backend/.env up --detach --build --wait
    ```
 
+   Sem o `backend/.env` (portal sem Assistente), use `docker compose up --detach --build --wait`.
 4. Abra **http://localhost:8080**. `docker compose ps` deve mostrar `backend` e `redis` como *healthy*.
 
 Para parar: `docker compose down`. As ordens de inspeção e a auditoria do agente ficam no volume `portal_data` e
@@ -256,9 +262,16 @@ cd frontend && npm run lint && npm test && npm run build
 O CI (`.github/workflows/ci.yml`) roda a cada pull request e a cada push na `main`:
 
 - **Arquivos e segredos:** bloqueia `.env`, `.venv`, `node_modules`, bancos `.db` e chaves de API no código.
-- **Backend:** suíte completa do `pytest`, em Python 3.11 e 3.13 (a imagem Docker usa 3.13).
-- **Frontend:** lint, testes (`npm test`) e build (`tsc` + `vite build`).
-- **Docker:** valida o `compose.yaml` e constrói as duas imagens.
+- **Backend:** suíte completa do `pytest`, em Python 3.11.
+- **Frontend:** lint (`npm run lint`) e build (`tsc` + `vite build`).
+
+O CI **não** roda `npm test` nem valida o `compose.yaml` ou constrói as imagens Docker. Antes de abrir um pull
+request, rode esses passos localmente:
+
+```bash
+cd frontend && npm test
+docker compose config --quiet
+```
 
 ## Decisões e suposições
 
@@ -288,7 +301,6 @@ O CI (`.github/workflows/ci.yml`) roda a cada pull request e a cada push na `mai
 ## Fora do escopo desta entrega
 
 - Login com perfis de acesso por cargo (diferencial do case)
-## Como contribuir
 
 - Uma branch por tarefa (`dados/...`, `dev/...`, `ia/...`) e PR para `main` com 1 revisão.
 - Mensagens de commit no formato `tipo(escopo): descrição` (por exemplo, `feat(backend): ...`).

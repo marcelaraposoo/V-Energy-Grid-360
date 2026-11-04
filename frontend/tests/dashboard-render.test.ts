@@ -96,7 +96,9 @@ test('Dashboard escolhe barras ou linhas conforme os períodos e preserva valore
     const filtros = pagina.match(/<form\b[^>]*aria-label="Filtros do dashboard"[^>]*>(.*?)<\/form>/)?.[1]
     assert.ok(filtros)
     assert.equal((filtros.match(/class="filter-field dashboard-period-picker"/g) ?? []).length, 2)
-    assert.doesNotMatch(filtros, /Município|Bairro|Classe de consumo/)
+    // Só município: com bairro ou classe, o DEC/FEC e parte dos blocos ficariam indisponíveis.
+    assert.match(filtros, /Município/)
+    assert.doesNotMatch(filtros, /Bairro|Classe de consumo/)
     assert.match(pagina, /Período de referência \(opcional\)/)
     // Abre comparando com o primeiro ano da base (recorte do diagnóstico), com opção de remover.
     assert.match(pagina, /Jul\/2022 a Jun\/2023/)

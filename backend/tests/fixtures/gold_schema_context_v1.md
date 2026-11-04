@@ -302,9 +302,22 @@ o adicional não vem separado e não permite atribuir todo o efeito apenas à ta
 
 ## Uso
 
-Indicadores gerais do negócio e comparações mensais.
-Para totais e rankings por mês do conjunto inteiro (inclusive meses com maiores
-valores faturados), prefira esta tabela agregada quando a métrica existir aqui.
+Indicadores gerais da distribuidora inteira e comparações mensais.
+Esta tabela NÃO tem município, bairro, classe nem UC. Se a pergunta citar qualquer
+um deles (por exemplo "consumo de Recife", "receita de Olinda", "residencial"),
+nunca use `kpis_mensal`: filtre a `fato_consumo_faturamento` pela coluna
+correspondente. Um nome de cidade sozinho (Recife, Olinda, Paulista…) é um município.
+
+Exemplo (município):
+
+```sql
+SELECT SUM(consumo_kwh) AS consumo_kwh
+FROM fato_consumo_faturamento
+WHERE municipio = 'Recife' AND mes_referencia BETWEEN '2025-01' AND '2025-12';
+```
+
+Sem esses recortes, para totais e rankings por mês da distribuidora inteira (inclusive
+meses com maiores valores faturados), prefira esta tabela agregada quando a métrica existir aqui.
 `receita_total` já soma `valor_total` da `fato_consumo_faturamento` por mês;
 `receita_energia` soma `valor_energia` e `consumo_total_kwh` soma `consumo_kwh`.
 Evite recalcular esses totais varrendo a fato detalhada. Use a fato quando houver

@@ -1,4 +1,5 @@
-import { ArrowRight, FileText, Gauge, Sun, Unplug } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowRight, ChevronLeft, ChevronRight, Gauge, Sun, Unplug } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Panel } from '../../../components/ui/Panel'
 import { InfoTipContent } from '../../../components/ui/InfoTip'
@@ -7,34 +8,22 @@ import {
   formatarCompetencia,
   formatarData,
   formatarDataHora,
-  formatarMoeda,
-  formatarPrecoKwh,
+  formatarDuracao,
   formatarNumero,
   formatarPercentual,
-  situacoesFatura,
+  formatarRotulo,
 } from '../formatters'
-import type { PeriodoHistorico, SelecaoContaAlta, Visao360 } from '../types'
+import type { PeriodoHistorico, Visao360 } from '../types'
 import { ConsumoChart } from './ConsumoChart'
-import { ContaAltaCard } from './ContaAltaCard'
+import { InsightsUcCard } from './InsightsUcCard'
 import { HistoryTable } from './HistoryTable'
 import { FiltroPeriodoHistorico } from './FiltroPeriodoHistorico'
+import { ListaRegistros } from './ListaRegistros'
 import { UnidadeFields } from './UnidadeFields'
 
 type SectionProps = { dados: Visao360 }
-type ConsumoSectionProps = SectionProps & {
-  comparacao: SelecaoContaAlta
-  onComparacaoChange: (value: SelecaoContaAlta) => void
-  carregando: boolean
-  erro: string | null
-  onRetry: () => void
-}
 
-export function ConsumoSection({
-  dados,
-  ...diagnosticoProps
-}: ConsumoSectionProps) {
-  const fatura = dados.faturas[0]
-
+export function ConsumoSection({ dados }: SectionProps) {
   return (
     <div className="ucv-consumo-grid">
       <div className="ucv-consumo-main">
@@ -47,70 +36,9 @@ export function ConsumoSection({
         >
           <ConsumoChart consumo={dados.consumo} />
         </Panel>
-        <Panel
-          title="Detalhamento da última fatura"
-          className="ucv-fatura-detalhe"
-          info={<InfoTipContent resumo="Composição da fatura da competência indicada." itens={[
-            { rotulo: 'Energia', texto: 'Inclui a bandeira tarifária; não inclui tributos.' },
-            { rotulo: 'Total da fatura', texto: 'Energia mais tributos.' },
-            { rotulo: 'Preço por kWh', texto: 'Valor da energia dividido pelo consumo faturado.' },
-          ]} />}
-          description={
-            fatura
-              ? `Competência ${formatarCompetencia(fatura.competencia)}`
-              : 'Sem fatura disponível'
-          }
-          actions={
-            fatura && (
-              <span className={`badge ucv-fatura--${fatura.status}`}>
-                {situacoesFatura[fatura.status]}
-              </span>
-            )
-          }
-        >
-          {fatura ? (
-            <>
-              <p className="ucv-fatura-total">
-                <span>Valor total da fatura</span>
-                <strong>{formatarMoeda(fatura.valor_total)}</strong>
-              </p>
-              <UnidadeFields
-                fields={[
-                  {
-                    label: 'Consumo faturado (kWh)',
-                    value: formatarNumero(fatura.consumo_kwh),
-                  },
-                  {
-                    label: 'Energia',
-                    value: formatarMoeda(fatura.valor_energia),
-                  },
-                  { label: 'Tributos', value: formatarMoeda(fatura.tributos) },
-                  {
-                    label: 'Preço médio por kWh',
-                    value: formatarPrecoKwh(fatura.preco_medio_kwh),
-                  },
-                  { label: 'Bandeira tarifária', value: fatura.bandeira },
-                  { label: 'Vencimento', value: formatarData(fatura.vencimento) },
-                ]}
-              />
-              <p className="ucv-fatura-note">
-                O valor da energia e o preço médio por kWh incluem o adicional
-                de bandeira e não incluem tributos.
-              </p>
-            </>
-          ) : (
-            <EmptyState
-              icon={FileText}
-              title="Sem fatura disponível"
-              description="Não há dados de faturamento para esta unidade."
-            />
-          )}
-        </Panel>
       </div>
-      <ContaAltaCard
-        diagnostico={dados.diagnostico_conta_alta}
-        {...diagnosticoProps}
-      />
+      {/* Substitui o "A conta veio alta?": a leitura do consumo × valor cobrado agora vem dos insights. */}
+      <InsightsUcCard ucId={dados.cadastro.uc_id} competencias={dados.diagnostico_conta_alta.competencias_disponiveis} />
     </div>
   )
 }
@@ -227,6 +155,8 @@ export function GeracaoSection({ dados }: SectionProps) {
   )
 }
 
+const INTERRUPCOES_POR_PAGINA = 6
+
 type InterrupcoesSectionProps = SectionProps & {
   periodoInterrupcoes: PeriodoHistorico
   onPeriodoInterrupcoesChange: (value: PeriodoHistorico) => void
@@ -244,6 +174,10 @@ export function InterrupcoesSection({
   onRetry,
 }: InterrupcoesSectionProps) {
   const interrupcoes = dados.interrupcoes
+  const [pagina, setPagina] = useState(1)
+  const paginas = Math.max(1, Math.ceil(interrupcoes.historico.length / INTERRUPCOES_POR_PAGINA))
+  const paginaAtual = Math.min(pagina, paginas)
+  const visiveis = interrupcoes.historico.slice((paginaAtual - 1) * INTERRUPCOES_POR_PAGINA, paginaAtual * INTERRUPCOES_POR_PAGINA)
   const periodo =
     interrupcoes.periodo_inicio && interrupcoes.periodo_fim
       ? `${formatarCompetencia(interrupcoes.periodo_inicio)} a ${formatarCompetencia(interrupcoes.periodo_fim)}`
@@ -253,7 +187,7 @@ export function InterrupcoesSection({
       <FiltroPeriodoHistorico
         title="Período das interrupções"
         value={periodoInterrupcoes}
-        onChange={onPeriodoInterrupcoesChange}
+        onChange={(valor) => { setPagina(1); onPeriodoInterrupcoesChange(valor) }}
         periodo={interrupcoes}
         carregando={carregando}
         erro={erro}
@@ -289,28 +223,38 @@ export function InterrupcoesSection({
                     value: formatarNumero(interrupcoes.qtd_ocorrencias),
                   },
                   {
-                    label: 'Duração total das interrupções (min)',
-                    value: formatarNumero(interrupcoes.duracao_total_min),
+                    label: 'Duração total das interrupções',
+                    value: formatarDuracao(interrupcoes.duracao_total_min),
                   },
                 ]}
               />
-              <HistoryTable
-                title="Histórico de interrupções da UC"
-                columns={['Início', 'Fim', 'Duração (min)', 'Tipo', 'Causa']}
-                icon={Unplug}
-                description="Não há interrupções registradas para esta UC no período selecionado."
-                empty={!interrupcoes.historico.length}
-              >
-                {interrupcoes.historico.map((ocorrencia) => (
-                  <tr key={ocorrencia.ocorrencia_id}>
-                    <th scope="row">{formatarDataHora(ocorrencia.data)}</th>
-                    <td>{formatarDataHora(ocorrencia.data_fim)}</td>
-                    <td>{formatarNumero(ocorrencia.duracao_min)}</td>
-                    <td>{ocorrencia.tipo}</td>
-                    <td>{ocorrencia.causa ?? 'Não informada'}</td>
-                  </tr>
-                ))}
-              </HistoryTable>
+              {interrupcoes.historico.length ? <>
+                <ListaRegistros titulo="Histórico de interrupções da UC" variante="interrupcoes" colunas={['Início', 'Duração', 'Tipo', 'Causa']}>
+                  {visiveis.map((ocorrencia) => (
+                    <li key={ocorrencia.ocorrencia_id}>
+                      <div className="ucv-registro ucv-registro--interrupcoes ucv-registro--estatico">
+                        <span className="ucv-registro-principal">
+                          <strong>{formatarDataHora(ocorrencia.data)}</strong>
+                          <small>Fim: {formatarDataHora(ocorrencia.data_fim)}</small>
+                        </span>
+                        <strong className="ucv-registro-valor">{formatarDuracao(ocorrencia.duracao_min)}</strong>
+                        <span className="ucv-registro-texto">{formatarRotulo(ocorrencia.tipo)}</span>
+                        <span className="ucv-registro-texto">{ocorrencia.causa ? formatarRotulo(ocorrencia.causa) : 'Não informada'}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ListaRegistros>
+                <div className="table-footer">
+                  <span role="status">{formatarNumero(interrupcoes.historico.length)} interrupções · página {paginaAtual} de {paginas}</span>
+                  <span className="pager">
+                    <button type="button" className="button button--secondary button--small" disabled={paginaAtual <= 1}
+                      onClick={() => setPagina(paginaAtual - 1)}><ChevronLeft size={14} aria-hidden="true" /> Anterior</button>
+                    <button type="button" className="button button--secondary button--small" disabled={paginaAtual >= paginas}
+                      onClick={() => setPagina(paginaAtual + 1)}>Próxima <ChevronRight size={14} aria-hidden="true" /></button>
+                  </span>
+                </div>
+              </> : <EmptyState compact icon={Unplug} title="Nenhuma interrupção"
+                description="Não há interrupções registradas para esta UC no período selecionado." />}
             </Panel>
             <Panel
               title="Contexto do alimentador"

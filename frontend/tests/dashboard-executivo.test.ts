@@ -174,14 +174,17 @@ test('componentes executivos mostram três KPIs, cadastro/GD e uma barra por cla
         assert.match(erro, /Tentar novamente/)
       }
     })
-    await t.test('a composição posiciona complementares e classes antes da evolução mensal', async () => {
+    await t.test('a composição põe a evolução logo após os KPIs, depois o detalhe comercial e a operação', async () => {
       const { DashboardPage } = await server.ssrLoadModule('/src/features/dashboard/DashboardPage.tsx')
       const html = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(DashboardPage)))
-      assert.ok(html.indexOf('dashboard-kpis') < html.indexOf('dashboard-complementary'))
-      assert.ok(html.indexOf('dashboard-complementary') < html.indexOf('dashboard-charts'))
+      const ordem = ['dashboard-kpis', 'dashboard-charts', 'dashboard-complementary', 'dashboard-operacao'].map((classe) => html.indexOf(`class="${classe}"`))
+      assert.ok(ordem.every((posicao) => posicao >= 0))
+      assert.deepEqual([...ordem].sort((a, b) => a - b), ordem)
       assert.match(html, /Energia faturada por classe/)
       assert.match(html, /UCs cadastradas e (GD|geração distribuída)/)
-      assert.doesNotMatch(html, /Atendimento|UCs faturadas|Classe de consumo|Todos os municípios/)
+      assert.match(html, /Operação e atendimento/)
+      assert.match(html, /Todos os municípios/)
+      assert.doesNotMatch(html, /UCs faturadas|Classe de consumo|Todos os bairros/)
     })
   } finally { await server.close(); httpServer.close() }
 })

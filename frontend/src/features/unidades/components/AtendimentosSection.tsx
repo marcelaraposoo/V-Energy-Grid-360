@@ -3,17 +3,17 @@ import { ChevronLeft, ChevronRight, Headphones } from 'lucide-react'
 import { Panel } from '../../../components/ui/Panel'
 import { InfoTipContent } from '../../../components/ui/InfoTip'
 import { EmptyState } from '../../../components/ui/EmptyState'
-import { formatarData, formatarNumero } from '../formatters'
+import { formatarData, formatarNumero, formatarRotulo } from '../formatters'
 import type { AtendimentoUC, Visao360 } from '../types'
-import { HistoryTable } from './HistoryTable'
 import { AtendimentoDialog } from './AtendimentoDialog'
+import { ListaRegistros } from './ListaRegistros'
 
 const situacoes = [
   { id: 'todos', label: 'Todos', vazio: 'Não há chamados registrados para esta unidade.' },
   { id: 'abertos', label: 'Abertos', vazio: 'Não há chamados abertos para esta unidade.' },
   { id: 'fechados', label: 'Fechados', vazio: 'Não há chamados fechados para esta unidade.' },
 ] as const
-const tamanhoPagina = 10
+const tamanhoPagina = 6
 
 export function AtendimentosSection({ dados }: { dados: Visao360 }) {
   const [situacao, setSituacao] = useState<typeof situacoes[number]['id']>('todos')
@@ -43,23 +43,31 @@ export function AtendimentosSection({ dados }: { dados: Visao360 }) {
           </button>
         ))}
       </div>
-      <p className="ucv-atendimentos-descricao">Clique no protocolo para ver os detalhes do chamado.</p>
+      <p className="ucv-atendimentos-descricao">Clique num chamado para ver os detalhes.</p>
       {itens.length ? (
-        <HistoryTable title="Histórico de chamados de atendimento" columns={['Protocolo', 'Assunto', 'Data de abertura', 'Situação']}
-          icon={Headphones} description={vazio} empty={false}>
+        <ListaRegistros titulo="Histórico de chamados de atendimento" variante="atendimentos" colunas={['Protocolo', 'Assunto', 'Canal', 'Situação', '']}>
           {itens.map(item => (
-            <tr key={item.protocolo}>
-              <th scope="row">
-                <button type="button" className="ucv-atendimento-link" aria-haspopup="dialog"
-                  aria-label={`Ver detalhes do atendimento ${item.protocolo}`}
-                  onClick={() => setAtendimento(item)}>{item.protocolo}</button>
-              </th>
-              <td>{item.assunto}</td>
-              <td>{formatarData(item.data)}</td>
-              <td><span className="badge ucv-atendimento" data-status={item.aberto ? 'Aberto' : 'Fechado'}>{item.aberto ? 'Aberto' : 'Fechado'}</span></td>
-            </tr>
+            <li key={item.protocolo}>
+              <button type="button" className="ucv-registro ucv-registro--atendimentos" aria-haspopup="dialog"
+                aria-label={`Ver detalhes do atendimento ${item.protocolo}`} onClick={() => setAtendimento(item)}>
+                <span className="ucv-registro-principal">
+                  <strong>{item.protocolo}</strong>
+                  <small>Aberto em {formatarData(item.data)}</small>
+                </span>
+                <span className="ucv-registro-principal">
+                  <span>{formatarRotulo(item.assunto)}</span>
+                  <small>{formatarRotulo(item.subassunto)}</small>
+                </span>
+                <span className="ucv-registro-texto">{formatarRotulo(item.canal)}</span>
+                <span className="ucv-registro-situacao">
+                  <span className="badge ucv-atendimento" data-status={item.aberto ? 'Aberto' : 'Fechado'}>{item.aberto ? 'Aberto' : 'Fechado'}</span>
+                  <small>{item.aberto ? `Última ação: ${formatarRotulo(item.ultima_acao)}` : `Fechado em ${formatarData(item.data_fechamento)}`}</small>
+                </span>
+                <ChevronRight className="ucv-registro-seta" size={16} aria-hidden="true" />
+              </button>
+            </li>
           ))}
-        </HistoryTable>
+        </ListaRegistros>
       ) : <EmptyState compact icon={Headphones} title="Nenhum chamado encontrado" description={vazio} />}
       <div className="table-footer">
         <span role="status">{formatarNumero(filtrados.length)} chamados · página {paginaAtual} de {paginas}</span>

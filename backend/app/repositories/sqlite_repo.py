@@ -535,6 +535,22 @@ class SqliteRepository:
             """, (_codigo(uc_id),))]
         return [atendimento_publico({**a, "aberto": _bool(a["aberto"])}) for a in linhas]
 
+    def atendimentos_mensais(self, inicio, fim, municipio=None):
+        """Chamados e notas por mês. Mês sem chamado não aparece (o serviço conta como zero)."""
+        tabela = "fato_atendimento"
+        where, params = "mes_referencia BETWEEN ? AND ?", [inicio, fim]
+        if municipio is not None:
+            where += " AND municipio = ?"
+            params.append(municipio)
+        with closing(self._conectar()) as con:
+            if not con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (tabela,)).fetchone():
+                raise _sem_gold("Atendimentos", tabela)
+            return [dict(r) for r in con.execute(f"""
+                SELECT mes_referencia, COUNT(*) AS qtd_atendimentos, COUNT(nota_satisfacao) AS qtd_avaliacoes,
+                       COALESCE(SUM(nota_satisfacao), 0) AS soma_notas
+                FROM {tabela} WHERE {where} GROUP BY mes_referencia ORDER BY mes_referencia
+            """, params)]
+
     # ---------- métodos ainda não integrados ----------
     def faturas(self, inicio, fim, municipio=None, bairro=None, classe=None):
         raise _sem_gold("Faturamento", TABELA_FATURAMENTO)

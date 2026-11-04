@@ -11,7 +11,7 @@
   color: var(--text-muted);
   font-size: 12px;
 }
-.ucv-search-panel .unit-search {
+.ucv-search-panel .unit-search-container {
   width: min(100%, 420px);
   flex-shrink: 0;
 }
@@ -118,12 +118,8 @@
   align-items: center;
   gap: 10px;
 }
-.ucv-summary .info-tip,
-.ucv-conta-alta header .info-tip {
+.ucv-summary .info-tip {
   margin-left: auto;
-}
-.ucv-conta-alta header .info-tip-botao svg {
-  color: currentColor;
 }
 .ucv-summary svg {
   color: var(--text-muted);
@@ -142,6 +138,16 @@
 }
 .ucv-summary small {
   color: var(--text-muted);
+  font-size: 11px;
+}
+.ucv-summary-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.ucv-summary-acao {
   font-size: 11px;
 }
 .ucv-tabs {
@@ -182,29 +188,6 @@
   flex-direction: column;
   gap: 20px;
   min-width: 0;
-}
-.ucv-fatura-total {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-inline: 22px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-.ucv-fatura-total strong {
-  font-family: 'Manrope', sans-serif;
-  font-size: 24px;
-  color: var(--text-primary);
-}
-.ucv-fatura-note {
-  padding: 0 22px 22px;
-  font-size: 11px;
-  color: var(--text-muted);
-  line-height: 1.6;
 }
 .ucv-chart-comparison {
   display: flex;
@@ -313,113 +296,21 @@
 .ucv-legend-dot--accent {
   background: var(--chart-current);
 }
-.ucv-conta-alta {
-  padding: 22px;
-  align-self: start;
+/* Acompanha a altura do histórico de consumo; a nota fica no pé do card. */
+.ucv-insights {
+  display: flex;
+  flex-direction: column;
   border-top: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  overflow: visible;
 }
-.ucv-conta-alta header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.ucv-insights .insights {
+  gap: 12px;
 }
-.ucv-conta-alta header svg {
-  color: var(--accent);
+.ucv-insights .insights-note:last-child {
+  margin-top: auto;
 }
-.ucv-conta-alta > p {
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.8;
-  margin-top: 12px;
+.ucv-insights .insights-note:only-child {
+  padding-top: 4px;
 }
-.ucv-diagnostic-result .ucv-fields dd {
-  font-size: 13px;
-}
-.ucv-comparison-label {
-  display: block;
-  margin-block: 18px 8px;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-.ucv-month-picker {
-  position: relative;
-}
-.ucv-month-picker-trigger {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-elevated);
-  color: var(--text-primary);
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-.ucv-month-picker-trigger > span {
-  flex: 1;
-}
-.ucv-month-picker-trigger:disabled {
-  color: var(--text-muted);
-  cursor: default;
-}
-.ucv-month-picker-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  inset-inline: 0;
-  z-index: 20;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-elevated);
-  box-shadow: var(--shadow-popover);
-}
-.ucv-month-picker-year {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  font-size: 14px;
-}
-.ucv-month-picker-year button,
-.ucv-month-picker-month {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 12px;
-  cursor: pointer;
-}
-.ucv-month-picker-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-.ucv-month-picker-year button:disabled,
-.ucv-month-picker-month:disabled {
-  color: var(--text-muted);
-  opacity: 0.4;
-  cursor: default;
-}
-.ucv-month-picker-year button:hover:not(:disabled),
-.ucv-month-picker-month:hover:not(:disabled) {
-  border-color: var(--border);
-  background: var(--accent-hover-bg, var(--surface));
-}
-.ucv-month-picker-month[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--accent-selected-strong-bg, color-mix(in srgb, var(--accent) 9%, transparent));
-  color: var(--accent);
-}
-.ucv-diagnostic-result > [role='status'],
 .ucv-diagnostic-error {
   padding-top: 20px;
   color: var(--text-secondary);
@@ -427,38 +318,6 @@
 }
 .ucv-diagnostic-error .button {
   margin-top: 12px;
-}
-.ucv-diagnostic-metric {
-  padding-block: 16px 8px;
-  border-top: 1px solid var(--border-subtle);
-}
-.ucv-diagnostic-percentage {
-  margin-block: 8px;
-  font-size: 22px;
-  overflow-wrap: anywhere;
-}
-.ucv-diagnostic-unavailable {
-  margin-top: 8px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.6;
-}
-.ucv-diagnostic-metric .ucv-fields {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 14px 0;
-  gap: 12px;
-}
-.ucv-variation.ucv-variation--pequena {
-  color: var(--info);
-}
-.ucv-variation.ucv-variation--moderada {
-  color: var(--accent);
-}
-.ucv-variation.ucv-variation--significativa {
-  color: var(--warning);
-}
-.ucv-variation.ucv-variation--reducao {
-  color: var(--success);
 }
 .ucv-table-scroll {
   position: relative;
@@ -481,9 +340,6 @@
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.7;
-}
-.ucv-diagnostic-result > .ucv-troca-note {
-  padding: 12px 0;
 }
 .ucv-history-filter {
   display: flex;
@@ -624,21 +480,6 @@
 .ucv-faturas-resultados[aria-busy='true'] {
   opacity: 0.6;
 }
-.ucv-fatura-link,
-.ucv-atendimento-link {
-  padding: 4px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.ucv-fatura-link:hover,
-.ucv-atendimento-link:hover {
-  color: var(--accent);
-}
 .ucv-fatura-dialog-content,
 .ucv-atendimento-dialog-content {
   display: grid;
@@ -655,6 +496,12 @@
 .ucv-fatura-dialog-content > .badge,
 .ucv-atendimento-dialog-content > .badge {
   justify-self: start;
+}
+.ucv-dialog-nota {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
 }
 .ucv-fatura-dialog .ucv-fields,
 .ucv-atendimento-dialog .ucv-fields {
@@ -674,7 +521,7 @@
     align-items: stretch;
     gap: 16px;
   }
-  .ucv-search-panel .unit-search {
+  .ucv-search-panel .unit-search-container {
     width: 100%;
   }
   .ucv-consumo-grid {
@@ -691,12 +538,6 @@
   }
 }
 @media (max-width: 767px) {
-  .ucv-fatura-total {
-    margin-inline: 18px;
-  }
-  .ucv-fatura-note {
-    padding-inline: 18px;
-  }
   .ucv-search-panel {
     padding: 18px;
   }
@@ -734,9 +575,6 @@
     font-size: 24px;
     margin-top: 8px;
   }
-  .ucv-conta-alta {
-    padding: 18px;
-  }
 }
 
 .ucv-link-qualidade {
@@ -745,4 +583,315 @@
   gap: 4px;
   font-size: 12px;
   white-space: nowrap;
+}
+
+/* Bandeira tarifária */
+.ucv-bandeira {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ucv-bandeira i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.ucv-bandeira[data-tom='verde'] i { background: var(--success); }
+.ucv-bandeira[data-tom='amarela'] i { background: var(--chart-current); }
+.ucv-bandeira[data-tom='vermelha-p1'] i { background: var(--warning); }
+.ucv-bandeira[data-tom='vermelha-p2'] i {
+  background: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 30%, transparent);
+}
+
+/* Listas de registros (faturas, atendimentos, interrupções) */
+.ucv-registros-scroll {
+  padding: 0 22px 8px;
+  overflow-x: auto;
+}
+.ucv-registros {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ucv-registro {
+  display: grid;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-width: 620px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--subtle-overlay);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+.ucv-registro--faturas {
+  grid-template-columns: minmax(120px, 1.2fr) minmax(110px, 1fr) minmax(80px, 0.8fr) minmax(100px, 1fr) minmax(170px, 1.3fr) 16px;
+}
+.ucv-registro--atendimentos {
+  grid-template-columns: minmax(130px, 1fr) minmax(170px, 1.5fr) minmax(90px, 0.7fr) minmax(180px, 1.3fr) 16px;
+}
+.ucv-registro--interrupcoes {
+  grid-template-columns: minmax(170px, 1.3fr) minmax(90px, 0.8fr) minmax(140px, 1fr) minmax(140px, 1fr);
+}
+button.ucv-registro {
+  cursor: pointer;
+  transition: border-color 150ms, background-color 150ms;
+}
+button.ucv-registro:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-hover-bg, var(--hover-overlay));
+}
+button.ucv-registro:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button.ucv-registro:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.ucv-registro--cabecalho {
+  margin-bottom: 6px;
+  padding-block: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.ucv-registro-principal,
+.ucv-registro-situacao {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+.ucv-registro-principal strong {
+  font-size: 14px;
+}
+.ucv-registro small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.ucv-registro-texto {
+  color: var(--text-secondary);
+}
+.ucv-registro-valor {
+  font-family: 'Manrope', sans-serif;
+  font-size: 15px;
+}
+.ucv-registro-seta {
+  color: var(--text-muted);
+}
+button.ucv-registro:hover .ucv-registro-seta {
+  color: var(--accent);
+}
+.ucv-interrupcoes .ucv-registros-scroll,
+.ucv-atendimentos .ucv-registros-scroll {
+  padding-top: 4px;
+}
+
+/* Modais de fatura e atendimento (estrutura comum em ucv-dialog-*) */
+.dialog.ucv-fatura-dialog,
+.dialog.ucv-atendimento-dialog {
+  width: min(560px, calc(100vw - 32px));
+  border-radius: 14px;
+}
+.ucv-dialog-titulo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ucv-dialog-titulo p {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.ucv-dialog-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--accent-selected-bg, color-mix(in srgb, var(--accent) 6%, transparent));
+  color: var(--accent);
+}
+.ucv-dialog-destaque {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--subtle-overlay);
+}
+.ucv-dialog-destaque > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+.ucv-dialog-destaque span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.ucv-dialog-destaque strong {
+  font-family: 'Manrope', sans-serif;
+  font-size: 30px;
+  letter-spacing: -0.5px;
+}
+.ucv-dialog-destaque small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.ucv-dialog-destaque--texto strong {
+  font-size: 22px;
+  letter-spacing: -0.2px;
+}
+.ucv-dialog-selos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.ucv-fatura-dialog-composicao {
+  display: grid;
+  gap: 10px;
+}
+.ucv-fatura-dialog-barra {
+  display: flex;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--border-subtle);
+}
+.ucv-fatura-dialog-barra-energia,
+.ucv-fatura-dialog-ponto--energia {
+  background: var(--chart-current);
+}
+.ucv-fatura-dialog-barra-tributos,
+.ucv-fatura-dialog-ponto--tributos {
+  background: var(--text-muted);
+}
+.ucv-fatura-dialog-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin: 0;
+}
+.ucv-fatura-dialog-legenda > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.ucv-fatura-dialog-legenda dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.ucv-fatura-dialog-legenda dt i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.ucv-fatura-dialog-legenda dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+.ucv-fatura-dialog-legenda small {
+  margin-left: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.ucv-fatura-dialog .ucv-fields,
+.ucv-atendimento-dialog .ucv-fields {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.ucv-atendimento-canal {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+/* Linha do tempo do chamado: abertura → fechamento */
+.ucv-atendimento-linha {
+  display: grid;
+  grid-template-columns: auto minmax(60px, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+.ucv-atendimento-marco {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+.ucv-atendimento-marco--fim {
+  justify-items: end;
+  text-align: right;
+}
+.ucv-atendimento-marco i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.ucv-atendimento-linha[data-aberto='false'] .ucv-atendimento-marco--fim i {
+  background: var(--success);
+}
+.ucv-atendimento-linha[data-aberto='true'] .ucv-atendimento-marco--fim i {
+  border: 2px dashed var(--text-muted);
+  background: transparent;
+}
+.ucv-atendimento-marco span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.ucv-atendimento-marco strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.ucv-atendimento-trilho {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
+}
+.ucv-atendimento-trilho::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--border);
+}
+.ucv-atendimento-linha[data-aberto='true'] .ucv-atendimento-trilho::before {
+  border-top-style: dashed;
+}
+.ucv-atendimento-trilho span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+@media (max-width: 479px) {
+  .ucv-dialog-destaque strong {
+    font-size: 24px;
+  }
 }

@@ -14,12 +14,12 @@ Os modelos expostos ao frontend estão em [schemas.py](../app/schemas.py).
 |---|---|---|
 | A1 `dim_uc` | Uma UC | Cadastro, busca, catálogos, medidor ativo e GD da Visão 360 |
 | A2 `fato_consumo_faturamento` | UC × competência | Consumo e faturas da Visão 360, paginação e diagnóstico de conta alta |
-| A3 `fato_segmento_mensal` | Competência × município × bairro × classe | KPIs e série com filtros regionais; faturamento em aberto e consumo por classe na visão geral |
+| A3 `fato_segmento_mensal` | Competência × município × bairro × classe | KPIs e série com filtros regionais; faturamento em aberto e consumo por classe; cadastro/GD do Dashboard com município |
 | A5 `kpis_mensal` | Uma competência | KPIs e série da visão geral; posição final de UCs cadastradas, faturadas e com GD |
 | A6 `fato_troca_medidor` | Evento de troca | Histórico de trocas da UC |
 | A7 `fato_interrupcao` | Evento de interrupção | Ocorrências e contexto da UC/alimentador; causas, locais (município/bairro) e UCs afetadas (distintas) na Qualidade do Serviço; o percentual de UCs afetadas usa as UCs cadastradas na `dim_uc` |
-| A8 `dec_fec_alimentador_mensal` | Alimentador × competência | Indicadores de continuidade; KPIs padrão de DEC/FEC. DEC/FEC de um período = soma dos índices mensais, ponderados pelas UCs de cada mês quando há mais de um alimentador (confere com `dec_12m_horas`/`fec_12m` em 12 meses) |
-| B1 `fato_atendimento` | Atendimento | Histórico e detalhes de atendimentos da UC |
+| A8 `dec_fec_alimentador_mensal` | Alimentador × competência | Indicadores de continuidade; DEC/FEC do Dashboard (operação) e da Qualidade do Serviço. DEC/FEC de um período = soma dos índices mensais, ponderados pelas UCs de cada mês quando há mais de um alimentador (confere com `dec_12m_horas`/`fec_12m` em 12 meses) |
+| B1 `fato_atendimento` | Atendimento | Histórico e detalhes de atendimentos da UC; atendimentos e satisfação do Dashboard (bate com `kpis_mensal.qtd_atendimentos`) |
 | B2 `fila_inspecao` | UC priorizada | Fila de inspeção e motivos de suspeita |
 
 A leitura dessas fontes está implementada, mas depende das tabelas e colunas necessárias
@@ -34,9 +34,8 @@ números do diagnóstico no `gold.db` real.
 
 ## Dashboard Executivo
 
-O Dashboard já consulta a API para todos os seus cards e gráficos. A interface mantém somente
-filtros temporais; filtros por município, bairro e classe continuam disponíveis nos endpoints
-que os suportam e nas demais funcionalidades. As rotas e respostas estão detalhadas no
+O Dashboard já consulta a API para todos os seus cards e gráficos. A interface filtra por período
+e município; bairro e classe ficam na Análise de Receita (o DEC/FEC só existe por município). As rotas e respostas estão detalhadas no
 [README do backend](../README.md#períodos-e-kpis-do-dashboard).
 
 | Indicador | Fonte / regra |
@@ -46,8 +45,11 @@ que os suportam e nas demais funcionalidades. As rotas e respostas estão detalh
 | Preço médio por kWh | Soma da receita de energia / soma do consumo, sem média simples de taxas |
 | UCs faturadas | Posição da última competência; preservada na API, mesmo sem card na tela |
 | Faturamento em aberto | A3: `SUM(valor_em_aberto) / SUM(receita_total) * 100` |
-| UCs cadastradas e GD | A5: `qtd_ucs_cadastradas` e `qtd_ucs_com_gd` da última competência |
+| UCs cadastradas e GD | A5 (com município, soma da A3): `qtd_ucs_cadastradas` e `qtd_ucs_com_gd` da última competência |
 | Consumo por classe | A3: soma de `consumo_kwh` por classe em cada intervalo |
+| Consumo por município ou bairro | A3: soma de `consumo_kwh` por local em cada intervalo (bairro com município escolhido) |
+| Atendimentos e satisfação | B1: chamados do período; nota = soma das notas ÷ chamados avaliados |
+| DEC e FEC | A8: média ponderada pelas UCs em cada mês, somada nos meses (mesma regra da Qualidade do Serviço) |
 
 Na visão geral, os três primeiros indicadores e UCs faturadas usam a A5; nas consultas com
 filtros regionais, usam a A3 agregada por competência. A seleção `indicador=executivo` evita

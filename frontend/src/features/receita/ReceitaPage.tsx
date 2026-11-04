@@ -39,7 +39,11 @@ export function ReceitaPage() {
       return estadoInicial(inicial.periodo, inicial.referencia)
     },
   )
-  const [historico, dispatchRecorte] = useReducer(alterarRecorte, { atual: recorteInicial, anteriores: [] })
+  // Vindo do Dashboard com município, já abre nos bairros dele.
+  const [historico, dispatchRecorte] = useReducer(alterarRecorte, undefined, () => {
+    const municipio = busca.get('municipio')
+    return { atual: municipio ? filtrar(recorteInicial, { municipio }) : recorteInicial, anteriores: [] }
+  })
   const recorte = historico.atual
   const setRecorte = (valor: Recorte) => dispatchRecorte({ tipo: 'selecionar', valor })
   const voltar = historico.anteriores.length ? () => dispatchRecorte({ tipo: 'voltar' }) : undefined

@@ -373,14 +373,15 @@ entrega das respostas; Redis foi religado ao final.
 
 Estas são pendências da aplicação, não falhas da Dockerização:
 
-- O repositório SQLite ainda não implementa faturamento/consumo, atendimentos e
-  ocorrências/indicadores de continuidade. Rotas que dependem dessas leituras,
-  como a visão 360, podem responder HTTP 501 mesmo com tabelas presentes na Gold.
+- Com a Gold completa, todas as rotas do portal leem o SQLite (Dashboard, Receita,
+  Visão 360, Qualidade do Serviço e fila de inspeção). HTTP 501 só aparece quando
+  falta no `gold.db` uma tabela usada pela rota; o `detail` informa qual.
 - Não existem rotas HTTP individuais para detalhe cadastral, medidor e GD;
-  esses métodos estão disponíveis no repositório.
-- A fila sem filtro excedeu o timeout de 30 segundos na validação. O backend
-  busca cada UC separadamente e usa `COLLATE NOCASE` com varredura da `dim_uc`.
-  A fila filtrada com `prob_minima=1&tamanho=3` respondeu HTTP 200.
+  esses dados chegam ao frontend pela rota da Visão 360.
+- A fila sem filtro, que excedia o timeout de 30 segundos, foi corrigida: as consultas
+  por UC e alimentador usam os índices da Gold (sem `COLLATE NOCASE`, com o código
+  normalizado antes da consulta). Na execução local com a Gold real, a fila sem filtro
+  respondeu em cerca de 0,5 s e a Visão 360 em menos de 0,1 s.
 - A rota de perguntas usa o pipeline C1–C7. O Compose repassa as chaves de providers
   quando fornecidas pelo ambiente ou por `--env-file backend/.env`. Health HTTP 200
   não valida as credenciais: elas precisam ser verificadas com uma pergunta real.
@@ -406,7 +407,7 @@ como primeira tentativa de diagnóstico.
 | Porta 8080 ocupada | No Windows, use `Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue` e `docker ps --format 'table {{.Names}}\t{{.Ports}}'` para identificar o processo/container. Libere a porta encerrando somente o recurso identificado e dispensável; o Compose publica `127.0.0.1:8080`. |
 | Backend `unhealthy` | Leia `docker compose logs --tail 100 backend` e `docker inspect v-energy-grid-360-backend-1 --format '{{json .State.Health}}'`. Confira a resposta HTTP e `DATA_SOURCE=sqlite`. Após corrigir a causa, execute `docker compose up --detach --build --wait`. |
 | Permissão ou mount incorreto | Confira `docker compose config --quiet` e `docker inspect v-energy-grid-360-backend-1 --format '{{json .Mounts}}'`. A Gold precisa existir e ser legível pelo Docker Desktop; confirme o acesso ao diretório no host. `/data/gold` deve ser read-only e `/data/portal` read-write. Não torne a Gold gravável para resolver erros no portal. |
-| Frontend abre, mas `/api` falha | Confira logs dos dois serviços e se o backend está saudável. Use `http://localhost:8080/api/health`; `backend:8000` é apenas interno. HTTP 502/504 requer verificar o upstream e duração das consultas; HTTP 501 das funcionalidades pendentes tem causa na aplicação. |
+| Frontend abre, mas `/api` falha | Confira logs dos dois serviços e se o backend está saudável. Use `http://localhost:8080/api/health`; `backend:8000` é apenas interno. HTTP 502/504 requer verificar o upstream e duração das consultas; HTTP 501 indica tabela ausente no `gold.db` montado (o `detail` informa qual). |
 | Ordens parecem ter desaparecido | Confira o nome do projeto e o volume montado em `/data/portal`. Procure o volume original com `docker volume inspect v-energy-grid-360_portal_data`. Não exclua nem recrie volumes antes de identificar qual está sendo usado. |
 
 ## 15. Diagrama da arquitetura e dos dados

@@ -19,8 +19,9 @@ export function InadimplenciaCard({ periodo, referencia, estado: { data, loading
   const kpi = data?.kpis.find((item) => item.nome === 'Inadimplência')
   const variosMeses = quantidadeMeses(periodo) > 1
   const variacao = referencia && disponivel(kpi?.valor_atual) && disponivel(kpi?.valor_base) ? kpi?.variacao_pp : null
-  const tendencia = disponivel(variacao) && variacao !== 0
-    ? variacao < 0 ? 'favoravel' : 'desfavoravel' : undefined
+  // A cor segue o valor exibido (1 casa): −0,03 p.p. aparece como 0,0 e fica neutro.
+  const exibida = disponivel(variacao) ? Math.round(variacao * 10) / 10 : null
+  const tendencia = exibida ? exibida < 0 ? 'favoravel' : 'desfavoravel' : undefined
   const corte = formatarData(kpi?.inadimplencia?.data_corte ?? dataCorteGold)
 
   return (

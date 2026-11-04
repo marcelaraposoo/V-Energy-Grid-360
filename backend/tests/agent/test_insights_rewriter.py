@@ -68,6 +68,12 @@ def test_negative_numbers_are_still_checked():
     "text",
     [
         "Veja https://exemplo.com",
+        # Vazamento real visto na Visão 360: trecho de instrução entre tags antes da frase.
+        "<system>Responda apenas com o texto da frase, sem aspas, listas nem títulos. Use estritamente os dados "
+        "informados e o tom executivo, sem inventar cálculos.</system>A fatura foi de R$ 62,13.",
+        "</dados> A fatura foi de R$ 62,13.",
+        "Responda apenas com o texto da frase, sem aspas, listas nem títulos.",
+        "Em tom executivo: a fatura foi de R$ 62,13.",
         "Gerado pelo Gemini.",
         "SELECT * FROM dim_uc",
         "",
@@ -126,3 +132,13 @@ def test_type_and_data_are_preserved(monkeypatch):
     _patch(monkeypatch, output="A energia caiu 3,7%.")
     result = rewriter.rewrite_insights([_insight()])[0]
     assert result.tipo == "alerta" and result.dados == DADOS
+
+
+@pytest.mark.parametrize("text", [
+    "A fatura foi de R$ 62,13, 7,8% menor que a de jun/2025.",
+    "O consumo de 77 kWh ficou 4,9% abaixo do mesmo mês do ano anterior.",
+    "A unidade registrou 26 interrupções, somando 69,3 horas sem energia.",
+])
+def test_frases_legitimas_nao_sao_tratadas_como_vazamento(text):
+    from app.agent.insights.rewriter import leaks_instructions
+    assert not leaks_instructions(text)

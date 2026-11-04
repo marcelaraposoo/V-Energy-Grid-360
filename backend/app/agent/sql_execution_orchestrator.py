@@ -218,13 +218,18 @@ async def generate_validate_and_execute(
                             lookup[0], None, lookup[1]
                         ),
                         sql=generation.sql,
+                        execution_result=outcome.result,
+                        execution_elapsed_ms=outcome.elapsed_ms,
                         regenerations=regenerations,
+                        provider_attempts=provider_attempts,
                     )
 
         return SQLExecutionFlowResult(
             generation_status=generation.status,
             sql=generation.sql,
             outcome=outcome,
+            execution_result=outcome.result,
+            execution_elapsed_ms=outcome.elapsed_ms,
             regenerations=regenerations,
             provider_attempts=provider_attempts,
         )

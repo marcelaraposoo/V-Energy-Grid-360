@@ -1,7 +1,9 @@
 from app.agent.schemas import (
     AgentOutcome,
     AuditRecord,
+    AuditStep,
     MemoryEntry,
+    ProviderAttempt,
     ProviderErrorType,
     QueryExecutionResult,
 )
@@ -20,6 +22,10 @@ def build_audit_record(
     provider_error: ProviderErrorType | None = None,
     regenerations: int = 0,
     final_answer: str | None = None,
+    stage: str | None = None,
+    duration_ms: float | None = None,
+    provider_attempts: tuple[ProviderAttempt, ...] | list[ProviderAttempt] = (),
+    steps: tuple[AuditStep, ...] | list[AuditStep] = (),
 ) -> AuditRecord:
     """
     Monta o registro de auditoria de uma execução do agente.
@@ -47,6 +53,10 @@ def build_audit_record(
         ),
         provider_error=provider_error,
         regenerations=regenerations,
+        stage=stage,
+        duration_ms=duration_ms,
+        provider_attempts=list(provider_attempts),
+        steps=list(steps),
         final_answer=final_answer,
     )
 

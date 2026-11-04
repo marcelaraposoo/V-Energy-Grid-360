@@ -1,6 +1,7 @@
 """Auditoria interna no portal.db, com I/O fora do event loop."""
 
 import asyncio
+import json
 import sqlite3
 from contextlib import closing
 from datetime import timezone
@@ -22,9 +23,33 @@ CREATE TABLE IF NOT EXISTS agent_audit (
     truncated INTEGER CHECK (truncated IN (0, 1)),
     provider_error TEXT,
     regenerations INTEGER NOT NULL,
+    stage TEXT,
+    duration_ms REAL,
+    provider_attempts TEXT NOT NULL DEFAULT '[]',
+    steps TEXT NOT NULL DEFAULT '[]',
     final_answer TEXT
 )
 """
+
+_MIGRATIONS = {
+    "stage": "TEXT",
+    "duration_ms": "REAL",
+    "provider_attempts": "TEXT NOT NULL DEFAULT '[]'",
+    "steps": "TEXT NOT NULL DEFAULT '[]'",
+}
+
+
+def _ensure_schema(connection: sqlite3.Connection) -> None:
+    """Cria a tabela ou adiciona colunas sem apagar auditorias existentes."""
+    connection.execute(_DDL)
+    columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(agent_audit)")
+    }
+    for name, declaration in _MIGRATIONS.items():
+        if name not in columns:
+            connection.execute(
+                f"ALTER TABLE agent_audit ADD COLUMN {name} {declaration}"
+            )
 
 
 class SQLiteAuditStore:
@@ -47,17 +72,29 @@ class SQLiteAuditStore:
         with closing(sqlite3.connect(self.path, timeout=1.0)) as connection:
             connection.execute("PRAGMA busy_timeout=1000")
             with connection:
-                connection.execute(_DDL)
+                _ensure_schema(connection)
+                attempts_json = json.dumps(
+                    [item.model_dump(mode="json") for item in record.provider_attempts],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                steps_json = json.dumps(
+                    [item.model_dump(mode="json") for item in record.steps],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
                 connection.execute(
                     "INSERT INTO agent_audit (request_id,session_id,timestamp,question,"
                     "outcome,cache_hit,sql,row_count,truncated,provider_error,regenerations,"
-                    "final_answer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
+                    "stage,duration_ms,provider_attempts,steps,final_answer) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                     "ON CONFLICT(request_id) DO NOTHING",
                     (
                         record.request_id, record.session_id, timestamp, record.question,
                         record.outcome.value, int(record.cache_hit), record.sql, record.row_count,
                         None if record.truncated is None else int(record.truncated),
                         record.provider_error.value if record.provider_error else None,
-                        record.regenerations, record.final_answer,
+                        record.regenerations, record.stage, record.duration_ms,
+                        attempts_json, steps_json, record.final_answer,
                     ),
                 )

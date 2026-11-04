@@ -3,6 +3,8 @@ from app.agent.schemas import (
     PostProcessingResult,
     ProviderErrorType,
     QueryExecutionResult,
+    AuditStep,
+    ProviderAttempt,
 )
 from app.agent.state.audit import AuditStore
 from app.agent.state.cache import (
@@ -40,7 +42,11 @@ async def finalize_request(
     cache_data_version: str | None = None,
     cache_response_complete: bool = False,
     memory_timeout_seconds: float = DEFAULT_MEMORY_TIMEOUT_SECONDS,
-) -> None:
+    stage: str | None = None,
+    duration_ms: float | None = None,
+    provider_attempts: tuple[ProviderAttempt, ...] = (),
+    steps: tuple[AuditStep, ...] = (),
+) -> bool | None:
     """
     Ponte entre o fluxo do agente e a Camada 7.
 
@@ -59,6 +65,10 @@ async def finalize_request(
         provider_error=provider_error,
         regenerations=regenerations,
         final_answer=final_answer,
+        stage=stage,
+        duration_ms=duration_ms,
+        provider_attempts=provider_attempts,
+        steps=steps,
     )
 
     memory_entry = build_memory_entry(
@@ -67,7 +77,7 @@ async def finalize_request(
         outcome=outcome,
     )
 
-    await finalize(
+    return await finalize(
         audit_store=audit_store,
         audit_record=audit_record,
         memory_store=memory_store,

@@ -624,12 +624,48 @@ export type Visualizacao = {
   points: { label: string; value: number }[]
 }
 
+export type StatusEtapaAuditoria = 'completed' | 'blocked' | 'skipped' | 'error' | 'cache_hit'
+
+export type EtapaAuditoriaIa = {
+  codigo: string
+  nome: string
+  status: StatusEtapaAuditoria
+  detalhe: string | null
+  duracao_ms: number | null
+}
+
+export type TentativaProvedorIa = {
+  fase: 'sql_generation' | 'synthesis' | null
+  provedor: 'gemini' | 'openrouter'
+  modelo: string
+  tentativa: number
+  iniciada_em: string
+  sucesso: boolean
+  latencia_ms: number | null
+  tipo_erro: string | null
+}
+
+export type AuditoriaIa = {
+  request_id: string
+  resultado: string
+  etapa_final: string
+  duracao_ms: number
+  cache_hit: boolean
+  regeneracoes: number
+  linhas_retornadas: number | null
+  resultado_truncado: boolean | null
+  persistencia: 'salva' | 'indisponivel' | 'falha'
+  etapas: EtapaAuditoriaIa[]
+  tentativas_provedor: TentativaProvedorIa[]
+}
+
 export type RespostaIa = {
   status: 'ok' | 'nao_sei' | 'nao_implementado'
   resposta: string
   sql_executado: string | null
   fontes: string[]
   visualizacao?: Visualizacao | null
+  auditoria?: AuditoriaIa | null
 }
 
 export type TelaInsight =

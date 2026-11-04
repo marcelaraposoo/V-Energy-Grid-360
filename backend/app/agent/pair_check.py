@@ -6,6 +6,47 @@ from app.agent.sql_executor import build_read_only_uri
 from app.core.config import settings
 
 
+def extract_municipality(sql: str) -> str | None:
+    """Município só se aparecer como igualdade simples."""
+    try:
+        where = parse_one(sql, read="sqlite").args.get("where")
+    except Exception:
+        return None
+    if where is None:
+        return None
+    for eq in where.find_all(exp.EQ):
+        col, val = eq.this, eq.expression
+        if (
+            isinstance(col, exp.Column)
+            and col.name.lower() == "municipio"
+            and isinstance(val, exp.Literal)
+            and val.is_string
+        ):
+            return val.this
+    return None
+
+
+def municipality_exists(municipio: str, database_path: str | None = None):
+    """True/False, ou None se o catálogo não pôde ser lido."""
+    path = database_path or settings.sqlite_path
+    try:
+        con = sqlite3.connect(build_read_only_uri(path), uri=True)
+        try:
+            return con.execute(
+                "SELECT 1 FROM dim_uc WHERE municipio = ? LIMIT 1", (municipio,)
+            ).fetchone() is not None
+        finally:
+            con.close()
+    except Exception:
+        return None
+
+
+MUNICIPALITY_MESSAGE = (
+    "Não encontrei esse local como município no cadastro. "
+    "Confirme se é um município ou um bairro e informe o município correspondente."
+)
+
+
 def extract_pair(sql: str) -> tuple[str, str] | None:
     """(municipio, bairro) só se ambos aparecerem como igualdade simples."""
     try:

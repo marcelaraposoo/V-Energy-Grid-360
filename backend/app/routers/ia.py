@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.agent.insights.rewriter import rewrite_insights
 from app.agent.insights.uc_rules import insights_uc
+from app.core.errors import NaoDisponivelNaGold
 from app.routers.deps import repo_dep
 from app.schemas import Insight, PerguntaIn, RespostaOut
 from app.services import ia, unidades as unidades_service
@@ -47,4 +48,8 @@ def insights_da_uc(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    return rewrite_insights(insights_uc(visao))
+    try:
+        faturas = repo.faturas_uc(uc_id)
+    except NaoDisponivelNaGold:
+        faturas = []  # sem a A2, ficam só os insights que não dependem do histórico
+    return rewrite_insights(insights_uc(visao, faturas))

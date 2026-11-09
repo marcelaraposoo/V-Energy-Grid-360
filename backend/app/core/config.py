@@ -169,7 +169,7 @@ class Settings:
         default_factory=lambda: os.getenv("PROVIDER_REUSE_SUCCESS", "true").lower() == "true"
     )
     provider_phase_budgets_enabled: bool = field(
-        default_factory=lambda: os.getenv("PROVIDER_PHASE_BUDGETS_ENABLED", "false").lower() == "true"
+        default_factory=lambda: os.getenv("PROVIDER_PHASE_BUDGETS_ENABLED", "true").lower() == "true"
     )
     provider_sql_budget_seconds: float = field(
         default_factory=lambda: _provider_seconds("PROVIDER_SQL_BUDGET_SECONDS", "30")

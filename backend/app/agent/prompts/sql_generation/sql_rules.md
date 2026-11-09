@@ -94,3 +94,10 @@ Quando o status for `READY`:
 Use aliases legíveis que indiquem a medida e, quando útil, a unidade.
 
 Prefira SQL simples e verificável.
+
+### Agregação eficiente e cobertura
+
+Para totais, séries e rankings de consumo ou faturamento por município, bairro ou classe, use `fato_segmento_mensal` quando os filtros existirem nessa tabela. Ela evita varrer faturas individuais. Use `fato_consumo_faturamento` para UC, fatura, medidor ou filtros de detalhe; não reconstrua o agregado por JOIN com dim_uc quando as dimensões já existirem no fato.
+Retorne MIN(mes_referencia) e MAX(mes_referencia) como periodo_inicio e periodo_fim junto aos totais, para tornar o intervalo efetivo auditável. Receita sem tributos usa receita_energia; faturamento/conta com tributos usa receita_total.
+Não faça COALESCE(SUM(...),0) para ocultar a inexistência de registros. Uma soma NULL significa ausência de dados, não consumo zero.
+Ao consultar receita_decomposicao, exponha as datas fixas da comparação em colunas ou literais SQL: 2022-07 a 2023-06 versus 2025-07 a 2026-06. Assim a síntese pode identificar a comparação sem inventar datas.

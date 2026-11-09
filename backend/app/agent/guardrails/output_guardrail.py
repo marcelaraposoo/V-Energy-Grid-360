@@ -217,6 +217,8 @@ def validate_output(
     question: str,
     sql: str,
     result: QueryExecutionResult,
+    knowledge_text: str = "",
+    structured_intent: bool = False,
 ) -> OutputGuardrailResult:
     try:
         text = "\n".join([answer, *assumptions])
@@ -241,6 +243,13 @@ def validate_output(
 
         allowed = build_allowed_numbers(question, sql, result)
         unsupported = find_unsupported_numbers(text, allowed)
+        if knowledge_text and unsupported:
+            # Fontes autorizadas só liberam constantes explicitamente presentes,
+            # sem inventar resultados operacionais nem derivar números delas.
+            documented = AllowedNumbers(values=tuple(
+                value for token in extract_numbers(knowledge_text) for value in token.candidates
+            ), derived_enabled=False)
+            unsupported = [value for value in unsupported if find_unsupported_numbers(value, documented)]
 
         if unsupported:
             return _block(
@@ -250,7 +259,7 @@ def validate_output(
             )
 
         from app.agent.intent_validation import sql_intent_problem
-        if sql_intent_problem(question, sql):
+        if sql and not structured_intent and sql_intent_problem(question, sql):
             return _block(answer, OutputGuardrailReason.SEMANTIC_MISMATCH)
         return _allow(answer)
 

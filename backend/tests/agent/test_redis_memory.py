@@ -44,7 +44,7 @@ def test_append_atomically_limits_storage_and_renews_ttl(redis):
     asyncio.run(store.append("s1", _entry(2)))
     args = client.eval.await_args.args
     assert args[1:3] == (1, build_memory_key("s1"))
-    assert set(json.loads(args[3])) == {"question", "answer", "outcome"}
+    assert set(json.loads(args[3])) == {"question", "answer", "outcome", "context_recorded"}
     assert json.loads(args[3])["answer"] == "Resposta 2"
     assert args[4:] == (20, 86400)
     assert client.eval.await_count == 2

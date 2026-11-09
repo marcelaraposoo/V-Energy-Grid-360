@@ -2,7 +2,7 @@ import hashlib
 import json
 
 
-CACHE_KEY_PREFIX = "agent:answer:v3"
+CACHE_KEY_PREFIX = "agent:answer:v6"
 
 
 def has_data_version(value: str | None) -> bool:
@@ -23,13 +23,18 @@ def build_cache_key(
 
     scope = hashlib.sha256(json.dumps([session_id, user_identity], separators=(",", ":")).encode()).hexdigest()
     payload = {
-        "policy": "approved-deterministic-v1",
+        "policy": "semantic-routing-v1",
         "question": normalized_question,
         "session_id": session_id,
         "user_identity": user_identity,
         "memory_context": memory_context,
         "data_version": data_version,
     }
+    # Datas relativas e respostas herdadas não podem atravessar o dia de referência.
+    from app.agent.context.runtime import reference_date
+    payload["reference_date"] = reference_date().isoformat()
+    from app.agent.context.knowledge import knowledge_version
+    payload["knowledge_version"] = knowledge_version()
 
     serialized = json.dumps(
         payload,

@@ -35,6 +35,8 @@ from app.agent.schemas import (
     SQLGenerationStatus,
     SynthesisStatus,
     VisualizationSpec,
+    QueryExecutionResult,
+    OutputGuardrailDecision,
 )
 from app.agent.sql_execution_orchestrator import (
     generate_validate_and_execute,
@@ -92,6 +94,7 @@ class PipelineResult:
     truncated: bool | None = None
     audit_persisted: bool | None = None
     regenerations: int = 0
+    source_ids: tuple[str, ...] = ()
 
 
 # Mensagens de perguntas que o agente decide não responder.
@@ -201,6 +204,7 @@ async def answer_question(
     stage = PipelineStage.INPUT_GUARDRAIL
     provider_attempts: tuple[ProviderAttempt, ...] = ()
     audit_steps: list[AuditStep] = []
+    interpretation = None
 
     def add_audit_step(
         code: str,
@@ -215,6 +219,13 @@ async def answer_question(
         ))
 
     async def finish(result: PipelineResult, outcome: AgentOutcome) -> PipelineResult:
+        if interpretation is not None:
+            from app.core.observability import set_metadata
+            set_metadata(intent_kind=interpretation.kind)
+            result = replace(result, source_ids=tuple(interpretation.source_ids))
+            if processed is not None:
+                processed.interpretation = interpretation
+                processed.source_sql = executed_sql
         elapsed_ms = round((perf_counter() - started_at) * 1000, 2)
         attempts = tuple(result.provider_attempts or provider_attempts)
 
@@ -238,7 +249,7 @@ async def answer_question(
             "C1": "Validação de entrada",
             "C2": "Cache e memória conversacional",
             "C3": "Seleção e fallback de provedores",
-            "C4.1": "Geração SQL",
+            "C4.1": "Interpretação e planejamento",
             "C4.2": "Validação de SQL",
             "C4.3": "Execução SQL",
             "C4.4": "Síntese da resposta",
@@ -299,6 +310,9 @@ async def answer_question(
                     duration_ms=elapsed_ms,
                     provider_attempts=attempts,
                     steps=steps_for_record,
+                    interpretation=interpretation,
+                    context_recorded=interpretation is not None and state is not None and state.memory_status != MemoryContextStatus.UNAVAILABLE,
+                    context_before=state.memory_context if state is not None else None,
                 )
             except Exception as error:
                 audit_persisted = False
@@ -366,13 +380,6 @@ async def answer_question(
             "Entrada normalizada e aprovada pela C1.", c1_duration,
         )
         clean_question = entry.normalized_input or question
-        from app.agent.context_requirement import requires_complete_question, COMPLETE_QUESTION_MESSAGE
-        if requires_complete_question(clean_question):
-            add_audit_step(
-                "C4.1", "Geração SQL", AuditStepStatus.BLOCKED,
-                "A pergunta precisa de mais contexto antes da geração SQL.",
-            )
-            return await finish(_no_answer(COMPLETE_QUESTION_MESSAGE, PipelineStage.SQL_GENERATION), AgentOutcome.NEEDS_CLARIFICATION)
         c2_started = perf_counter()
         state = await prepare_request_state(
             normalized_question=clean_question,
@@ -405,6 +412,11 @@ async def answer_question(
         )
         if state.cached_response is not None:
             cached = state.cached_response
+            executed_sql = cached.source_sql
+            interpretation = cached.interpretation
+            if interpretation is not None:
+                add_audit_step("INTENT", "Intenção e fontes da resposta em cache", AuditStepStatus.CACHE_HIT,
+                               interpretation.model_dump_json())
             return await finish(PipelineResult(
                 status=PipelineStatus.ANSWERED,
                 message=cached.answer,
@@ -412,28 +424,54 @@ async def answer_question(
                 assumptions=tuple(cached.assumptions),
                 visualization=cached.visualization,
                 cache_hit=True,
+                sql=cached.source_sql,
             ), AgentOutcome.ANSWERED)
 
         lookup_options = {}
         if (state.cache_key is not None and callable(getattr(dependencies.cache_store, "get_plan", None))):
-            async def lookup_plan(sql):
+            async def lookup_plan(sql, interpretation=None):
                 from app.agent.state.sql_cache import lookup_sql_cache
                 lookup = await lookup_sql_cache(
                     dependencies.cache_store, question=clean_question, sql=sql,
                     session_id=session_id, data_version=dependencies.data_version,
                     timeout_seconds=dependencies.cache_timeout_seconds,
                 )
+                if lookup.response is not None and interpretation is not None:
+                    previous = lookup.response.interpretation
+                    if previous is None or previous.model_dump(exclude={'uses_context'}) != interpretation.model_dump(exclude={'uses_context'}):
+                        from app.agent.state.sql_cache import record_cache
+                        record_cache('intent_changed', 'post_sql')
+                        return None
                 return lookup.response
             lookup_options["cache_lookup"] = lookup_plan
         stage = PipelineStage.SQL_GENERATION
+        from app.agent.context.runtime import build_runtime_context
+        import asyncio
+        metadata_started = perf_counter()
+        runtime_context = await asyncio.to_thread(build_runtime_context, clean_question, database_path)
+        catalog_unavailable = '"catalogo_disponivel": false' in runtime_context
+        add_audit_step("METADATA", "Metadados do catálogo", AuditStepStatus.ERROR if catalog_unavailable else AuditStepStatus.COMPLETED,
+                       "Catálogo indisponível; isso não comprova ausência de dados." if catalog_unavailable else "Calendário, cobertura e cadastro consultados em modo somente leitura.",
+                       round((perf_counter() - metadata_started) * 1000, 2))
+        sql_started = perf_counter()
         flow = await generate_validate_and_execute(
             question=clean_question,
-            database_context=load_database_context(),
+            database_context=load_database_context() + runtime_context,
             memory_context=state.memory_context,
             database_path=database_path,
             **lookup_options,
         )
         provider_attempts = tuple(flow.provider_attempts)
+        interpretation = flow.interpretation
+        if interpretation is not None:
+            add_audit_step("INTENT", "Intenção, operação e fontes", AuditStepStatus.COMPLETED,
+                           interpretation.model_dump_json())
+        if flow.entity_resolution is not None:
+            add_audit_step("ENTITIES", "Resolução geográfica",
+                           AuditStepStatus.ERROR if flow.entity_resolution == "technical_failure" else AuditStepStatus.COMPLETED,
+                           flow.entity_resolution, flow.entity_duration_ms)
+        if flow.plan_detail:
+            add_audit_step("PLAN", "Plano de consulta", AuditStepStatus.COMPLETED, flow.plan_detail)
         executed_sql = flow.sql  # SQL validado também é relevante quando o resultado veio do cache pós-SQL.
         query_result = flow.execution_result or (
             flow.outcome.result if flow.outcome is not None else None
@@ -444,12 +482,14 @@ async def answer_question(
         if provider_error is not None:
             add_audit_step(
                 "C4.1", "Geração SQL", AuditStepStatus.ERROR,
-                "O provedor não concluiu a geração SQL.",
+                f"A geração SQL falhou: {provider_error.value}.",
+                round((perf_counter() - sql_started) * 1000, 2),
             )
-        elif flow.generation_status == SQLGenerationStatus.READY:
+        elif flow.generation_status in {SQLGenerationStatus.READY, SQLGenerationStatus.KNOWLEDGE}:
             add_audit_step(
-                "C4.1", "Geração SQL", AuditStepStatus.COMPLETED,
-                "Consulta SQL gerada.",
+                "C4.1", "Interpretação e planejamento", AuditStepStatus.COMPLETED,
+                "Operação selecionada: " + ("consulta SQL" if flow.sql else "conhecimento documentado") + ".",
+                round(sum(a.latency_ms or 0 for a in provider_attempts), 2),
             )
         else:
             generation_detail = (
@@ -513,6 +553,7 @@ async def answer_question(
 
         if flow.cached_response is not None:
             cached = flow.cached_response
+            interpretation = cached.interpretation or interpretation
             return await finish(PipelineResult(
                 status=PipelineStatus.ANSWERED, message=cached.answer,
                 stage=PipelineStage.DONE, sql=flow.sql,
@@ -520,6 +561,28 @@ async def answer_question(
                 visualization=cached.visualization, cache_hit=True,
                 provider_attempts=provider_attempts,
             ), AgentOutcome.ANSWERED)
+
+        if flow.generation_status == SQLGenerationStatus.KNOWLEDGE:
+            from app.agent.context.knowledge import source_text
+            from app.agent.guardrails.output_guardrail import validate_output
+            if interpretation is None or not flow.knowledge_answer:
+                return await finish(_no_answer(_INSUFFICIENT_MESSAGE, stage), AgentOutcome.INTERNAL_ERROR)
+            evidence = source_text(interpretation.source_ids)
+            # Contexto vazio de valores operacionais para o guardrail; nenhuma
+            # consulta foi executada nem é registrada como executada.
+            approved = validate_output(flow.knowledge_answer, [], clean_question, "",
+                                       QueryExecutionResult(columns=[], rows=[], row_count=0),
+                                       knowledge_text=evidence, structured_intent=True)
+            add_audit_step("C5", "Validação da resposta", AuditStepStatus.COMPLETED
+                           if approved.decision == OutputGuardrailDecision.ALLOW else AuditStepStatus.BLOCKED,
+                           approved.reason.value if approved.reason else "Fontes documentais autorizadas e validações de texto/números aplicadas.")
+            if approved.decision != OutputGuardrailDecision.ALLOW:
+                return await finish(_no_answer(get_output_guardrail_message(approved.reason), PipelineStage.OUTPUT_GUARDRAIL), AgentOutcome.OUTPUT_BLOCKED)
+            processed = PostProcessingResult(answer=flow.knowledge_answer)
+            response_complete = True
+            add_audit_step("C6", "Pós-processamento", AuditStepStatus.COMPLETED, "Explicação fundamentada nas fontes selecionadas.")
+            return await finish(PipelineResult(status=PipelineStatus.ANSWERED, message=processed.answer,
+                                               stage=PipelineStage.DONE), AgentOutcome.ANSWERED)
 
         if flow.outcome is None:
             outcomes = {
@@ -540,8 +603,16 @@ async def answer_question(
 
         query_result = flow.outcome.result
         stage = PipelineStage.SYNTHESIS
+        synthesis_started = perf_counter()
+        synthesis_options = {}
+        if interpretation is not None:
+            from app.agent.context.knowledge import source_text
+            synthesis_options["structured_intent"] = True
+            if interpretation.source_ids:
+                synthesis_options["knowledge_text"] = source_text(interpretation.source_ids)
         synthesis_flow = await synthesize_and_validate(
             question=clean_question, sql=flow.sql, result=query_result,
+            **synthesis_options,
         )
         regenerations += synthesis_flow.regenerations
         provider_attempts += tuple(
@@ -552,12 +623,14 @@ async def answer_question(
         if synthesis_flow.provider_error is not None:
             add_audit_step(
                 "C4.4", "Síntese da resposta", AuditStepStatus.ERROR,
-                "O provedor não concluiu a síntese.",
+                f"A síntese falhou: {provider_error.value}.",
+                round((perf_counter() - synthesis_started) * 1000, 2),
             )
         elif synthesis_flow.synthesis is not None:
             add_audit_step(
                 "C4.4", "Síntese da resposta", AuditStepStatus.COMPLETED,
                 f"Síntese gerada: {synthesis_flow.synthesis.status.value}.",
+                round((perf_counter() - synthesis_started) * 1000, 2),
             )
         else:
             add_audit_step(

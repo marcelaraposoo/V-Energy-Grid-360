@@ -12,6 +12,11 @@ from app.services import continuidade, dashboard, perdas, receita
 logger = logging.getLogger(__name__)
 
 
+def _fontes_documentais(resultado):
+    from app.agent.context.knowledge import source_labels
+    return source_labels(getattr(resultado, "source_ids", ()))
+
+
 def _fontes_da_consulta(sql: str | None) -> list[str]:
     """Extrai somente tabelas autorizadas presentes no SQL validado."""
     if not sql:
@@ -91,7 +96,7 @@ def perguntar(pergunta: str, sessao_id: str | None = None) -> RespostaOut:
             status="ok",
             resposta=resultado.message,
             sql_executado=resultado.sql,
-            fontes=_fontes_da_consulta(resultado.sql),
+            fontes=_fontes_da_consulta(resultado.sql) + _fontes_documentais(resultado),
             visualizacao=(
                 resultado.visualization.model_dump(mode="json")
                 if resultado.visualization

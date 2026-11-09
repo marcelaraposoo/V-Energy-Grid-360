@@ -126,7 +126,7 @@ def test_pipeline_returns_and_persists_a_full_audit_trace(monkeypatch):
     assert result.duration_ms >= 0
     assert result.regenerations == 0
     assert [step.code for step in result.audit_steps] == [
-        "C1", "C2", "C3", "C4.1", "C4.2", "C4.3", "C4.4", "C5", "C6", "C7",
+        "C1", "C2", "C3", "C4.1", "C4.2", "C4.3", "C4.4", "C5", "C6", "METADATA", "C7",
     ]
     statuses = {step.code: step.status.value for step in result.audit_steps}
     assert statuses["C1"] == "completed"
@@ -1107,14 +1107,18 @@ def test_repeat_cache_does_not_cross_boundaries(monkeypatch, change):
 ])
 def test_contextual_repetitions_require_complete_question_without_cache(monkeypatch, question):
     from app.agent.context_requirement import COMPLETE_QUESTION_MESSAGE
-    calls = _install(monkeypatch)
+    calls = _install(monkeypatch, flow=SQLExecutionFlowResult(
+        generation_status=SQLGenerationStatus.NEEDS_CLARIFICATION,
+        generation_reason=COMPLETE_QUESTION_MESSAGE,
+    ))
     deps = _replay_dependencies()
     for _ in range(2):
         response = _ask(question, session_id="s1", state_dependencies=deps)
         assert not response.cache_hit and response.message == COMPLETE_QUESTION_MESSAGE
         assert response.outcome == AgentOutcome.NEEDS_CLARIFICATION
-    assert calls == {"flow": 0, "synthesis": 0}
-    assert deps.memory_store.entries == {}
+    assert calls == {"flow": 2, "synthesis": 0}
+    # O registro de esclarecimento é persistido, mas não vira antecedente válido.
+    assert all(e.outcome == AgentOutcome.NEEDS_CLARIFICATION for e in deps.memory_store.entries['s1'])
     assert deps.cache_store.writes == 0
     assert deps.audit_store.save.await_count == 2
 

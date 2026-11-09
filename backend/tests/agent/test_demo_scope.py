@@ -25,34 +25,37 @@ def test_short_but_complete_question_is_not_blocked(question):
     assert not requires_complete_question(question)
 
 
-@pytest.mark.parametrize("history", [None, "Pergunta e resposta anteriores aprovadas."])
-def test_context_guard_precedes_cache_and_provider_and_audits(monkeypatch, history):
+def test_missing_context_is_checked_after_memory_and_audited(monkeypatch):
     from app.agent import pipeline
     from app.agent.state.dependencies import AgentStateDependencies
     audit = AsyncMock()
     cache = AsyncMock()
     deps = AgentStateDependencies(audit_store=audit, cache_store=cache, data_version="demo-test")
-    state = AsyncMock(side_effect=AssertionError("Não buscar cache de pedido incompleto"))
-    sql = AsyncMock(side_effect=AssertionError("Não chamar provider"))
+    from app.agent.state.request_state import RequestState, MemoryContextStatus
+    state = AsyncMock(return_value=RequestState(None, None, MemoryContextStatus.EMPTY))
+    from app.agent.schemas import SQLExecutionFlowResult
+    sql = AsyncMock(return_value=SQLExecutionFlowResult(generation_status="needs_clarification", generation_reason=COMPLETE_QUESTION_MESSAGE))
     monkeypatch.setattr(pipeline, "prepare_request_state", state)
     monkeypatch.setattr(pipeline, "generate_validate_and_execute", sql)
-    result = asyncio.run(pipeline.answer_question("E nos últimos 6 meses?", session_id="s", state_dependencies=deps, memory_context=history))
+    result = asyncio.run(pipeline.answer_question("E nos últimos 6 meses?", session_id="s", state_dependencies=deps))
     assert result.message == COMPLETE_QUESTION_MESSAGE
     assert result.outcome.value == "needs_clarification" and not result.cache_hit
-    state.assert_not_awaited()
-    sql.assert_not_awaited()
+    state.assert_awaited_once()
+    sql.assert_awaited_once()
     cache.set.assert_not_awaited()
     audit.save.assert_awaited_once()
 
 
 def test_isolated_generator_also_requires_complete_question(monkeypatch):
     from app.agent import sql_generator
-    provider = AsyncMock(side_effect=AssertionError("Não chamar provider"))
+    from app.agent.schemas import InterpretedRequest, SemanticIntent
+    provider = AsyncMock(return_value=(InterpretedRequest(status="needs_clarification", reason=COMPLETE_QUESTION_MESSAGE,
+        interpretation=SemanticIntent(kind="clarification", resolved_question="Solicitação sem referente")), [], None))
     monkeypatch.setattr(sql_generator, "run_with_fallback", provider)
-    out, attempts, error = asyncio.run(sql_generator.generate_sql("Agora FEC", "schema", memory_context="Histórico anterior"))
+    out, attempts, error = asyncio.run(sql_generator.generate_sql("Agora FEC", "schema"))
     assert out.status.value == "needs_clarification" and out.reason == COMPLETE_QUESTION_MESSAGE
     assert attempts == [] and error is None
-    provider.assert_not_awaited()
+    provider.assert_awaited_once()
 
 
 @pytest.mark.parametrize("question,sql,blocked", [

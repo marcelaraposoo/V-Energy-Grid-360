@@ -9,6 +9,7 @@ from app.agent.schemas import (
     ProviderName,
     SQLGenerationResult,
     SQLGenerationStatus,
+    InterpretedRequest,
 )
 
 
@@ -541,11 +542,11 @@ async def test_router_receives_structured_output_type(
 
     assert (
         captured["output_type"]
-        is SQLGenerationResult
+        is InterpretedRequest
     )
 
     assert (
         captured["instructions"]
         == "PROMPTS CARREGADOS"
     )
-    
+

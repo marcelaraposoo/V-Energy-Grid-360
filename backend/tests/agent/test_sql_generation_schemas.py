@@ -23,7 +23,7 @@ def test_ready_accepts_sql_without_reason():
     assert result.reason is None
 
 
-NON_READY = [status for status in SQLGenerationStatus if status != SQLGenerationStatus.READY]
+NON_READY = [status for status in SQLGenerationStatus if status not in {SQLGenerationStatus.READY, SQLGenerationStatus.KNOWLEDGE}]
 
 
 @pytest.mark.parametrize("status", NON_READY)

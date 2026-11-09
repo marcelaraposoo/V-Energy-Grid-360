@@ -1,9 +1,10 @@
 # Tabelas do contrato Gold que o agente pode consultar.
-# fato_segmento_mensal fica de fora de propósito (decisão do contrato).
+# Inclui o agregado mensal validado no contrato físico da Gold.
 ALLOWED_TABLES = frozenset(
     {
         "dim_uc",
         "fato_consumo_faturamento",
+        "fato_segmento_mensal",
         "receita_decomposicao",
         "kpis_mensal",
         "dec_fec_alimentador_mensal",

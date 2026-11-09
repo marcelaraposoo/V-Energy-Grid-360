@@ -235,13 +235,15 @@ def test_policy_defaults_and_rollback(monkeypatch):
         monkeypatch.delenv(name, raising=False)
     config = Settings()
     assert config.provider_primary_timeout_seconds == 8
-    assert not config.provider_phase_budgets_enabled
+    assert config.provider_phase_budgets_enabled
     assert config.provider_sql_budget_seconds == 30
     assert config.provider_synthesis_budget_seconds == 20
     monkeypatch.setenv("PROVIDER_PRIMARY_TIMEOUT_SECONDS", "20")
     monkeypatch.setenv("PROVIDER_REUSE_SUCCESS", "false")
+    monkeypatch.setenv("PROVIDER_PHASE_BUDGETS_ENABLED", "false")
     config = Settings()
     assert config.provider_primary_timeout_seconds == 20 and not config.provider_reuse_success
+    assert not config.provider_phase_budgets_enabled
 
 
 @pytest.mark.anyio

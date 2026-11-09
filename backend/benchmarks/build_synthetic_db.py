@@ -872,6 +872,22 @@ def complete_contract(conn):
             NULL,tipo_medidor_ativo,idade_medidor_anos,possui_gd,0,energia_injetada_atipica,0,
             municipio,bairro,classe,'2026-06-30','synthetic-v1'
         FROM dim_uc WHERE variacao_consumo_12m_pct<-20 AND possui_gd=0;
+
+        INSERT INTO fato_segmento_mensal
+        (mes_referencia,municipio,bairro,classe,qtd_ucs_cadastradas,qtd_ucs_faturadas,
+         qtd_ucs_com_gd,consumo_kwh,consumo_kwh_ucs_com_gd,receita_energia,receita_total,
+         qtd_faturas,qtd_faturas_em_aberto,valor_em_aberto,qtd_faturas_bandeira_nao_verde,qtd_trocas_medidor)
+        SELECT f.mes_referencia,f.municipio,f.bairro,f.classe,
+            (SELECT COUNT(*) FROM dim_uc u WHERE u.municipio=f.municipio
+             AND u.bairro=f.bairro AND u.classe=f.classe
+             AND u.data_ligacao<=date(f.mes_referencia||'-01','+1 month','-1 day')),
+            COUNT(DISTINCT f.id_uc),SUM(f.possui_gd_no_mes),SUM(f.consumo_kwh),
+            SUM(CASE WHEN f.possui_gd_no_mes=1 THEN f.consumo_kwh ELSE 0 END),
+            SUM(f.valor_energia),SUM(f.valor_total),COUNT(*),SUM(f.em_aberto),
+            SUM(CASE WHEN f.em_aberto=1 THEN f.valor_total ELSE 0 END),
+            SUM(CASE WHEN f.bandeira_tarifaria<>'VERDE' THEN 1 ELSE 0 END),SUM(f.troca_medidor)
+        FROM fato_consumo_faturamento f
+        GROUP BY f.mes_referencia,f.municipio,f.bairro,f.classe;
     """)
 
 

@@ -1,5 +1,5 @@
 {
-  "version": "gold-agent-v2",
+  "version": "gold-agent-v3",
   "dialect": "sqlite",
   "tables": {
     "dim_uc": {
@@ -265,6 +265,33 @@
         "classe": "TEXT",
         "municipio": "TEXT",
         "bairro": "TEXT"
+      }
+    },
+    "fato_segmento_mensal": {
+      "grain": "um mês por município, bairro e classe",
+      "grain_key": [
+        "mes_referencia",
+        "municipio",
+        "bairro",
+        "classe"
+      ],
+      "columns": {
+        "mes_referencia": "TEXT",
+        "municipio": "TEXT",
+        "bairro": "TEXT",
+        "classe": "TEXT",
+        "qtd_ucs_cadastradas": "INTEGER",
+        "qtd_ucs_faturadas": "INTEGER",
+        "qtd_ucs_com_gd": "INTEGER",
+        "consumo_kwh": "REAL",
+        "consumo_kwh_ucs_com_gd": "REAL",
+        "receita_energia": "REAL",
+        "receita_total": "REAL",
+        "qtd_faturas": "INTEGER",
+        "qtd_faturas_em_aberto": "INTEGER",
+        "valor_em_aberto": "REAL",
+        "qtd_faturas_bandeira_nao_verde": "INTEGER",
+        "qtd_trocas_medidor": "INTEGER"
       }
     }
   }

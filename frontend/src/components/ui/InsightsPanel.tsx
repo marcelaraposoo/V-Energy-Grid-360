@@ -1,6 +1,6 @@
 import { Info, Sparkles, TriangleAlert } from 'lucide-react'
 import { api, useApi } from '../../api'
-import type { TelaInsight } from '../../api'
+import type { InsightsParams, TelaInsight } from '../../api'
 import { Panel } from './Panel'
 import { LoadingState } from './Feedback'
 import './portal.css'
@@ -15,7 +15,9 @@ type InsightsPanelProps = {
   tela: TelaInsight
   titulo?: string
   descricao?: string
-  // Quando mudam, os insights são recalculados (ex.: filtros da tela).
+  // Filtros enviados ao backend; quando mudam, os insights são recalculados.
+  params?: InsightsParams
+  // Outros valores que, ao mudar, recalculam os insights (ex.: o total da fila depois de criar uma ordem).
   deps?: readonly unknown[]
 }
 
@@ -25,11 +27,12 @@ export function InsightsPanel({
   tela,
   titulo = 'Insights da IA',
   descricao = 'Leitura automática dos dados desta tela',
+  params = {},
   deps = [],
 }: InsightsPanelProps) {
   const { data, error, loading, reload } = useApi(
-    (signal) => api.ia.insights(tela, signal),
-    [tela, ...deps],
+    (signal) => api.ia.insights(tela, params, signal),
+    [tela, JSON.stringify(params), ...deps],
   )
 
   if (!loading && !error && (!data || data.length === 0)) return null

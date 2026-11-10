@@ -31,6 +31,20 @@ test('rota dos insights da UC leva as competências escolhidas', async () => {
   assert.equal(urls[0].searchParams.get('competencia_referencia'), '2025-06')
 })
 
+test('rota dos insights da fila leva os filtros da tabela', async () => {
+  const urls: URL[] = []
+  const api = createApi(createHttp('http://test', async (url) => {
+    urls.push(new URL(String(url)))
+    return new Response('[]')
+  }))
+  await api.ia.insights('perdas', { municipio: 'Recife', classe: '', prob_minima: 0.7, q: undefined })
+  assert.equal(urls[0].pathname, '/api/ia/insights')
+  assert.equal(urls[0].searchParams.get('tela'), 'perdas')
+  assert.equal(urls[0].searchParams.get('municipio'), 'Recife')
+  assert.equal(urls[0].searchParams.get('prob_minima'), '0.7')
+  assert.equal(urls[0].searchParams.has('classe'), false)
+})
+
 test('card de insights da UC: carregando antes da resposta', async () => {
   const httpServer = createHttpServer()
   const server = await createServer({

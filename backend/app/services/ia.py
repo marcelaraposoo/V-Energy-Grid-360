@@ -114,8 +114,10 @@ def limpar_sessao(sessao_id: str) -> None:
     return None
 
 
-def _insights_base(repo, tela: str) -> list[Insight]:
-    """Insights calculados direto dos dados (fiéis por construção). O LLM só reescreve o texto depois."""
+def _insights_base(repo, tela: str, filtros_fila: dict | None = None) -> list[Insight]:
+    """Insights calculados direto dos dados (fiéis por construção). O LLM só reescreve o texto depois.
+
+    `filtros_fila` (municipio, classe, min_prob, q) só vale para a tela de perdas: são os filtros da tabela."""
     base, atual = dashboard.periodos_padrao(repo)
     if tela == "receita":
         v = receita.variacao(repo, base, atual, Filtros(), "municipio")
@@ -127,7 +129,7 @@ def _insights_base(repo, tela: str) -> list[Insight]:
                     texto=f"{pior.chave} teve o pior efeito-volume (R$ {pior.efeito_volume:,.0f}; energia {pior.variacao_energia_pct}%)."),
         ]
     if tela == "perdas":
-        return perdas.insights_fila(repo)
+        return perdas.insights_fila(repo, **(filtros_fila or {}))
     if tela == "continuidade":
         r = continuidade.ranking_alimentadores(repo, atual)
         return [Insight(tipo="alerta", dados=r[0].model_dump(),
@@ -138,5 +140,5 @@ def _insights_base(repo, tela: str) -> list[Insight]:
 from app.agent.insights.rewriter import rewrite_insights
 
 
-def insights(repo, tela: str) -> list[Insight]:
-    return rewrite_insights(_insights_base(repo, tela))
+def insights(repo, tela: str, filtros_fila: dict | None = None) -> list[Insight]:
+    return rewrite_insights(_insights_base(repo, tela, filtros_fila))

@@ -268,6 +268,6 @@ def test_all_curated_sources_have_existing_repository_references():
     for source in sources().values():
         for path in source["source"].split("; "):
             assert (root / path).exists(), path
-            assert hashlib.sha256((root / path).read_bytes()).hexdigest() == source['source_fingerprints'][path], (
+            assert hashlib.sha256((root / path).read_bytes().replace(b"\r\n", b"\n")).hexdigest() == source['source_fingerprints'][path], (
                 f"A fonte {path} mudou: revise o texto curado e atualize seu fingerprint antes de publicar."
             )

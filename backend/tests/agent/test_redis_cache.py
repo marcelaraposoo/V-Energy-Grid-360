@@ -50,7 +50,7 @@ def test_set_serializes_only_final_result_and_expires(client):
     args, kwargs = redis.eval.await_args
     assert args[1:4] == (2, "key", "key:entries")
     assert json.loads(args[4]) == value.model_dump(mode="json")
-    assert set(json.loads(args[4])) == {"answer", "assumptions", "visualization"}
+    assert set(json.loads(args[4])) == {"answer", "assumptions", "visualization", "source_sql", "interpretation"}
     assert args[5:] == (300, 100)
     assert kwargs == {}
     redis.__aexit__.assert_awaited_once()

@@ -11,8 +11,8 @@ EXECUTION_MESSAGES = {
     SQLExecutionErrorType.COLUMN_NOT_FOUND: DEFAULT_EXECUTION_MESSAGE,
     SQLExecutionErrorType.TIMEOUT: (
         "A consulta demorou mais do que o esperado. "
-        "Tente uma pergunta mais específica, por exemplo com um "
-        "período ou município."
+        "Não foi possível concluir a leitura dos dados no prazo. "
+        "Tente novamente em alguns instantes."
     ),
     SQLExecutionErrorType.DATABASE_UNAVAILABLE: (
         "A base de dados está temporariamente indisponível. "

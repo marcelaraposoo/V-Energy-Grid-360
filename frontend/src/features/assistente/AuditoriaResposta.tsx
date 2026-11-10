@@ -31,7 +31,7 @@ const ROTULO_RESULTADO: Record<string, string> = {
 
 const ROTULO_ETAPA_FINAL: Record<string, string> = {
   input_guardrail: 'C1 · Entrada',
-  sql_generation: 'C4.1 · Geração SQL',
+  sql_generation: 'C4.1 · Interpretação e planejamento',
   sql_guardrail: 'C4.2 · Segurança SQL',
   sql_execution: 'C4.3 · Execução SQL',
   synthesis: 'C4.4 · Síntese',
@@ -47,7 +47,7 @@ function formatarDuracao(valor: number | null | undefined): string {
 }
 
 function formatarFase(fase: string | null): string {
-  if (fase === 'sql_generation') return 'Geração SQL'
+  if (fase === 'sql_generation') return 'Interpretação e planejamento'
   if (fase === 'synthesis') return 'Síntese'
   return 'Fase não informada'
 }
@@ -143,13 +143,13 @@ export function AuditoriaResposta({ auditoria, sql, fontes = [] }: Props) {
           <section className="audit-section" aria-label="Consulta e fontes">
             <h4>Consulta e fontes</h4>
             {fontes.length > 0 && (
-              <p><strong>Tabelas de origem:</strong> {fontes.join(', ')}</p>
+              <p><strong>Fontes de informação:</strong> {fontes.join(', ')}</p>
             )}
             {sql && (
               <>
                 <p><strong>SQL gerado e validado:</strong></p>
                 {auditoria.cache_hit && (
-                  <p className="muted">O resultado foi recuperado do cache pós-SQL; a consulta exibida foi validada, mas não foi executada novamente nesta requisição.</p>
+                  <p className="muted">A resposta veio do cache. A consulta exibida é a origem validada da resposta e não foi executada novamente nesta requisição.</p>
                 )}
                 <pre><code>{sql}</code></pre>
               </>

@@ -102,7 +102,9 @@ async def finalize(
         and not audit_record.cache_hit
         and should_store_in_cache(
             audit_record.outcome,
-            truncated=audit_record.truncated,
+            truncated=(False if cache_value.interpretation is not None
+                       and cache_value.interpretation.kind in {"conceptual", "platform"}
+                       and audit_record.sql is None else audit_record.truncated),
             response_complete=cache_response_complete,
         )
     ):

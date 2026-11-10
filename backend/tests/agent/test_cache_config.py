@@ -40,7 +40,7 @@ def test_environment_configures_one_runtime_cache(monkeypatch):
     monkeypatch.setattr("app.core.config.settings", config)
     deps = get_state_dependencies()
     assert isinstance(deps.cache_store, RedisCacheStore)
-    assert deps.data_version == "snapshot-v2"
+    assert deps.data_version.startswith("snapshot-v2:file:")
     assert deps.cache_ttl_seconds == 60
     assert deps.cache_timeout_seconds == 0.5
     assert isinstance(deps.memory_store, RedisMemoryStore)
@@ -48,6 +48,18 @@ def test_environment_configures_one_runtime_cache(monkeypatch):
     assert deps.audit_store.path == config.portal_db_path
     assert config.memory_ttl_seconds == 86400
     assert config.memory_timeout_seconds == 1
+
+
+def test_snapshot_file_replacement_invalidates_cache(monkeypatch, tmp_path):
+    path = tmp_path / 'gold.db'
+    path.write_bytes(b'first snapshot')
+    config = Settings(redis_url='redis://redis',gold_data_version='explicit-version',sqlite_path=str(path))
+    monkeypatch.setattr('app.core.config.settings',config)
+    before = get_state_dependencies().data_version
+    path.write_bytes(b'replacement snapshot with another size')
+    assert get_state_dependencies().data_version != before
+    path.unlink()
+    assert get_state_dependencies().data_version.endswith(':file:unavailable')
 
 
 @pytest.mark.parametrize("field,value", [

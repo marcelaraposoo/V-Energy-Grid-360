@@ -58,6 +58,8 @@ async def synthesize_and_validate(
     question: str,
     sql: str,
     result: QueryExecutionResult,
+    knowledge_text: str = "",
+    structured_intent: bool = False,
 ) -> SynthesisFlowResult:
     """
     Orquestra a 4.4 (síntese) e a Camada 5 (Output Guardrail).
@@ -87,6 +89,7 @@ async def synthesize_and_validate(
                 sql=sql,
                 result=result,
                 guardrail_feedback=feedback,
+                **({"knowledge_text": knowledge_text} if knowledge_text else {}),
             )
         )
 
@@ -113,7 +116,7 @@ async def synthesize_and_validate(
                 regenerations=regenerations,
             )
 
-        if synthesis.status == SynthesisStatus.NO_DATA:
+        if synthesis.status == SynthesisStatus.NO_DATA and not knowledge_text:
             return SynthesisFlowResult(
                 synthesis=synthesis,
                 guardrail=None,
@@ -128,6 +131,8 @@ async def synthesize_and_validate(
             question=question,
             sql=sql,
             result=result,
+            **({"knowledge_text": knowledge_text} if knowledge_text else {}),
+            **({"structured_intent": True} if structured_intent else {}),
         )
 
         if (

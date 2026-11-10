@@ -15,7 +15,7 @@ from app.agent.state.memory_context import MEMORY_STORAGE_LIMIT
 from app.agent.state.redis_client import create_redis_client
 
 
-MEMORY_KEY_PREFIX = "agent:memory:v1"
+MEMORY_KEY_PREFIX = "agent:memory:v2"
 logger = logging.getLogger(__name__)
 
 

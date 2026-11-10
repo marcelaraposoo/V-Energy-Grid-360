@@ -1,5 +1,7 @@
 # Arquitetura do Backend — V-Energy Grid 360
 
+> Estado atual do agente, Redis e memória: [revisão arquitetural de 09/11/2026](revisao-arquitetural-agente-2026-11-09.md). As marcações de proposta/ausência de cache neste documento preservam o desenho histórico e não descrevem o agente em execução após essa revisão.
+
 Documento de alinhamento entre **Dev (front/back)** e **IA**. Mostra onde cada peça vive no backend e onde entram
 os guardrails do agente. Os diagramas usam Mermaid (renderizam direto no GitHub).
 

@@ -8,7 +8,7 @@ Use exclusivamente as tabelas, colunas e relacionamentos descritos abaixo; não 
 
 - Dialeto SQL: SQLite. `mes_referencia` é texto `yyyy-MM`.
 - Datas e timestamps são `TEXT`, booleanos `INTEGER` (0/1), decimais `REAL`.
-- Janela de competências: `2022-07` a `2026-06`; não use a data atual como fim da base.
+- Janela de competências: `2022-07` a `2026-06`; esta é a cobertura dos dados, não a data atual do calendário. Datas relativas usam os metadados de execução.
 
 ### Datas e timestamps
 
@@ -613,3 +613,33 @@ utilize `NEEDS_CLARIFICATION`, sem pedir esclarecimento sobre a definição já 
 8. Utilize tabelas de fato quando a pergunta exigir granularidade de UC, mês, ocorrência ou chamado.
 9. Se faltar uma informação objetiva que o usuário possa fornecer, utilize `NEEDS_CLARIFICATION`.
 10. Se o dado ou estrutura necessária não existir neste contrato, utilize `INSUFFICIENT_CONTEXT`.
+
+
+# 10. `fato_segmento_mensal`
+
+## Grão
+
+1 linha = 1 mês × município × bairro × classe. Prefira esta tabela para consumo e faturamento agregados por localidade e período. Não exige JOIN com dim_uc.
+
+## Colunas
+
+- `mes_referencia` — TEXT — competência yyyy-MM
+- `municipio` — TEXT — município
+- `bairro` — TEXT — bairro, sempre junto com município
+- `classe` — TEXT — classe de consumo
+- `qtd_ucs_cadastradas` — INTEGER — qtd ucs cadastradas
+- `qtd_ucs_faturadas` — INTEGER — qtd ucs faturadas
+- `qtd_ucs_com_gd` — INTEGER — qtd ucs com gd
+- `consumo_kwh` — REAL — energia faturada em kWh
+- `consumo_kwh_ucs_com_gd` — REAL — consumo de UCs com GD conectada no mês
+- `receita_energia` — REAL — receita de energia sem tributos
+- `receita_total` — REAL — faturamento com tributos
+- `qtd_faturas` — INTEGER — qtd faturas
+- `qtd_faturas_em_aberto` — INTEGER — qtd faturas em aberto
+- `valor_em_aberto` — REAL — valor total de faturas em aberto
+- `qtd_faturas_bandeira_nao_verde` — INTEGER — qtd faturas bandeira nao verde
+- `qtd_trocas_medidor` — INTEGER — qtd trocas medidor
+
+## Uso
+
+Receitas, volumes e contagens de faturas são aditivos entre segmentos e meses. Contagens de UCs só se somam entre segmentos do mesmo mês; para um período, use último mês ou média, nunca soma de UCs entre meses. Calcule preços e percentuais depois de somar as bases. Não contém detalhe de UC, fatura ou medidor; use o fato detalhado quando esses filtros forem necessários. Não substitui indicadores de interrupções ou atendimento.

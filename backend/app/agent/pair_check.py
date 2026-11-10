@@ -73,7 +73,9 @@ def extract_pair(sql: str) -> tuple[str, str] | None:
 def is_empty_or_zero(columns, rows) -> bool:
     if not rows:
         return True
-    return len(rows) == 1 and len(rows[0]) == 1 and rows[0][0] in (0, 0.0)
+    if all(value is None for row in rows for value in row):
+        return True
+    return len(rows) == 1 and len(rows[0]) == 1 and rows[0][0] in (None, 0, 0.0)
 
 
 def lookup_pair(municipio: str, bairro: str, database_path: str | None = None):

@@ -1,8 +1,4 @@
-"""Orientação fixa para referências explícitas sem pergunta autossuficiente.
-
-Não interpreta o histórico, não resolve localidades e não depende do tamanho da
-frase. Formas não reconhecidas continuam sujeitas ao contrato da C4.1.
-"""
+"""Detecta referências que exigem contexto; não bloqueia histórico disponível."""
 import re
 
 COMPLETE_QUESTION_MESSAGE = (
@@ -13,6 +9,10 @@ COMPLETE_QUESTION_MESSAGE = (
 
 def requires_complete_question(question: str) -> bool:
     text = question.casefold().strip(" ?.!\n\t")
+    if re.fullmatch(r"e (?:em|no|na) .+|(?:agora )?compara(?:r)? (?:os dois|com o ano passado)|qual foi o maior", text) and not re.search(
+        r"\b(?:consumo|consumiu|faturamento|receita|interrupções|interrupcoes|atendimento|ucs|energia)\b", text
+    ):
+        return True
     if re.search(r"\b(?:disso|disto|desse|dessa|desses|dessas|nesse|nessa|nesses|nessas|naqueles|naquelas|dele|dela)\b|\bpara (?:ela|ele)\b", text):
         return True
     if re.search(r"\b(?:consulta|resposta|pergunta) anterior\b", text):

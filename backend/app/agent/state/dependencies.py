@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.agent.state.audit import AuditStore
 from app.agent.state.cache import (
@@ -17,8 +18,9 @@ class AgentStateDependencies:
     """
     Stores e limites usados pela C2 e pela finalização C7.
 
-    Stores opcionais permitem injeção isolada nos testes. A versão Gold é um
-    identificador explícito fornecido pela integração, nunca mtime/hash por GET.
+    Stores opcionais permitem injeção isolada nos testes. A versão Gold inclui
+    o identificador explícito da integração; o factory acrescenta a identidade
+    do arquivo local. Não há cálculo de hash do conteúdo Gold por GET.
     """
 
     audit_store: AuditStore | None = None
@@ -50,6 +52,15 @@ def get_state_dependencies() -> AgentStateDependencies:
     from app.agent.state.redis_memory import RedisMemoryStore
     from app.agent.state.sqlite_audit import SQLiteAuditStore
 
+    version = settings.gold_data_version
+    if version and settings.redis_url:
+        try:
+            snapshot = Path(settings.sqlite_path).stat()
+            version = f"{version}:file:{snapshot.st_size}:{snapshot.st_mtime_ns}"
+        except OSError:
+            # A indisponibilidade do arquivo é reportada pela execução; ela não
+            # autoriza recuperar uma resposta de um snapshot que não está legível.
+            version += ":file:unavailable"
     return AgentStateDependencies(
         audit_store=SQLiteAuditStore(settings.portal_db_path),
         memory_store=(
@@ -63,7 +74,7 @@ def get_state_dependencies() -> AgentStateDependencies:
             RedisCacheStore(settings.redis_url, timeout_seconds=settings.cache_timeout_seconds, max_entries_per_session=settings.cache_max_entries_per_session)
             if settings.redis_url else None
         ),
-        data_version=settings.gold_data_version,
+        data_version=version,
         cache_ttl_seconds=settings.cache_ttl_seconds,
         cache_timeout_seconds=settings.cache_timeout_seconds,
     )

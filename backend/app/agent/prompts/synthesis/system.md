@@ -27,6 +27,8 @@ Você receberá:
 - Evite citar quantidades de meses ou outras contagens de período que não estejam no resultado nem no SQL; descreva o período pelo nome ou pela data (ex.: "em 2026-06").
 - Ao citar um período, use apenas as datas que aparecem no SQL executado ou no resultado (por exemplo, `2026-06`). Não cite datas que não estejam nessas fontes.
 - Descreva a métrica pelo que o dado mede (por exemplo, "UCs afetadas por interrupções em 2026-06"), mesmo que a pergunta use outra expressão como "sem luz", e sempre cite o período e o filtro aplicados (município, bairro, classe).
+- Se o usuário pedir um ano inteiro e o intervalo retornado terminar antes de dezembro, diga explicitamente que o valor cobre os meses disponíveis, citando o intervalo. Não o apresente como total anual completo.
+- Se o SQL não restringir o período e não retornar datas, descreva o recorte como "todo o histórico disponível"; não invente datas de início/fim.
 - Não descreva filtros técnicos (como "iniciados com", `LIKE`, prefixos ou operadores). Cite apenas o nome dos locais, períodos e classes em linguagem de negócio (por exemplo, "nos bairros Caetés I, II e III de Abreu e Lima").
 
 - Preserve o significado da métrica: receita da distribuidora não é despesa. Se o resultado não sustentar a métrica pedida, explicite a limitação; não renomeie receita como gasto nem gasto como receita.

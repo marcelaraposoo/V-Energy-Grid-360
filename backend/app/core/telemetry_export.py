@@ -23,10 +23,10 @@ NUMBER_ATTRIBUTES = {
 }
 BOOL_ATTRIBUTES = {"cache_hit", "truncated"}
 STAGES = {"pipeline", "C1", "C2", "C4.1", "C4.2", "C4.3", "C4.4", "C5", "C6", "C7",
-          "provider", "sql_flow", "synthesis_flow"}
+          "provider", "sql_flow", "synthesis_flow", "entities", "metadata"}
 
 
-CACHE_REASONS = {"hit", "not_found_or_expired", "payload_invalid", "redis_error", "plan_mismatch", "unsupported_plan", "cache_disabled", "session_missing", "memory_unavailable"}
+CACHE_REASONS = {"hit", "not_found_or_expired", "payload_invalid", "redis_error", "plan_mismatch", "unsupported_plan", "cache_disabled", "session_missing", "memory_unavailable", "context_changed", "intent_changed"}
 CACHE_PHASES = {"pre_sql", "post_sql"}
 
 
@@ -38,6 +38,7 @@ def safe_attributes(attributes):
             or (key in BOOL_ATTRIBUTES and type(value) is bool)
             or (key == "cache_reason" and isinstance(value, str) and value in CACHE_REASONS)
             or (key == "cache_phase" and isinstance(value, str) and value in CACHE_PHASES))
+            or (key == "intent_kind" and isinstance(value, str) and value in {"conceptual", "platform", "analytical", "hybrid", "clarification", "unsupported"})
     }
 
 

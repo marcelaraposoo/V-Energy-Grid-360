@@ -8,6 +8,7 @@ from app.agent.schemas import (
     ProviderErrorType,
     SQLGenerationResult,
     SQLGenerationStatus,
+    InterpretedRequest,
 )
 
 
@@ -31,6 +32,7 @@ def build_sql_generation_prompt(
     )
 
     feedback_section = ""
+    from app.agent.context.knowledge import knowledge_context
 
     if guardrail_feedback and guardrail_feedback.strip():
         feedback_section = (
@@ -41,14 +43,15 @@ def build_sql_generation_prompt(
 
     return (
         "<user_question>\n"
-        f"{question}\n"
+        f"{question.replace('<', '&lt;')}\n"
         "</user_question>\n\n"
         "<conversation_context>\n"
-        f"{memory}\n"
+        f"{memory.replace('<', '&lt;')}\n"
         "</conversation_context>\n\n"
         "<database_context>\n"
         f"{database_context}\n"
         "</database_context>"
+        f"{knowledge_context()}"
         f"{feedback_section}"
     )
 
@@ -77,10 +80,6 @@ async def generate_sql(
     Esta função NÃO executa SQL.
     """
 
-    from app.agent.context_requirement import requires_complete_question, COMPLETE_QUESTION_MESSAGE
-    if requires_complete_question(question):
-        return SQLGenerationResult(status=SQLGenerationStatus.NEEDS_CLARIFICATION, reason=COMPLETE_QUESTION_MESSAGE), [], None
-
     if not database_context.strip():
         result = SQLGenerationResult(
             status=SQLGenerationStatus.INSUFFICIENT_CONTEXT,
@@ -104,13 +103,15 @@ async def generate_sql(
 
     output, attempts, error = await run_with_fallback(
         prompt,
-        output_type=SQLGenerationResult,
+        output_type=InterpretedRequest,
         instructions=instructions,
     )
 
     if error is not None:
         return None, attempts, error
 
+    if isinstance(output, InterpretedRequest):
+        output = SQLGenerationResult.model_validate(output.model_dump())
     if not isinstance(
         output,
         SQLGenerationResult,
@@ -121,7 +122,13 @@ async def generate_sql(
             ProviderErrorType.INVALID_OUTPUT,
         )
 
-    if output.sql:
+    if output.interpretation is not None:
+        from app.agent.context.knowledge import source_text
+        try:
+            source_text(output.interpretation.source_ids)
+        except ValueError:
+            return None, attempts, ProviderErrorType.INVALID_OUTPUT
+    if output.sql and output.interpretation is None:
         from app.agent.intent_validation import sql_intent_problem
         problem = sql_intent_problem(question, output.sql)
         if problem:

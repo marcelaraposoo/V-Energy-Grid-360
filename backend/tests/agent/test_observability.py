@@ -121,6 +121,8 @@ def _synthetic_pipeline(
             output = {"status": "ready", "sql": "SELECT municipio, COUNT(*) AS total FROM dim_uc GROUP BY municipio"}
         else:
             output = {"status": "answered", "answer": "Há 1 unidade consumidora."}
+        if output["status"] == "ready":
+            output["interpretation"] = {"kind": "analytical", "resolved_question": "Quantas UCs por município?"}
         return TestModel(custom_output_text=json.dumps(output), profile={"supports_json_schema_output": True})
 
     monkeypatch.setattr(gemini, "_build_model", model)

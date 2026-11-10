@@ -140,7 +140,7 @@ def test_missing_gold_skips_without_creating_a_database(tmp_path):
 def test_context_matches_static_names_and_grains():
     tables = context_tables()
     assert set(tables) == set(CONTRACT)
-    assert "fato_segmento_mensal" not in tables
+    assert "fato_segmento_mensal" in tables
     for name, table in CONTRACT.items():
         assert tables[name] == set(table["columns"]), name
         assert table["grain"] and table["grain_key"]
@@ -261,6 +261,9 @@ def test_benchmark_builds_complete_contract(tmp_path):
     conn = sqlite3.connect(path)
     try:
         assert_physical_contract(conn)
+        aggregate = conn.execute('SELECT SUM(consumo_kwh),SUM(receita_total) FROM fato_segmento_mensal').fetchone()
+        detailed = conn.execute('SELECT SUM(consumo_kwh),SUM(valor_total) FROM fato_consumo_faturamento').fetchone()
+        assert aggregate == pytest.approx(detailed)
         for sql, columns in SQL_CASES.values():
             cur = conn.execute(sql)
             assert [c[0] for c in cur.description] == columns

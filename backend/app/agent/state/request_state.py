@@ -51,6 +51,7 @@ async def prepare_request_state(
     )
 
     entries = []
+    repeated_entry = None
     if (
         session_id is not None
         and dependencies.memory_store is not None
@@ -58,7 +59,13 @@ async def prepare_request_state(
         try:
             async with asyncio.timeout(dependencies.memory_timeout_seconds):
                 entries = await dependencies.memory_store.get_context(session_id)
-            memory_context = build_memory_context(entries)
+            if (entries and entries[-1].question == normalized_question
+                    and entries[-1].context_recorded
+                    and entries[-1].outcome.value == "answered"):
+                repeated_entry = entries[-1]
+                memory_context = repeated_entry.context_before
+            else:
+                memory_context = build_memory_context(entries)
             memory_status = (
                 MemoryContextStatus.LOADED if memory_context is not None
                 else MemoryContextStatus.EMPTY
@@ -100,6 +107,10 @@ async def prepare_request_state(
             except Exception as error:
                 logger.warning("Falha ao ler cache independente. error_type=%s", type(error).__name__)
 
+    if (cached_response is not None and repeated_entry is not None
+            and cached_response.answer != repeated_entry.answer):
+        cached_response = None
+        record_cache("context_changed", "pre_sql")
     if cached_response is not None:
         record_cache("hit", "pre_sql", True)
     elif dependencies.cache_store is None:

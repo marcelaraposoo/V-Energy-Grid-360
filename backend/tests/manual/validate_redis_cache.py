@@ -92,7 +92,7 @@ async def main(mode):
             payload = json.loads(await client.get(key))
             assert set(payload) == {"answer", "assumptions", "visualization"}
             assert "sql" not in payload and "request_id" not in payload
-            assert all(len(part) == 64 for part in key.removeprefix("agent:answer:v3:").split(":"))
+            assert all(len(part) == 64 for part in key.removeprefix("agent:answer:v4:").split(":"))
             second = await pipeline.answer_question(question, session_id=session, state_dependencies=deps)
             assert second.cache_hit and second.outcome == AgentOutcome.ANSWERED
             assert first.request_id != second.request_id

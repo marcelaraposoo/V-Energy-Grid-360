@@ -5,6 +5,7 @@ from app.agent.schemas import (
     QueryExecutionResult,
     AuditStep,
     ProviderAttempt,
+    SemanticIntent,
 )
 from app.agent.state.audit import AuditStore
 from app.agent.state.cache import (
@@ -46,6 +47,9 @@ async def finalize_request(
     duration_ms: float | None = None,
     provider_attempts: tuple[ProviderAttempt, ...] = (),
     steps: tuple[AuditStep, ...] = (),
+    interpretation: SemanticIntent | None = None,
+    context_recorded: bool = False,
+    context_before: str | None = None,
 ) -> bool | None:
     """
     Ponte entre o fluxo do agente e a Camada 7.
@@ -76,6 +80,10 @@ async def finalize_request(
         answer=final_answer,
         outcome=outcome,
     )
+    if memory_entry is not None:
+        memory_entry.interpretation = interpretation
+        memory_entry.context_recorded = context_recorded
+        memory_entry.context_before = context_before
 
     return await finalize(
         audit_store=audit_store,

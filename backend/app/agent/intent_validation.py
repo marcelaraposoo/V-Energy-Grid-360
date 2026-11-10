@@ -8,6 +8,14 @@ def normalize(text):
     return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(c) != "Mn")
 
 
+def needs_domain_recheck(question):
+    """Veta uma recusa prematura; não aprova SQL nem substitui segurança."""
+    text = normalize(question)
+    analytical = re.search(r"\b(?:qual|quais|quanto|quantas|onde|compare|compara|mostre)\b", text)
+    operational = re.search(r"\b(?:consumo|consumiu|faturamento|faturas|interrupcoes|atendimentos|conta de luz|falta de luz|energia gasta)\b", text)
+    return bool(analytical and operational)
+
+
 def sql_intent_problem(question, sql):
     try:
         tree = parse_one(sql, read="sqlite")

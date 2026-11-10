@@ -1,4 +1,4 @@
-from app.agent.schemas import MemoryEntry
+from app.agent.schemas import MemoryEntry, AgentOutcome
 
 
 MEMORY_STORAGE_LIMIT = 20
@@ -7,9 +7,12 @@ MEMORY_CONTEXT_MAX_CHARS = 4000
 
 
 def _format_entry(entry: MemoryEntry) -> str:
+    semantic = ("\nPedido resolvido (período solicitado, não cobertura encontrada): " + entry.interpretation.model_dump_json()
+                if entry.interpretation is not None else "")
     return (
         f"Usuário: {entry.question}\n"
-        f"Assistente: {entry.answer}"
+        f"{semantic}\nResposta observada (pode ter cobertura parcial): {entry.answer}"
+        if entry.interpretation is not None else f"Usuário: {entry.question}\nAssistente: {entry.answer}"
     )
 
 

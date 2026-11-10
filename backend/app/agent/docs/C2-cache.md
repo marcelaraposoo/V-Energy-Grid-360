@@ -1,5 +1,45 @@
 # C2 — cache automático e memória conversacional
 
+## Revisão vigente — interpretação estruturada (2026-11-08)
+
+Esta seção substitui as referências históricas a v3 e a ausência de intenção
+estruturada nas seções abaixo. O namespace atual é `agent:answer:v6` e a memória
+é `agent:memory:v2`.
+
+- Antes do modelo, a identidade inclui pergunta normalizada, sessão/escopo,
+  contexto efetivo, dia operacional, versão explícita Gold, tamanho/mtime do
+  arquivo e fingerprint das fontes, schema e prompts. Chaves não contêm texto puro.
+- A memória armazena a intenção resolvida e o **contexto que antecedeu a resposta**.
+  Uma repetição literal imediata de uma resposta elegível reutiliza esse snapshot
+  explícito. Não se tenta reconstruí-lo removendo duplicatas de histórico truncado.
+  Em cache expirado, a nova geração recebe exatamente o mesmo antecedente.
+- O payload aprovado preserva resposta, pressupostos, gráfico, SQL de origem e
+  intenção/fontes. HIT anterior ao modelo evita geração, execução e síntese;
+  mantém C1, auditoria própria e atualização/deduplicação de memória.
+- O lookup pós-SQL exige plano canônico, pergunta, snapshot e sessão iguais.
+  Quando há interpretação estruturada, ela também deve coincidir (exceto o
+  indicador de uso de contexto), para não reutilizar uma explicação híbrida
+  diferente só porque o SQL coincidiu.
+- Não há busca vetorial nem aproximação textual para decidir HIT. Paráfrases
+  podem gerar a mesma consulta, mas não recebem automaticamente a mesma resposta.
+- Somente respostas completas e aprovadas são armazenadas. Erros, timeouts,
+  esclarecimentos e ausência de dados não são cacheados. Conceitos são elegíveis
+  após validação documental e de saída, sem fingir que houve SQL.
+- TTL da resposta continua em 24 h, sem renovação no GET; até 100 entradas por
+  sessão. Memória: 20 turnos armazenados, até 5/4.000 caracteres enviados, TTL
+  renovável de 24 h. Redis indisponível não vira cache HIT; falha ao recuperar
+  memória impede reaproveitar uma resposta dependente dela.
+- Arquivo Gold indisponível recebe identidade distinta (`file:unavailable`),
+  impedindo HIT de resultados de um arquivo anteriormente disponível. A consulta
+  operacional reporta falha técnica. Substituições do arquivo invalidam o cache;
+  publicações devem continuar atualizando `GOLD_DATA_VERSION`.
+
+Não existe autenticação/ownership de sessões na API atual. Há isolamento por
+UUID de conversa, não uma garantia de autorização individual por usuário.
+Nova conversa troca o UUID; os registros antigos expiram. O certificado legado
+de ranking independente permanece um atalho restrito, não um classificador de
+linguagem natural. Evidências e métricas estão no relatório arquitetural.
+
 ## Implementado e limites atuais
 
 C2 armazena `PostProcessingResult` aprovado: texto, assumptions e visualização.

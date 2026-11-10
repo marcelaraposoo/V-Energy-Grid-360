@@ -1,0 +1,83 @@
+[
+  {
+    "id": "dominio.uc",
+    "title": "Unidade consumidora e rede",
+    "source": "docs/dicionario_dados/dim_uc.md",
+    "text": "UC significa unidade consumidora: instalação/ponto de atendimento cadastrado da distribuidora, associado a consumo, faturamento, medidor e rede. Uma UC não equivale necessariamente a uma pessoa. Município, bairro, classe, subestação e alimentador são dimensões do cadastro. Alimentador é o circuito da rede que abastece um conjunto de UCs. A presença de uma localidade na base deve ser consultada no cadastro atual, nunca inferida de exemplos da documentação.",
+    "source_fingerprints": {
+      "docs/dicionario_dados/dim_uc.md": "55c186db0dbd490191bc45601f1fa2594afcb3bb11f21ab44259fbe9178d7822"
+    },
+    "tables": [
+      "dim_uc"
+    ]
+  },
+  {
+    "id": "dominio.energia",
+    "title": "Consumo, energia faturada e consumo médio",
+    "source": "docs/dicionario_dados/fato_consumo_faturamento.md; docs/dicionario_dados/dim_uc.md",
+    "text": "kWh significa quilowatt-hora e mede energia; kW mede potência. 1 kWh corresponde à energia de uma potência constante de 1 kW durante 1 hora. Consumo físico em kWh difere de valor financeiro em reais. A energia faturada pode diferir do consumo medido conforme as regras de faturamento e os ajustes. Consumo médio exige definir denominador e janela: média mensal de uma UC é soma do consumo nos meses com leitura dividida pela quantidade desses meses; média por UC em um período divide o consumo total pelo número de UCs consideradas, não pelo número de faturas. A coluna consumo_medio_12m_kwh do cadastro é a média mensal na janela fixa de 12 meses do diagnóstico, não uma média dinâmica para qualquer data. Sem especificar o tipo de média, explique as alternativas ou esclareça antes de calcular.",
+    "source_fingerprints": {
+      "docs/dicionario_dados/fato_consumo_faturamento.md": "4dea8bd82bc009cffef30c2b87879e2ae004b13229395ddbb4ddfeda2ef4268c",
+      "docs/dicionario_dados/dim_uc.md": "55c186db0dbd490191bc45601f1fa2594afcb3bb11f21ab44259fbe9178d7822"
+    },
+    "tables": [
+      "dim_uc",
+      "fato_segmento_mensal",
+      "fato_consumo_faturamento"
+    ]
+  },
+  {
+    "id": "dominio.continuidade",
+    "title": "DEC, FEC e interrupções",
+    "source": "docs/dicionario_dados/dec_fec_alimentador_mensal.md",
+    "text": "DEC é a duração equivalente de interrupção por unidade consumidora: expressa o tempo médio sem fornecimento por UC, em horas, no período. FEC é a frequência equivalente de interrupção por unidade consumidora: expressa a quantidade média de interrupções por UC no período. DEC mede duração; FEC mede frequência. Na Gold mensal por alimentador, DEC é horas_interrompidas divididas por qtd_ucs_alimentador_mes; FEC é qtd_interrupcoes dividida pelo mesmo denominador. Horas interrompidas representam UC vezes horas, e cada ocorrência representa uma UC interrompida. Para município/empresa, agregue numeradores e denominadores por mês; para um ano, some os indicadores mensais ponderados. Não faça média simples dos alimentadores nem some os denominadores dos meses para calcular DEC anual. Indicadores móveis acumulam os meses da janela. Ao priorizar manutenção, considere também UCs e impacto, não somente DEC de alimentadores pequenos. Valores atuais e cobertura temporal exigem consulta.",
+    "source_fingerprints": {
+      "docs/dicionario_dados/dec_fec_alimentador_mensal.md": "da797f25af3c15acc1224ae626da7ce8de441589977b10069c5a074b4c547602"
+    },
+    "tables": [
+      "dim_uc",
+      "dec_fec_alimentador_mensal",
+      "fato_interrupcao"
+    ]
+  },
+  {
+    "id": "dominio.receita",
+    "title": "Faturamento, receita e decomposição",
+    "source": "docs/dicionario_dados/receita_decomposicao.md; backend/app/services/receita.py",
+    "text": "O faturamento é o valor das faturas de energia. Receita faturada não comprova recebimento em caixa, lucro ou despesa operacional. O preço médio efetivo é receita dividida por energia faturada. A análise de receita decompõe a variação em efeito volume e efeito preço, considerando tarifa efetiva e bandeira. Consumo, energia faturada e valor faturado são métricas distintas. Totais, variações e rankings devem vir de consultas, inclusive quando a documentação contém resultados de um diagnóstico anterior.",
+    "source_fingerprints": {
+      "docs/dicionario_dados/receita_decomposicao.md": "32d897748176af338f6db100d97e4ed406466926cb3bf20c128cdea2c2b425c1",
+      "backend/app/services/receita.py": "45436efea7334c23de98a8795dcc55d10b1ae89d330fdd37176a147c80ec0e54"
+    },
+    "tables": [
+      "fato_segmento_mensal",
+      "receita_decomposicao",
+      "fato_consumo_faturamento"
+    ]
+  },
+  {
+    "id": "dominio.atendimento",
+    "title": "Atendimento, perdas e inspeções",
+    "source": "docs/dicionario_dados/fato_atendimento.md; docs/dicionario_dados/fila_inspecao.md",
+    "text": "Atendimento reúne chamados, tipo de solicitação, datas, tempo de resolução e satisfação quando preenchida. Notas ausentes não são zero. A fila de inspeção prioriza suspeitas considerando probabilidade de irregularidade e energia recuperável. Suspeita não é confirmação de fraude. O agente pode consultar a fila; criar ou atualizar ordens pertence ao fluxo operacional do portal, não ao assistente de consulta.",
+    "source_fingerprints": {
+      "docs/dicionario_dados/fato_atendimento.md": "5c1147152c1fec0fe19db7f9cbc7091c86653987bba8e752b63a69c8feb80dd9",
+      "docs/dicionario_dados/fila_inspecao.md": "a3c33b146190249ff62fa7df6f495c1c3b27c6d792f1d6c7818aba5edd833eb9"
+    },
+    "tables": [
+      "fato_atendimento",
+      "fila_inspecao"
+    ]
+  },
+  {
+    "id": "plataforma.recursos",
+    "title": "Recursos implementados do portal",
+    "source": "frontend/src/components/layout/navigation.ts; backend/app/services/ia.py",
+    "text": "O V-Energy Grid 360 possui Dashboard Executivo, Análise de Receita, Visão 360 da UC, Qualidade do Serviço, Fila e Ordens de Inspeção e Assistente IA. O dashboard apresenta indicadores e evolução; receita permite investigar efeito preço e volume; a visão da UC reúne cadastro e histórico; qualidade permite analisar interrupções, DEC/FEC e alimentadores; a fila ajuda a priorizar inspeções e o portal gerencia suas ordens. O assistente consulta dados em modo somente leitura e explica conceitos e recursos documentados. Não cria ordens, não altera a Gold e não executa ações externas. Recursos não descritos aqui não estão confirmados. A cobertura efetiva e os valores dependem do snapshot carregado, não de dados em tempo real.",
+    "source_fingerprints": {
+      "frontend/src/components/layout/navigation.ts": "4ee1f69148f3bb4867078e8ace090f9d53608c89f99195cd050ad0b82b0233c8",
+      "backend/app/services/ia.py": "1b5bd21b96c950e9cc005b4fbff86e1e42684cf858d120ea13ceb8197b168c8e"
+    },
+    "tables": []
+  }
+]

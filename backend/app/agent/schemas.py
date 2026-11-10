@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -80,19 +80,80 @@ class ProviderAttempt(BaseModel):
 
 class SQLGenerationStatus(str, Enum):
     READY = "ready"
+    KNOWLEDGE = "knowledge"
     OUT_OF_SCOPE = "out_of_scope"
     NEEDS_CLARIFICATION = "needs_clarification"
     INSUFFICIENT_CONTEXT = "insufficient_context"
     REJECTED = "rejected"
 
 
+class GeographicReference(BaseModel):
+    kind: Literal["municipio", "bairro"]
+    name: str = Field(min_length=1, max_length=100)
+
+
+class RequestedPeriod(BaseModel):
+    granularity: Literal["year", "month", "range", "all", "latest"]
+    start: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    end: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    reference: Literal["explicit", "calendar", "conversation", "coverage"]
+
+    @model_validator(mode="after")
+    def validate_bounds(self):
+        if self.granularity in {"year", "month", "range"}:
+            if not self.start or not self.end or self.start > self.end:
+                raise ValueError("Período solicitado exige limites ordenados.")
+            if self.granularity == "year":
+                if self.start[:4] != self.end[:4]:
+                    raise ValueError("Um ano solicitado precisa ter o mesmo ano nos limites.")
+                # Ano significa calendário completo, independentemente de cobertura.
+                self.start, self.end = self.start[:4] + "-01", self.end[:4] + "-12"
+            if self.granularity == "month" and self.start != self.end:
+                raise ValueError("Um mês exige limites iguais.")
+        return self
+
+
+class SemanticIntent(BaseModel):
+    """Interpretação proposta pelo modelo; não concede autorização de execução."""
+    requested_outputs: list[str] = Field(default_factory=list, max_length=6,
+        description="Cada entrega solicitada, antes de escolher a rota: explicações, valores, comparações.")
+    ambiguities: list[str] = Field(default_factory=list, max_length=4,
+        description="Significados indispensáveis ainda indefinidos; gasto financeiro versus consumo físico, referentes ausentes etc.")
+    kind: Literal["conceptual", "platform", "analytical", "hybrid", "clarification", "unsupported"]
+    resolved_question: str = Field(min_length=1, max_length=1000)
+    metrics: list[str] = Field(default_factory=list, max_length=8)
+    locations: list[GeographicReference] = Field(default_factory=list, max_length=8)
+    period: RequestedPeriod | None = None
+    filters: list[str] = Field(default_factory=list, max_length=10)
+    group_by: list[str] = Field(default_factory=list, max_length=6)
+    comparison: str | None = Field(default=None, max_length=200)
+    uses_context: bool = False
+    source_ids: list[str] = Field(default_factory=list, max_length=6)
+
+
 class SQLGenerationResult(BaseModel):
     status: SQLGenerationStatus
     sql: str | None = None
     reason: str | None = None
+    interpretation: SemanticIntent | None = None
+    knowledge_answer: str | None = Field(default=None, max_length=2500)
 
     @model_validator(mode="after")
     def validate_result(self):
+        if self.status == SQLGenerationStatus.KNOWLEDGE:
+            if self.sql is not None or self.reason is not None:
+                raise ValueError("Conhecimento não executa SQL nem usa reason.")
+            if (not self.knowledge_answer or not self.knowledge_answer.strip()
+                    or self.interpretation is None
+                    or self.interpretation.kind not in {"conceptual", "platform"}
+                    or not self.interpretation.source_ids):
+                raise ValueError("Conhecimento exige intenção, fontes e resposta fundamentada.")
+            return self
+        if self.knowledge_answer is not None and not (
+            self.status == SQLGenerationStatus.READY and self.interpretation is not None
+            and self.interpretation.kind == "hybrid"
+        ):
+            raise ValueError("knowledge_answer é exclusivo de KNOWLEDGE.")
         if self.status == SQLGenerationStatus.READY:
             if not self.sql or not self.sql.strip():
                 raise ValueError(
@@ -114,6 +175,33 @@ class SQLGenerationResult(BaseModel):
                 "reason é obrigatório quando o status não é READY."
             )
 
+        return self
+
+
+class InterpretedRequest(BaseModel):
+    """Contrato exigido no provedor; o tipo base preserva adapters existentes."""
+    # A ordem do schema importa: compreender todas as entregas antes de decidir
+    # status/SQL evita que a rota inicial limite a interpretação posterior.
+    interpretation: SemanticIntent
+    status: SQLGenerationStatus
+    sql: str | None = None
+    reason: str | None = None
+    knowledge_answer: str | None = Field(default=None, max_length=2500)
+
+    @model_validator(mode="after")
+    def validate_route(self):
+        SQLGenerationResult.model_validate(self.model_dump())
+        if self.interpretation.ambiguities and self.status in {SQLGenerationStatus.READY, SQLGenerationStatus.KNOWLEDGE}:
+            # Ambiguidade de negócio não é indisponibilidade do provedor.
+            self.status = SQLGenerationStatus.NEEDS_CLARIFICATION
+            self.sql = self.knowledge_answer = None
+            self.reason = "Preciso esclarecer: " + "; ".join(self.interpretation.ambiguities)[:230] + " Qual interpretação você deseja?"
+            self.interpretation.kind = "clarification"
+        if self.status == SQLGenerationStatus.READY:
+            if self.interpretation.kind not in {"analytical", "hybrid"}:
+                raise ValueError("READY exige intenção analítica ou híbrida.")
+            if self.interpretation.kind == "hybrid" and not self.interpretation.source_ids:
+                raise ValueError("Pergunta híbrida exige fontes conceituais.")
         return self
 
 # =========================================================
@@ -244,6 +332,11 @@ class SQLExecutionFlowResult(BaseModel):
     """Resultado do fluxo completo 4.1 a 4.3."""
 
     cached_response: "PostProcessingResult | None" = None
+    interpretation: SemanticIntent | None = None
+    knowledge_answer: str | None = None
+    entity_resolution: str | None = None
+    entity_duration_ms: float | None = None
+    plan_detail: str | None = None
     generation_status: SQLGenerationStatus | None = None
     generation_reason: str | None = None
     sql: str | None = None
@@ -418,6 +511,9 @@ class PostProcessingResult(BaseModel):
     answer: str
     assumptions: list[str] = Field(default_factory=list)
     visualization: VisualizationSpec | None = None
+    # Proveniência da resposta aprovada, preservada também no hit antes do LLM.
+    source_sql: str | None = None
+    interpretation: SemanticIntent | None = None
 
     @model_validator(mode="after")
     def validate_result(self):
@@ -499,6 +595,11 @@ class MemoryEntry(BaseModel):
     question: str
     answer: str
     outcome: AgentOutcome
+    interpretation: SemanticIntent | None = None
+    # Snapshot explícito do antecedente usado nesta resposta. Não é inferido
+    # removendo turnos de um histórico que pode ter sido truncado ou alterado.
+    context_recorded: bool = False
+    context_before: str | None = Field(default=None, max_length=4000)
 
 
 

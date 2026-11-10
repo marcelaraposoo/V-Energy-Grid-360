@@ -9,7 +9,7 @@ from app.agent.providers.gemini import run_gemini
 from app.agent.providers.openrouter import run_openrouter
 from app.agent.providers.latency_policy import attempt_timeout, phase_deadline, request_policy
 from app.agent.schemas import (
-    ProviderAttempt, ProviderErrorType, ProviderName, SQLGenerationResult, SynthesisResult,
+    ProviderAttempt, ProviderErrorType, ProviderName, SQLGenerationResult, SynthesisResult, InterpretedRequest,
 )
 from app.core.config import settings
 
@@ -49,7 +49,7 @@ def supports_preference(provider, model, output_type):
     # Os adapters atuais suportam texto e os dois schemas via Native/PromptedOutput.
     # Um novo contrato exige avaliação explícita antes de reutilizar a preferência.
     return provider in {ProviderName.GEMINI, ProviderName.OPENROUTER} and output_type in (
-        str, SQLGenerationResult, SynthesisResult,
+        str, SQLGenerationResult, SynthesisResult, InterpretedRequest,
     )
 
 

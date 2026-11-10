@@ -56,28 +56,33 @@ def _pt(valor: float) -> str:
     return f"{valor:,.0f}".replace(",", ".")
 
 
-def insights_fila(repo) -> list[Insight]:
+def insights_fila(repo, municipio: str | None = None, classe: str | None = None, min_prob: float = 0.0,
+                  q: str | None = None) -> list[Insight]:
     """Insights da tela de perdas, calculados direto da fila (fiéis por construção: só somas e contagens).
 
-    Usa a fila como ela está agora (UCs com ordem ativa já ficam de fora) e a capacidade de 200 inspeções/mês
-    informada no case. Lista vazia quando não há suspeitas.
+    Usa a fila como ela está agora (UCs com ordem ativa já ficam de fora), com os mesmos filtros da tabela, e a
+    capacidade de 200 inspeções/mês informada no case. Lista vazia quando não há suspeitas.
     """
-    itens, total = fila(repo, tamanho=max(1, len(repo.suspeitas())))
+    itens, total = fila(repo, municipio, classe, min_prob, q, tamanho=max(1, len(repo.suspeitas())))
     if total == 0:
         return []
+    filtrada = bool(municipio or classe or min_prob or q)
     energia_total = sum(i.energia_recuperavel_kwh_mes for i in itens)
     foco = itens[:CAPACIDADE_MENSAL]
     energia_foco = sum(i.energia_recuperavel_kwh_mes for i in foco)
     cobertura = energia_foco / energia_total * 100 if energia_total else 0.0
     resultado = [Insight(
         tipo="destaque",
-        texto=(f"A fila tem {_pt(total)} unidades suspeitas, com {_pt(energia_total)} kWh/mês a recuperar. "
+        texto=(f"{'Com os filtros aplicados, a fila' if filtrada else 'A fila'} tem {_pt(total)} unidades suspeitas, "
+               f"com {_pt(energia_total)} kWh/mês a recuperar. "
                f"Inspecionar as {_pt(len(foco))} primeiras (capacidade de cerca de {CAPACIDADE_MENSAL} inspeções por mês) "
                f"cobre {cobertura:.0f}% desse potencial ({_pt(energia_foco)} kWh/mês)."),
         dados={"unidades_na_fila": total, "energia_total_kwh_mes": round(energia_total, 1),
                "capacidade_mensal": CAPACIDADE_MENSAL, "unidades_foco": len(foco),
                "energia_foco_kwh_mes": round(energia_foco, 1), "cobertura_pct": round(cobertura, 1)},
     )]
+    if municipio:  # com um município só, "X concentra todas" não diz nada
+        return resultado
     por_municipio: dict[str, int] = {}
     for i in foco:
         por_municipio[i.municipio] = por_municipio.get(i.municipio, 0) + 1

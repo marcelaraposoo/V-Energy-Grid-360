@@ -16,6 +16,7 @@ import type {
   FilaParams,
   Health,
   Insight,
+  InsightsParams,
   KpisResponse,
   NovaOrdem,
   Ordem,
@@ -107,8 +108,9 @@ export function createApi(http: Http) {
         http.post<RespostaIa>('/api/ia/perguntar', { body: pergunta, signal }),
       limparSessao: (sessaoId: string, signal?: AbortSignal) =>
         http.delete<void>(`/api/ia/sessoes/${id(sessaoId)}`, { signal }),
-      insights: (tela: TelaInsight, signal?: AbortSignal) =>
-        http.get<Insight[]>('/api/ia/insights', { params: { tela }, signal }),
+      /** Em `perdas`, os filtros da fila fazem o insight descrever a fila que está na tela. */
+      insights: (tela: TelaInsight, params: InsightsParams = {}, signal?: AbortSignal) =>
+        http.get<Insight[]>('/api/ia/insights', { params: { tela, ...params }, signal }),
       /** Insights da Visão 360; sem competências, o backend compara o último mês com o anterior. */
       insightsUc: (ucId: string, params: { competencia_atual?: string; competencia_referencia?: string } = {}, signal?: AbortSignal) =>
         http.get<Insight[]>(`/api/ia/insights/uc/${id(ucId)}`, { params, signal }),

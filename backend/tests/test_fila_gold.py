@@ -113,6 +113,17 @@ def test_insights_da_fila_vazia():
     assert perdas.insights_fila(RepoFalso([])) == []
 
 
+def test_insights_da_fila_respeitam_os_filtros_da_tabela():
+    repo = RepoFalso([_s("A", 0.5, 1000), _s("B", 0.5, 3000), _s("C", 0.9, 6000)])
+    (destaque,) = perdas.insights_fila(repo, municipio="RECIFE")  # sem "RECIFE concentra 2 das 2"
+    assert destaque.texto.startswith("Com os filtros aplicados, a fila tem 2 unidades suspeitas")
+    assert "9.000 kWh/mês" in destaque.texto and destaque.dados["unidades_na_fila"] == 2
+    destaque, concentracao = perdas.insights_fila(repo, min_prob=0.8)
+    assert "1 unidades suspeitas" in destaque.texto and "RECIFE concentra 1 das 1" in concentracao.texto
+    assert perdas.insights_fila(repo, q="A")[0].dados["unidades_na_fila"] == 1
+    assert perdas.insights_fila(repo, municipio="PAULISTA") == []
+
+
 def test_api_insights_de_perdas_traz_o_resumo_da_fila():
     from fastapi.testclient import TestClient
 
@@ -120,3 +131,17 @@ def test_api_insights_de_perdas_traz_o_resumo_da_fila():
 
     insights = TestClient(app).get("/api/ia/insights?tela=perdas").json()
     assert insights and insights[0]["tipo"] == "destaque"
+
+
+def test_api_insights_de_perdas_usam_os_filtros_da_fila():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    fila = client.get("/api/perdas/fila", params={"municipio": "Recife", "prob_minima": 0.5})
+    insights = client.get("/api/ia/insights", params={"tela": "perdas", "municipio": "Recife", "prob_minima": 0.5}).json()
+    total = int(fila.headers["X-Total-Count"])
+    assert total > 0 and len(insights) == 1  # com município, sem o insight de concentração
+    assert insights[0]["dados"]["unidades_na_fila"] == total
+    assert client.get("/api/ia/insights", params={"tela": "perdas", "prob_minima": 2}).status_code == 422

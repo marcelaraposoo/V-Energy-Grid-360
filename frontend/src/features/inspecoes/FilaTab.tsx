@@ -33,12 +33,10 @@ export function FilaTab({ onOrdemCriada }: Props) {
   const [aviso, setAviso] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null)
 
   const catalogo = useApi((signal) => api.filtros(signal), [])
+  // Os mesmos filtros vão para a tabela e para os insights, que descrevem a fila que está na tela.
+  const filtros = { q: termo, municipio, classe, prob_minima: prob ? Number(prob) : undefined }
   const fila = useApi(
-    (signal) =>
-      api.perdas.fila(
-        { q: termo, municipio, classe, prob_minima: prob ? Number(prob) : undefined, pagina, tamanho: TAMANHO },
-        signal,
-      ),
+    (signal) => api.perdas.fila({ ...filtros, pagina, tamanho: TAMANHO }, signal),
     [termo, municipio, classe, prob, pagina],
   )
 
@@ -212,7 +210,8 @@ export function FilaTab({ onOrdemCriada }: Props) {
       <InsightsPanel
         tela="perdas"
         titulo="Insights da IA"
-        descricao="Leitura automática da fila de inspeção"
+        descricao="Leitura automática da fila de inspeção, com os filtros aplicados"
+        params={filtros}
         deps={[total]}
       />
     </div>

@@ -1,6 +1,6 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from app.agent.insights.rewriter import rewrite_insights
 from app.agent.insights.uc_rules import insights_uc
@@ -28,9 +28,15 @@ def limpar_sessao(sessao_id: str):
 
 
 @router.get("/insights", response_model=list[Insight])
-def insights(tela: Tela, repo=Depends(repo_dep)):
-    """Implementado para receita, continuidade e perdas. As demais telas devolvem lista vazia por enquanto."""
-    return ia.insights(repo, tela)
+def insights(tela: Tela, municipio: str | None = None, classe: str | None = None,
+             prob_minima: float = Query(0, ge=0, le=1),
+             q: str | None = Query(None, max_length=100, description="busca por UC ou titular"),
+             repo=Depends(repo_dep)):
+    """Implementado para receita, continuidade e perdas. As demais telas devolvem lista vazia por enquanto.
+
+    Em `perdas`, aceita os mesmos filtros de `/api/perdas/fila`, para o insight descrever a fila que está na tela."""
+    filtros = {"municipio": municipio, "classe": classe, "min_prob": prob_minima, "q": q} if tela == "perdas" else None
+    return ia.insights(repo, tela, filtros)
 
 
 @router.get("/insights/uc/{uc_id}", response_model=list[Insight])

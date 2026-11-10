@@ -491,6 +491,9 @@ export type FilaParams = {
   tamanho?: number
 }
 
+/** Filtros da fila que os insights da tela de perdas respeitam (sem paginação). */
+export type InsightsParams = Omit<FilaParams, 'pagina' | 'tamanho'>
+
 // A lista vem no corpo e o total (já com os filtros) no cabeçalho X-Total-Count.
 export type Pagina<T> = { itens: T[]; total: number }
 

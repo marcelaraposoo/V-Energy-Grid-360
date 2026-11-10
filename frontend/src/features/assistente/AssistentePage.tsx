@@ -45,7 +45,7 @@ export function AssistentePage() {
   const enviando = useRef(false)
   const [sessao] = useState(criarSessaoConversa)
   const proximoId = useRef(1)
-  const fim = useRef<HTMLDivElement>(null)
+  const log = useRef<HTMLDivElement>(null)
   const montado = useRef(true)
 
   useEffect(() => {
@@ -55,8 +55,10 @@ export function AssistentePage() {
     }
   }, [])
 
+  // Rola só a caixa da conversa: scrollIntoView também rolava a página e tirava o campo de pergunta da tela.
   useEffect(() => {
-    fim.current?.scrollIntoView?.({ block: 'end' })
+    const caixa = log.current
+    if (caixa) caixa.scrollTop = caixa.scrollHeight
   }, [mensagens, carregando])
 
   const tamanho = texto.trim().length
@@ -133,7 +135,7 @@ export function AssistentePage() {
         }
         className="chat"
       >
-        <div className="chat-log" role="log" aria-live="polite" aria-label="Conversa com o assistente">
+        <div ref={log} className="chat-log" role="log" aria-live="polite" aria-label="Conversa com o assistente">
           {mensagens.length === 0 && (
             <p className="muted">
               <Sparkles size={14} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 6 }} />
@@ -167,7 +169,6 @@ export function AssistentePage() {
               </div>
             </article>
           )}
-          <div ref={fim} />
         </div>
 
         {mensagens.length === 0 && (
